@@ -60,7 +60,7 @@ export default function InvestorsPage() {
     { header: "Due", cell: ({ row }) => (row.original.current_due ?? 0) > 0 ? <span className="inline-flex flex-wrap items-center gap-1.5"><Badge tone="red">{row.original.installments_due} due</Badge><b className="text-amber-700">{money(row.original.current_due ?? 0)}</b></span> : <span className="text-slate-400">-</span> },
     { header: "Status", cell: ({ row }) => <Badge tone={row.original.is_active ? "green" : "gray"}>{row.original.is_active ? "Active" : "Inactive"}</Badge> },
     {
-      header: "",
+      header: "Action",
       id: "actions",
       cell: ({ row }) => (
         <div className="flex w-full items-center justify-end gap-1 whitespace-nowrap md:w-auto md:gap-1.5">

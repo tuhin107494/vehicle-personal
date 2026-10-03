@@ -49,7 +49,9 @@ export async function api<T = unknown>(
       tokenStore.clear();
       window.location.href = "/login";
     }
-    throw new ApiError(json?.message ?? "Something went wrong", res.status, json?.errors);
+    // 403: the server refused this user; say so plainly
+    const message = res.status === 403 ? "You don't have permission to do this." : (json?.message ?? "Something went wrong");
+    throw new ApiError(message, res.status, json?.errors);
   }
 
   return json;

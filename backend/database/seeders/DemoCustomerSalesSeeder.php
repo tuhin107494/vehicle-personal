@@ -3,7 +3,8 @@
 namespace Database\Seeders;
 
 use App\Models\Investor;
-use App\Models\Party;
+use App\Models\Customer;
+use App\Models\Supplier;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\PurchaseService;
@@ -23,7 +24,7 @@ class DemoCustomerSalesSeeder extends Seeder
         $owner = User::where('role', 'shop_owner')->firstOrFail();
         Auth::setUser($owner); // so rows are stamped with the shop
 
-        $supplier = Party::firstOrCreate(['phone' => '01711000001'], ['name' => 'Karim Motors', 'type' => 'supplier']);
+        $supplier = Supplier::firstOrCreate(['phone' => '01711000001'], ['name' => 'Karim Motors']);
         $investor = Investor::firstOrCreate(['name' => 'Nasir Capital'], ['phone' => '01511000005', 'opening_balance' => 0]);
         $day = fn (int $offset) => today()->addDays($offset)->toDateString();
 
@@ -57,18 +58,18 @@ class DemoCustomerSalesSeeder extends Seeder
                 continue;
             }
 
-            $customer = Party::firstOrCreate(['phone' => $c[2]], ['name' => $c[0], 'nid' => $c[1], 'alt_phone' => $c[3], 'address' => $c[4], 'type' => 'customer']);
+            $customer = Customer::firstOrCreate(['phone' => $c[2]], ['name' => $c[0], 'nid' => $c[1], 'alt_phone' => $c[3], 'address' => $c[4]]);
 
             $vehicle = $purchases->create([
                 'vehicle_type' => $v[0], 'chassis_no' => $v[1], 'engine_no' => $v[2], 'brand' => $v[3], 'model' => $v[4], 'year' => $v[5], 'color' => $v[6],
                 'cc' => $v[7], 'fuel_type' => $v[8], 'registration_no' => $v[9], 'registration_date' => today()->subYears(2)->toDateString(),
                 'tax_token_expiry' => today()->addMonths(8)->toDateString(), 'fitness_expiry' => today()->addMonths(5)->toDateString(),
                 'insurance_expiry' => today()->addMonths(9)->toDateString(), 'papers_received' => true, 'mileage' => 12000,
-                'source' => 'supplier', 'party_id' => $supplier->id, 'purchase_date' => today()->subDays(75)->toDateString(),
+                'source' => 'supplier', 'supplier_id' => $supplier->id, 'purchase_date' => today()->subDays(75)->toDateString(),
                 'price' => $v[10], 'paid_amount' => $v[10], 'payment_method' => 'bank',
             ], $owner)->vehicle;
 
-            $sales->create(['vehicle_id' => $vehicle->id, 'party_id' => $customer->id] + $sale, $owner);
+            $sales->create(['vehicle_id' => $vehicle->id, 'customer_id' => $customer->id] + $sale, $owner);
         }
     }
 }

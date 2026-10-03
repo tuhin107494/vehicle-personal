@@ -101,7 +101,8 @@ export default function VehicleDetailPage() {
             // one colour per kind of step: purchase blue, return amber, sale green (never red)
             const box = st.kind === "sale" ? "border-green-500 bg-green-50/40" : isReturn ? "border-amber-400 bg-amber-50/40" : "border-sky-500 bg-sky-50/40";
             const line = st.kind === "sale" ? "border-green-200" : isReturn ? "border-amber-200" : "border-sky-200";
-            const party = st.kind === "sale" ? st.s.party : st.p.party;
+            const person = st.kind === "sale" ? st.s.customer : st.p.seller;
+            const personHref = st.kind === "sale" || st.p.source === "customer" ? `/customers/${person?.id}` : `/suppliers/${person?.id}`;
             const amount = st.kind === "sale" ? st.s.sale_price : st.p.price;
             return (
               <li key={key} className="relative flex gap-3 pb-4">
@@ -117,7 +118,7 @@ export default function VehicleDetailPage() {
                         {st.kind === "sale" && <StatusBadge status={st.s.status} />}
                       </div>
                       <div className="mt-1 truncate">
-                        {st.kind === "sale" ? "Sold to " : isReturn ? "Returned by " : "Bought from "}<b>{party?.name ?? "-"}</b>
+                        {st.kind === "sale" ? "Sold to " : isReturn ? "Returned by " : "Bought from "}<b>{person?.name ?? "-"}</b>
                       </div>
                     </div>
                     <b className="shrink-0 text-base">{money(amount)}</b>
@@ -134,9 +135,9 @@ export default function VehicleDetailPage() {
                   </button>
                   {isOpen && (
                     <div className={`space-y-3 border-t-2 p-3 ${line}`}>
-                      {party && (
+                      {person && (
                         <div className="text-xs text-gray-600">
-                          <Link className="font-semibold underline" href={`/parties/${party.id}`}>{party.name}</Link> · {[party.phone, party.alt_phone].filter(Boolean).join(" / ")}{party.nid ? ` · NID ${party.nid}` : ""}
+                          <Link className="font-semibold underline" href={personHref}>{person.name}</Link> · {[person.phone, person.alt_phone].filter(Boolean).join(" / ")}{person.nid ? ` · NID ${person.nid}` : ""}
                         </div>
                       )}
                       {st.kind === "purchase" ? (

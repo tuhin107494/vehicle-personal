@@ -12,7 +12,10 @@ class PurchaseResource extends JsonResource
         return [
             ...parent::toArray($request),
             'vehicle' => VehicleResource::make($this->whenLoaded('vehicle')),
-            'party' => PartyResource::make($this->whenLoaded('party')),
+            'supplier' => SupplierResource::make($this->whenLoaded('supplier')),
+            'customer' => CustomerResource::make($this->whenLoaded('customer')),
+            // whoever sold it to us: the supplier, or the customer for a buy-back
+            'seller' => $this->when($this->relationLoaded('supplier') || $this->relationLoaded('customer'), fn () => ($this->source === 'customer' ? $this->customer : $this->supplier)?->only(['id', 'name', 'phone', 'alt_phone'])),
         ];
     }
 }

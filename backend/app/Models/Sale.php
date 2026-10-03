@@ -16,7 +16,7 @@ class Sale extends Model
         'shop_id',
         'vehicle_id',
         'purchase_id',
-        'party_id',
+        'customer_id',
         'sale_date',
         'sale_price',
         'down_payment',
@@ -64,9 +64,9 @@ class Sale extends Model
         return $this->belongsTo(Purchase::class);
     }
 
-    public function party(): BelongsTo
+    public function customer(): BelongsTo
     {
-        return $this->belongsTo(Party::class);
+        return $this->belongsTo(Customer::class);
     }
 
     public function investor(): BelongsTo

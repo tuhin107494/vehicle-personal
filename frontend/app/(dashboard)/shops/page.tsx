@@ -88,7 +88,7 @@ export default function ShopsPage() {
     { header: "Phone", cell: ({ row }) => row.original.phone ?? "-" },
     { header: "Users", cell: ({ row }) => row.original.users_count ?? 0 },
     { header: "Status", cell: ({ row }) => <Badge tone={row.original.is_active ? "green" : "gray"}>{row.original.is_active ? "Active" : "Disabled"}</Badge> },
-    { header: "", id: "actions", cell: ({ row }) => <Button variant="outline" onClick={() => { setEditing(row.original); setOpen(true); }}><Pencil className="size-4 text-sky-600" /> Edit</Button> },
+    { header: "Action", id: "actions", cell: ({ row }) => <Button variant="outline" onClick={() => { setEditing(row.original); setOpen(true); }}><Pencil className="size-4 text-sky-600" /> Edit</Button> },
   ];
 
   return (

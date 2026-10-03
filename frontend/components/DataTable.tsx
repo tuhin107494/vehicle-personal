@@ -6,6 +6,8 @@ import { Pagination } from "@/components/app-ui";
 import { useT } from "@/lib/i18n";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
+const ACTION_IDS = ["actions", "view", "pay"]; // columns shown as buttons on a phone card, not as a labelled field
+
 export type Col<T> = ColumnDef<T, any>;
 
 export function DataTable<T>({
@@ -44,8 +46,8 @@ export function DataTable<T>({
         {rows.map((row) => {
           const [first, ...rest] = row.getVisibleCells();
           const headerOf = (c: typeof first) => (typeof c.column.columnDef.header === "string" ? t(c.column.columnDef.header) : "");
-          const fields = rest.filter((c) => headerOf(c));
-          const actions = rest.filter((c) => !headerOf(c));
+          const fields = rest.filter((c) => headerOf(c) && !ACTION_IDS.includes(c.column.id));
+          const actions = rest.filter((c) => !headerOf(c) || ACTION_IDS.includes(c.column.id));
           return (
             <div
               key={row.id}
@@ -78,7 +80,7 @@ export function DataTable<T>({
           {table.getHeaderGroups().map((hg) => (
             <TableRow key={hg.id} className="border-emerald-300 hover:bg-transparent">
               {hg.headers.map((h) => (
-                <TableHead key={h.id} className={`${(h.column.columnDef.meta as { className?: string } | undefined)?.className ?? ""} h-10 whitespace-nowrap border-r border-emerald-200 text-xs font-semibold uppercase tracking-wide text-emerald-700 last:border-r-0`}>
+                <TableHead key={h.id} className={`${h.column.columnDef.header === "Action" ? "text-center " : ""}${(h.column.columnDef.meta as { className?: string } | undefined)?.className ?? ""} h-10 whitespace-nowrap border-r border-emerald-200 text-xs font-semibold uppercase tracking-wide text-emerald-700 last:border-r-0`}>
                   {typeof h.column.columnDef.header === "string" ? t(h.column.columnDef.header) : flexRender(h.column.columnDef.header, h.getContext())}
                 </TableHead>
               ))}

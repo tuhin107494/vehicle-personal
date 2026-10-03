@@ -75,11 +75,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <button type="button" onClick={() => setLang("bn")} className={`px-2 py-1.5 ${lang === "bn" ? "bg-white text-emerald-700" : "text-white/85 hover:bg-white/15"}`}>বাং</button>
             </div></div>
           <div className="flex items-center gap-2.5 rounded-xl bg-white/10 p-2.5">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white text-sm font-bold text-emerald-700">{user?.name?.[0]?.toUpperCase()}</span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold leading-tight">{user?.name}</p>
-              <p className="truncate text-xs text-white/75">{user?.role_label}</p>
-            </div>
+            <Link href="/profile" title="Profile settings" className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg hover:bg-white/10">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white text-sm font-bold text-emerald-700">{user?.name?.[0]?.toUpperCase()}</span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold leading-tight">{user?.name}</p>
+                <p className="truncate text-xs text-white/75">{user?.role_label}</p>
+              </div>
+            </Link>
             <button type="button" aria-label="Logout" title="Logout" onClick={logout} className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white/15 hover:bg-white/25"><LogOut className="size-4" /></button>
           </div>
         </div>

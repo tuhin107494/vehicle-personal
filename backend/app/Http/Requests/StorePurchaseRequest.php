@@ -2,8 +2,6 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Party;
-use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Validation\Rule;
 
 class StorePurchaseRequest extends ApiRequest
@@ -32,8 +30,10 @@ class StorePurchaseRequest extends ApiRequest
             'mileage' => ['nullable', 'integer', 'min:0'],
             'condition_notes' => ['nullable', 'string', 'max:2000'],
             'source' => ['nullable', Rule::in(['supplier', 'customer'])],
-            'party_id' => ['required', $this->shopExists('parties')],
-            'memo_no' => ['nullable', 'string', 'max:100', $this->shopUnique('purchases', 'memo_no')->where('party_id', $this->input('party_id'))],
+            // a supplier for "from supplier", a customer for a second-hand vehicle bought back
+            'supplier_id' => [Rule::requiredIf($this->input('source', 'supplier') !== 'customer'), 'nullable', $this->shopExists('suppliers')],
+            'customer_id' => [Rule::requiredIf($this->input('source') === 'customer'), 'nullable', $this->shopExists('customers')],
+            'memo_no' => ['nullable', 'string', 'max:100', $this->shopUnique('purchases', 'memo_no')->where('supplier_id', $this->input('supplier_id'))],
             'purchase_date' => ['required', 'date', 'before_or_equal:today'],
             'price' => ['required', 'numeric', 'min:1'],
             'paid_amount' => ['nullable', 'numeric', 'min:0', 'lte:price'],
@@ -46,25 +46,6 @@ class StorePurchaseRequest extends ApiRequest
         ];
     }
 
-    /** The seller must suit the tab: suppliers for "from supplier", customers for "second hand from a customer". */
-    public function withValidator(Validator $validator): void
-    {
-        $validator->after(function ($v) {
-            if ($v->errors()->has('party_id') || ! $this->filled('party_id')) {
-                return;
-            }
-
-            $source = $this->input('source', 'supplier');
-            $type = Party::find($this->input('party_id'))?->type;
-
-            if (! in_array($type, [$source, 'both'], true)) {
-                $v->errors()->add('party_id', $source === 'customer'
-                    ? 'Select a customer for a second-hand purchase.'
-                    : 'Select a supplier for this purchase.');
-            }
-        });
-    }
-
     public function messages(): array
     {
         return [
@@ -73,7 +54,8 @@ class StorePurchaseRequest extends ApiRequest
             'vehicle_type.required' => 'Select the vehicle type for a new vehicle.',
             'engine_no.required' => 'Engine number is required for a new vehicle.',
             'engine_no.unique' => 'This engine number already exists.',
-            'party_id.required' => 'Select the seller.',
+            'supplier_id.required' => 'Select the supplier.',
+            'customer_id.required' => 'Select the customer.',
             'price.required' => 'Purchase price is required.',
             'registration_date.before_or_equal' => 'Registration date cannot be in the future.',
             'memo_no.unique' => 'This memo number is already recorded for this seller.',

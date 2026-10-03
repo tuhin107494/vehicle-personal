@@ -5,7 +5,8 @@ namespace Tests\Feature;
 use App\Models\DuePromise;
 use App\Models\Installment;
 use App\Models\Investor;
-use App\Models\Party;
+use App\Models\Customer;
+use App\Models\Supplier;
 use App\Models\Permission;
 use App\Models\Sale;
 use App\Models\User;
@@ -50,18 +51,21 @@ class TenancyAndRolesTest extends TestCase
         [, $ownerB] = $this->makeShop('B');
 
         $this->as($ownerA);
-        $party = $this->postJson('/api/parties', ['name' => 'X', 'phone' => '01710001234', 'type' => 'customer'])->assertCreated()->json('data');
-        $this->postJson('/api/parties', ['name' => 'Dup', 'phone' => '01710001234', 'type' => 'customer'])->assertStatus(422);
+        $customer = $this->postJson('/api/customers', ['name' => 'X', 'phone' => '01710001234'])->assertCreated()->json('data');
+        $this->postJson('/api/customers', ['name' => 'Dup', 'phone' => '01710001234'])->assertStatus(422);
 
         $this->as($ownerB);
-        $this->getJson("/api/parties/{$party['id']}")->assertNotFound();
-        $this->getJson('/api/parties')->assertJsonPath('meta.total', 0);
+        $this->getJson("/api/customers/{$customer['id']}")->assertNotFound();
+        $this->getJson('/api/customers')->assertJsonPath('meta.total', 0);
         // the same phone is fine in another shop
-        $this->postJson('/api/parties', ['name' => 'Y', 'phone' => '01710001234', 'type' => 'customer'])->assertCreated();
-        // cannot point at another shop's party
+        $this->postJson('/api/customers', ['name' => 'Y', 'phone' => '01710001234'])->assertCreated();
+        // cannot point at another shop's customer
+        $this->postJson('/api/sales', [
+            'vehicle_id' => 1, 'customer_id' => $customer['id'], 'sale_date' => today()->toDateString(), 'sale_price' => 10, 'payment_type' => 'cash', 'down_payment' => 10,
+        ])->assertStatus(422)->assertJsonValidationErrors('customer_id');
         $this->postJson('/api/purchases', [
-            'vehicle_type' => 'motorcycle', 'chassis_no' => 'C1', 'engine_no' => 'E1', 'party_id' => $party['id'], 'purchase_date' => today()->toDateString(), 'price' => 10,
-        ])->assertStatus(422)->assertJsonValidationErrors('party_id');
+            'vehicle_type' => 'motorcycle', 'chassis_no' => 'C1', 'engine_no' => 'E1', 'supplier_id' => $customer['id'], 'purchase_date' => today()->toDateString(), 'price' => 10,
+        ])->assertStatus(422)->assertJsonValidationErrors('supplier_id');
     }
 
     public function test_super_admin_creates_shop_and_cannot_see_shop_data(): void
@@ -71,7 +75,7 @@ class TenancyAndRolesTest extends TestCase
             'name' => 'New Shop', 'owner_name' => 'Owner', 'owner_email' => 'o@new.test', 'owner_password' => 'secret123',
         ])->assertCreated()->assertJsonPath('data.owner.email', 'o@new.test');
 
-        $this->getJson('/api/parties')->assertForbidden();
+        $this->getJson('/api/customers')->assertForbidden();
         $this->getJson('/api/shops')->assertOk()->assertJsonPath('meta.total', 1);
 
         $this->postJson('/api/login', ['email' => 'o@new.test', 'password' => 'secret123'])
@@ -85,7 +89,7 @@ class TenancyAndRolesTest extends TestCase
 
         $this->as($mod);
         $this->getJson('/api/reports/stock')->assertForbidden();           // not a moderator default
-        $this->postJson('/api/parties', ['name' => 'P', 'phone' => '01710005551', 'type' => 'customer'])->assertCreated();
+        $this->postJson('/api/customers', ['name' => 'P', 'phone' => '01710005551'])->assertCreated();
 
         $this->as($owner);
         $current = $this->getJson('/api/roles')->assertOk()->json('data.1');
@@ -97,7 +101,7 @@ class TenancyAndRolesTest extends TestCase
 
         $this->as($mod->fresh());
         $this->getJson('/api/reports/stock')->assertOk();                   // added
-        $this->postJson('/api/parties', ['name' => 'Q', 'phone' => '01710005552', 'type' => 'customer'])->assertForbidden(); // removed
+        $this->postJson('/api/customers', ['name' => 'Q', 'phone' => '01710005552'])->assertForbidden(); // removed
 
         $this->as($owner);
         $this->putJson('/api/roles/shop_owner/permissions', ['permissions' => []])->assertNotFound();
@@ -126,7 +130,7 @@ class TenancyAndRolesTest extends TestCase
         $this->as($owner);
         $this->getJson('/api/vehicle-categories')->assertOk()->assertJsonCount(4, 'data');
         $this->postJson('/api/purchases', [
-            'vehicle_type' => 'truck', 'chassis_no' => 'T1', 'engine_no' => 'T1', 'party_id' => 1, 'purchase_date' => today()->toDateString(), 'price' => 1,
+            'vehicle_type' => 'truck', 'chassis_no' => 'T1', 'engine_no' => 'T1', 'supplier_id' => 1, 'purchase_date' => today()->toDateString(), 'price' => 1,
         ])->assertStatus(422)->assertJsonValidationErrors('vehicle_type');
 
         $this->as($this->superAdmin);
@@ -138,9 +142,9 @@ class TenancyAndRolesTest extends TestCase
 
         // a category in use cannot be deleted
         $this->as($owner);
-        $seller = Party::create(['name' => 'S', 'phone' => '7', 'type' => 'supplier']);
+        $seller = Supplier::create(['name' => 'S', 'phone' => '7']);
         $this->postJson('/api/purchases', [
-            'vehicle_type' => 'cng', 'chassis_no' => 'V1', 'engine_no' => 'V1', 'party_id' => $seller->id, 'purchase_date' => today()->toDateString(), 'price' => 1,
+            'vehicle_type' => 'cng', 'chassis_no' => 'V1', 'engine_no' => 'V1', 'supplier_id' => $seller->id, 'purchase_date' => today()->toDateString(), 'price' => 1,
         ])->assertCreated();
         $this->as($this->superAdmin);
         $cng = VehicleCategory::where('key', 'cng')->value('id');
@@ -162,8 +166,8 @@ class TenancyAndRolesTest extends TestCase
 
         // usable on a purchase by anyone in the shop
         $this->as($mod);
-        $seller = Party::create(['name' => 'S', 'phone' => '5', 'type' => 'supplier']);
-        $this->postJson('/api/purchases', ['vehicle_type' => 'pickup', 'chassis_no' => 'PK1', 'engine_no' => 'PK1', 'party_id' => $seller->id, 'purchase_date' => today()->toDateString(), 'price' => 1])->assertCreated();
+        $seller = Supplier::create(['name' => 'S', 'phone' => '5']);
+        $this->postJson('/api/purchases', ['vehicle_type' => 'pickup', 'chassis_no' => 'PK1', 'engine_no' => 'PK1', 'supplier_id' => $seller->id, 'purchase_date' => today()->toDateString(), 'price' => 1])->assertCreated();
 
         // other shop neither sees nor can use it, and the platform list stays intact
         $this->as($ownerB);
@@ -188,42 +192,36 @@ class TenancyAndRolesTest extends TestCase
         [, $owner] = $this->makeShop('A');
         $this->as($owner);
 
-        $this->postJson('/api/parties', ['type' => 'customer'])->assertStatus(422)
+        $this->postJson('/api/customers', ['type' => 'customer'])->assertStatus(422)
             ->assertJsonPath('errors.name.0', 'Name is required.')->assertJsonPath('errors.phone.0', 'Mobile number is required.');
-        $this->postJson('/api/parties', ['name' => 'Bad', 'phone' => 'abc', 'type' => 'supplier'])->assertStatus(422)
+        $this->postJson('/api/suppliers', ['name' => 'Bad', 'phone' => 'abc'])->assertStatus(422)
             ->assertJsonPath('errors.phone.0', 'Enter a valid mobile number (7 to 20 digits).');
-        $this->postJson('/api/parties', ['name' => 'Bad', 'phone' => '01710009999', 'alt_phone' => '12', 'type' => 'customer'])->assertStatus(422)
+        $this->postJson('/api/customers', ['name' => 'Bad', 'phone' => '01710009999', 'alt_phone' => '12'])->assertStatus(422)
             ->assertJsonValidationErrors('alt_phone');
-        $this->postJson('/api/parties', ['name' => 'Ok', 'phone' => '+880 1710-009999', 'type' => 'customer'])->assertCreated();
+        $this->postJson('/api/customers', ['name' => 'Ok', 'phone' => '+880 1710-009999'])->assertCreated();
 
         $this->postJson('/api/investors', ['name' => 'No phone'])->assertStatus(422)->assertJsonPath('errors.phone.0', 'Mobile number is required.');
         $this->postJson('/api/investors', ['name' => 'Inv', 'phone' => '01810001111'])->assertCreated();
     }
 
-    public function test_father_name_is_kept_for_customers_only(): void
+    public function test_customers_and_suppliers_keep_their_own_fields(): void
     {
         [, $owner] = $this->makeShop('A');
         $this->as($owner);
 
-        $this->postJson('/api/parties', ['name' => 'Rahim', 'father_name' => 'Karim Uddin', 'phone' => '01710000001', 'type' => 'customer'])
-            ->assertCreated()->assertJsonPath('data.father_name', 'Karim Uddin');
-        $id = $this->postJson('/api/parties', ['name' => 'Parts Ltd', 'father_name' => 'Ignored', 'phone' => '01710000002', 'type' => 'supplier'])
-            ->assertCreated()->assertJsonPath('data.father_name', null)->json('data.id');
+        // a customer has a father's name; bank details are not part of a customer
+        $this->postJson('/api/customers', ['name' => 'Rahim', 'father_name' => 'Karim Uddin', 'phone' => '01710000001', 'bank_name' => 'Ignored'])
+            ->assertCreated()->assertJsonPath('data.father_name', 'Karim Uddin')->assertJsonMissingPath('data.bank_name');
+        $this->getJson('/api/customers?search=Karim%20Uddin')->assertJsonPath('meta.total', 1);
 
-        // a supplier cannot gain one by editing either
-        $this->putJson("/api/parties/$id", ['name' => 'Parts Ltd', 'father_name' => 'Nope', 'phone' => '01710000002', 'type' => 'supplier'])->assertOk()->assertJsonPath('data.father_name', null);
-        $this->getJson('/api/parties?search=Karim%20Uddin')->assertJsonPath('meta.total', 1);
-    }
+        // a supplier has bank details; a father's name is not part of a supplier
+        $this->postJson('/api/suppliers', ['name' => 'Parts Ltd', 'phone' => '01710000012', 'father_name' => 'Ignored', 'bank_name' => 'City Bank', 'bank_account_no' => '123', 'bank_info' => 'bKash 017'])
+            ->assertCreated()->assertJsonPath('data.bank_name', 'City Bank')->assertJsonPath('data.bank_account_no', '123')->assertJsonPath('data.bank_info', 'bKash 017')->assertJsonMissingPath('data.father_name');
 
-    public function test_bank_info_is_kept_for_suppliers_only(): void
-    {
-        [, $owner] = $this->makeShop('A');
-        $this->as($owner);
-
-        $this->postJson('/api/parties', ['name' => 'Parts Ltd', 'phone' => '01710000012', 'type' => 'supplier', 'bank_name' => 'City Bank', 'bank_account_no' => '123', 'bank_info' => 'bKash 017'])
-            ->assertCreated()->assertJsonPath('data.bank_name', 'City Bank')->assertJsonPath('data.bank_account_no', '123')->assertJsonPath('data.bank_info', 'bKash 017');
-        $this->postJson('/api/parties', ['name' => 'Rahim', 'phone' => '01710000013', 'type' => 'customer', 'bank_name' => 'Ignored', 'bank_info' => 'Ignored'])
-            ->assertCreated()->assertJsonPath('data.bank_info', null)->assertJsonPath('data.bank_name', null);
+        // the same mobile number can be both a customer and a supplier: they are separate lists
+        $this->postJson('/api/suppliers', ['name' => 'Rahim as supplier', 'phone' => '01710000001'])->assertCreated();
+        $this->getJson('/api/suppliers')->assertJsonPath('meta.total', 2);
+        $this->getJson('/api/customers')->assertJsonPath('meta.total', 1);
     }
 
     public function test_shop_settings_are_per_shop_and_permission_protected(): void
@@ -289,23 +287,23 @@ class TenancyAndRolesTest extends TestCase
         [, $owner] = $this->makeShop('A');
         $this->as($owner);
 
-        $seller = Party::create(['name' => 'S', 'phone' => '01710009991', 'type' => 'supplier']);
-        $buyer = Party::create(['name' => 'Buyer', 'phone' => '01710009992', 'alt_phone' => '01810009992', 'type' => 'customer']);
+        $seller = Supplier::create(['name' => 'S', 'phone' => '01710009991']);
+        $buyer = Customer::create(['name' => 'Buyer', 'phone' => '01710009992', 'alt_phone' => '01810009992']);
         $investor = Investor::create(['name' => 'Inv', 'phone' => '01710009993']);
         $buy = fn (string $ch) => $this->postJson('/api/purchases', [
-            'vehicle_type' => 'cng', 'chassis_no' => $ch, 'engine_no' => "E-$ch", 'party_id' => $seller->id, 'purchase_date' => today()->toDateString(), 'price' => 100,
+            'vehicle_type' => 'cng', 'chassis_no' => $ch, 'engine_no' => "E-$ch", 'supplier_id' => $seller->id, 'purchase_date' => today()->toDateString(), 'price' => 100,
         ])->json('data.vehicle_id');
 
         // an installment sale: weekly, first due tomorrow, so the 2nd falls on day 8
         $this->postJson('/api/sales', [
-            'vehicle_id' => $buy('L-1'), 'party_id' => $buyer->id, 'sale_date' => today()->subDay()->toDateString(), 'sale_price' => 1000,
+            'vehicle_id' => $buy('L-1'), 'customer_id' => $buyer->id, 'sale_date' => today()->subDay()->toDateString(), 'sale_price' => 1000,
             'payment_type' => 'installment', 'down_payment' => 0, 'investor_id' => $investor->id,
             'installment_count' => 2, 'first_due_date' => today()->addDay()->toDateString(), 'frequency' => 'weekly',
         ])->assertCreated();
 
         // a normal due sale with a pay date in 5 days
         $this->postJson('/api/sales', [
-            'vehicle_id' => $buy('L-2'), 'party_id' => $buyer->id, 'sale_date' => today()->subDay()->toDateString(), 'sale_price' => 400,
+            'vehicle_id' => $buy('L-2'), 'customer_id' => $buyer->id, 'sale_date' => today()->subDay()->toDateString(), 'sale_price' => 400,
             'payment_type' => 'due', 'down_payment' => 100, 'promised_date' => today()->addDays(5)->toDateString(),
         ])->assertCreated();
 
@@ -320,8 +318,8 @@ class TenancyAndRolesTest extends TestCase
         $this->assertSame(300, (int) $list('d10', 'promise')[0]['amount']);
         $this->assertCount(0, $list('overdue'));
         $first = $list('d3')[0];
-        $this->assertSame('01810009992', $first['party']['alt_phone']);
-        $this->assertSame(1300, (int) $first['party_total_due']);      // 1,000 installments + 300 normal due
+        $this->assertSame('01810009992', $first['customer']['alt_phone']);
+        $this->assertSame(1300, (int) $first['customer_total_due']);      // 1,000 installments + 300 normal due
         $this->getJson('/api/collections/upcoming?bucket=nope')->assertStatus(422);
 
         // age them: installments due 2 months and 3 days ago, the normal due promised 4 days ago

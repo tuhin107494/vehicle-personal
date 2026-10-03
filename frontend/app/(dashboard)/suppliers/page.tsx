@@ -1,7 +1,7 @@
 "use client";
 
-import { PartyList } from "@/components/PartyList";
+import { SupplierList } from "@/components/SupplierList";
 
 export default function SuppliersPage() {
-  return <PartyList kind="supplier" />;
+  return <SupplierList />;
 }

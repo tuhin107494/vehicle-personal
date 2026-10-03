@@ -163,6 +163,10 @@ const STAT_COLORS = {
   orange: "from-orange-400 to-orange-600",
   yellow: "from-yellow-400 to-amber-500",
   slate: "from-slate-500 to-slate-700",
+  // calmer shades of the same colours; the three sit at the same lightness so cards side by side look even
+  "amber-soft": "from-amber-400 to-amber-500",
+  "blue-soft": "from-blue-400 to-blue-500",
+  "green-soft": "from-emerald-400 to-emerald-500",
 };
 
 export function Stat({ label: text, value, tone, color = "green", icon: Icon }: { label: string; value: ReactNode; tone?: "red"; color?: keyof typeof STAT_COLORS; icon?: LucideIcon }) {

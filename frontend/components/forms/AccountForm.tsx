@@ -12,7 +12,7 @@ import { useFetch } from "@/lib/hooks";
 import type { AccountSummary } from "@/lib/types";
 import { Button, Card, Field, inputCls, Pagination } from "@/components/app-ui";
 import { usePaging } from "@/lib/paging";
-import { PartySelect } from "@/components/Selects";
+import { CustomerSelect, SupplierSelect } from "@/components/Selects";
 import { SearchSelect } from "@/components/SearchSelect";
 import type { Sale } from "@/lib/types";
 import { Input } from "@/components/ui/input";
@@ -41,7 +41,7 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
   const w = watch();
   const text = SIDES[side];
 
-  const summary = useFetch<AccountSummary>(w.party_id ? `/accounts?side=${side}&party_id=${w.party_id}` : null);
+  const summary = useFetch<AccountSummary>(w.party_id ? `/accounts?side=${side}&${side === "customer" ? "customer_id" : "supplier_id"}=${w.party_id}` : null);
   // Customers can pay one vehicle's due; empty means spread over all, oldest first.
   const [saleId, setSaleId] = useState("");
   // Or start from the vehicle: choosing one fills in its customer.
@@ -57,12 +57,12 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
   useEffect(() => {
     const x = fromVehicle.data?.[0];
     if (!x) return;
-    setFound({ party: x.party?.name ?? "" });
-    setValue("party_id", String(x.party_id), { shouldValidate: true });
+    setFound({ party: x.customer?.name ?? "" });
+    setValue("party_id", String(x.customer_id), { shouldValidate: true });
     setSaleId(String(x.id));
   }, [fromVehicle.data, setValue]);
   // Opened from a customer/supplier row.
-  const fromParty = useFetch<{ id: number; name: string }>(partyId ? `/parties/${partyId}` : null);
+  const fromParty = useFetch<{ id: number; name: string }>(partyId ? `/${side === "customer" ? "customers" : "suppliers"}/${partyId}` : null);
   useEffect(() => {
     if (!fromParty.data) return;
     setFound({ party: fromParty.data.name });
@@ -89,7 +89,7 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
       return;
     }
     try {
-      const res = await api("/accounts", { method: "POST", body: { ...toPayload(v, ["party_id", "amount"]), sale_id: side === "customer" && saleId ? Number(saleId) : null } });
+      const res = await api("/accounts", { method: "POST", body: { ...toPayload({ ...v, [side === "customer" ? "customer_id" : "supplier_id"]: v.party_id }, [side === "customer" ? "customer_id" : "supplier_id", "amount"]), sale_id: side === "customer" && saleId ? Number(saleId) : null } });
       toast.success(res.message);
       reset({ ...blank, side: v.side, party_id: v.party_id });
       setSaleId("");
@@ -106,18 +106,21 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
           <div className="space-y-4">
             <p className="text-xs text-slate-500"><span className="text-red-600">*</span> Required</p>
 
-            <PartySelect type={side} label={SIDES[side].label} allowCreate={false} value={w.party_id} selectedLabel={found?.party} onChange={(id) => { setSaleId(""); setFound(null); setValue("party_id", id, { shouldValidate: true }); }} error={errors.party_id?.message} />
+            {(() => {
+              const Pick = side === "customer" ? CustomerSelect : SupplierSelect;
+              return <Pick label={SIDES[side].label} allowCreate={false} value={w.party_id} selectedLabel={found?.party} onChange={(id: string) => { setSaleId(""); setFound(null); setValue("party_id", id, { shouldValidate: true }); }} error={errors.party_id?.message} />;
+            })()}
 
             {side === "customer" && !w.party_id && (
               <Field label="Or find by vehicle">
                 <SearchSelect
-                  options={(dueSales.data ?? []).map((x) => ({ value: String(x.id), label: x.vehicle?.chassis_no ?? `Sale #${x.id}`, hint: `${x.party?.name} · due ${money(x.due_amount)}` }))}
+                  options={(dueSales.data ?? []).map((x) => ({ value: String(x.id), label: x.vehicle?.chassis_no ?? `Sale #${x.id}`, hint: `${x.customer?.name} · due ${money(x.due_amount)}` }))}
                   value=""
                   onChange={(id) => {
                     const x = dueSales.data?.find((r) => String(r.id) === id);
                     if (!x) return;
-                    setFound({ party: x.party?.name ?? "" });
-                    setValue("party_id", String(x.party_id), { shouldValidate: true });
+                    setFound({ party: x.customer?.name ?? "" });
+                    setValue("party_id", String(x.customer_id), { shouldValidate: true });
                     setSaleId(id);
                   }}
                   onQueryChange={setVq}
@@ -130,9 +133,9 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
             {summary.data && (
               <div className="space-y-3 rounded-md border border-emerald-100 bg-emerald-50/50 p-3 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="font-semibold text-slate-800">{summary.data.party.name}</div>
+                  <div className="font-semibold text-slate-800">{summary.data.person.name}</div>
                   <div className="flex flex-wrap gap-2">
-                    {[summary.data.party.phone, summary.data.party.alt_phone].filter(Boolean).map((n) => (
+                    {[summary.data.person.phone, summary.data.person.alt_phone].filter(Boolean).map((n) => (
                       <a key={n} href={`tel:${n}`} className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-sm font-medium text-emerald-800 hover:bg-emerald-200"><Phone className="size-3.5" /> {n}</a>
                     ))}
                   </div>
@@ -157,7 +160,7 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
                   )}
                 </div>
                 {side === "supplier" && (() => {
-                  const b = summary.data.party;
+                  const b = summary.data.person;
                   const rows: [string, string | null | undefined][] = [["Bank", b.bank_name], ["Branch", b.bank_branch], ["Account name", b.bank_account_name], ["Account no", b.bank_account_no], ["Other", b.bank_info]];
                   return rows.some(([, v]) => v) ? (
                     <div className="rounded-md border border-sky-200 bg-white p-2 text-xs">

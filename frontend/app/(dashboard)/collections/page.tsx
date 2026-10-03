@@ -47,19 +47,19 @@ export default function CollectionsPage() {
   const list = useFetch<CallRow[]>(`/collections/upcoming?bucket=${bucket}${kind ? `&kind=${kind}` : ""}`);
 
   const term = q.trim().toLowerCase();
-  const rows = (list.data ?? []).filter((r) => !term || [r.party.name, r.party.phone, r.party.alt_phone, r.vehicle.brand, r.vehicle.model, r.vehicle.chassis_no].some((v) => v?.toLowerCase().includes(term)));
+  const rows = (list.data ?? []).filter((r) => !term || [r.customer.name, r.customer.phone, r.customer.alt_phone, r.vehicle.brand, r.vehicle.model, r.vehicle.chassis_no].some((v) => v?.toLowerCase().includes(term)));
 
   const statsOf = (b: Bucket): Stats => (kind ? b.kinds[kind] : b);
   const current = summary.data?.buckets.find((b) => b.key === bucket);
   const shown = current ? statsOf(current) : undefined;
 
   const columns: Col<CallRow>[] = [
-    { header: "Customer", cell: ({ row }) => <span className="font-medium">{row.original.party.name}</span> },
+    { header: "Customer", cell: ({ row }) => <span className="font-medium">{row.original.customer.name}</span> },
     {
       header: "Call",
       cell: ({ row }) => (
         <div className="flex flex-col items-end gap-1 md:items-start">
-          {[row.original.party.phone, row.original.party.alt_phone].filter(Boolean).map((n) => (
+          {[row.original.customer.phone, row.original.customer.alt_phone].filter(Boolean).map((n) => (
             <a key={n} href={`tel:${n}`} className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-sm font-medium text-emerald-800 hover:bg-emerald-200" onClick={(e) => e.stopPropagation()}>
               <Phone className="size-3.5" /> {n}
             </a>
@@ -71,17 +71,17 @@ export default function CollectionsPage() {
     { header: "For", cell: ({ row }) => <Badge tone={row.original.type === "installment" ? "blue" : "gray"}>{row.original.label}</Badge> },
     { header: "Due date", cell: ({ row }) => <span className="flex flex-wrap items-center justify-end gap-2 md:justify-start">{fmtDate(row.original.due_date)} <When row={row.original} /></span> },
     { header: "Amount", cell: ({ row }) => <b className={row.original.overdue_by ? "text-red-700" : "text-amber-700"}>{money(row.original.amount)}</b> },
-    { header: "Customer's total due", cell: ({ row }) => <b className="text-slate-800">{money(row.original.party_total_due)}</b> },
-    { header: "", id: "actions", cell: ({ row }) => <Link className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50" href={`/sales/${row.original.sale_id}`}><Eye className="size-4" /> Open sale</Link> },
+    { header: "Customer's total due", cell: ({ row }) => <b className="text-slate-800">{money(row.original.customer_total_due)}</b> },
+    { header: "Action", id: "actions", cell: ({ row }) => <Link className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50" href={`/sales/${row.original.sale_id}`}><Eye className="size-4" /> Open sale</Link> },
   ];
 
   return (
     <>
       <PageHeader title="Due alert" />
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3">
-        <Stat color="red" label="Due now (overdue + today)" value={money(summary.data?.current_due ?? 0)} />
-        <Stat color="amber" label={`${current?.label ?? "List"}: amount`} value={money(shown?.amount ?? 0)} />
-        <Stat color="blue" label={`${current?.label ?? "List"}: customers to call`} value={shown?.customers ?? 0} />
+        <Stat color="amber-soft" label="Due now (overdue + today)" value={money(summary.data?.current_due ?? 0)} />
+        <Stat color="blue-soft" label={`${current?.label ?? "List"}: amount`} value={money(shown?.amount ?? 0)} />
+        <Stat color="green-soft" label={`${current?.label ?? "List"}: customers to call`} value={shown?.customers ?? 0} />
       </div>
 
       <div className="mb-3 flex flex-wrap gap-2">

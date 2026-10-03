@@ -41,7 +41,7 @@ class CollectionController extends Controller implements HasMiddleware
         $stats = fn (Collection $in) => [
             'count' => $in->count(),
             'amount' => round($in->sum('amount'), 2),
-            'customers' => $in->pluck('party.id')->unique()->count(),
+            'customers' => $in->pluck('customer.id')->unique()->count(),
         ];
 
         $buckets = collect(self::BUCKETS)->map(function ($b, $key) use ($rows, $stats) {
@@ -87,14 +87,14 @@ class CollectionController extends Controller implements HasMiddleware
     {
         $limit = today()->addDays(10)->toDateString();
 
-        $installments = Installment::with(['plan.sale.party', 'plan.sale.vehicle'])
+        $installments = Installment::with(['plan.sale.customer', 'plan.sale.vehicle'])
             ->whereIn('status', ['pending', 'partial', 'overdue'])
             ->whereDate('due_date', '<=', $limit)
             ->whereHas('plan.sale', fn ($q) => $q->where('status', 'active'))
             ->get()
             ->map(fn (Installment $i) => $this->row('installment', $i->id, "Installment #{$i->seq_no}", $i->plan->sale, $i->due_date, $i->remaining()));
 
-        $promises = DuePromise::with(['sale.party', 'sale.vehicle'])
+        $promises = DuePromise::with(['sale.customer', 'sale.vehicle'])
             ->whereIn('status', ['open', 'broken'])
             ->whereDate('promised_date', '<=', $limit)
             ->whereHas('sale', fn ($q) => $q->where('status', 'active')->where('due_amount', '>', 0))
@@ -102,10 +102,10 @@ class CollectionController extends Controller implements HasMiddleware
             ->map(fn (DuePromise $p) => $this->row('promise', $p->id, 'Normal due', $p->sale, $p->promised_date, min($p->promised_amount, $p->sale->due_amount)));
 
         $rows = $installments->concat($promises);
-        $totals = Sale::where('status', 'active')->whereIn('party_id', $rows->pluck('party.id')->unique())
-            ->selectRaw('party_id, SUM(due_amount) as total')->groupBy('party_id')->pluck('total', 'party_id');
+        $totals = Sale::where('status', 'active')->whereIn('customer_id', $rows->pluck('customer.id')->unique())
+            ->selectRaw('customer_id, SUM(due_amount) as total')->groupBy('customer_id')->pluck('total', 'customer_id');
 
-        return $rows->map(fn ($r) => $r + ['party_total_due' => round((float) ($totals[$r['party']['id']] ?? 0), 2)])
+        return $rows->map(fn ($r) => $r + ['customer_total_due' => round((float) ($totals[$r['customer']['id']] ?? 0), 2)])
             ->sortBy('due_date')->values();
     }
 
@@ -121,7 +121,7 @@ class CollectionController extends Controller implements HasMiddleware
             'overdue_by' => $daysLeft < 0 ? $this->overdueBy($due) : null,
             'amount' => round($amount, 2),
             'sale_due' => $sale->due_amount,
-            'party' => $sale->party->only(['id', 'name', 'phone', 'alt_phone', 'address']),
+            'customer' => $sale->customer->only(['id', 'name', 'phone', 'alt_phone', 'address']),
             'vehicle' => $sale->vehicle->only(['id', 'chassis_no', 'brand', 'model']),
         ];
     }

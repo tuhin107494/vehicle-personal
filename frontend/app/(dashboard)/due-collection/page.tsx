@@ -7,7 +7,7 @@ import { AccountForm } from "@/components/forms/AccountForm";
 
 function Form() {
   const q = useSearchParams();
-  return <AccountForm side="customer" vehicleId={q.get("vehicle_id")} partyId={q.get("party_id")} />;
+  return <AccountForm side="customer" vehicleId={q.get("vehicle_id")} partyId={q.get("customer_id")} />;
 }
 
 export default function Page() {

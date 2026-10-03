@@ -42,7 +42,8 @@ class PurchaseService
 
             $purchase = Purchase::create([
                 'vehicle_id' => $vehicle->id,
-                'party_id' => $data['party_id'],
+                'supplier_id' => ($data['source'] ?? 'supplier') === 'customer' ? null : ($data['supplier_id'] ?? null),
+                'customer_id' => ($data['source'] ?? 'supplier') === 'customer' ? ($data['customer_id'] ?? null) : null,
                 'source' => $data['source'] ?? 'supplier',
                 'memo_no' => $data['memo_no'] ?? null,
                 'purchase_date' => $data['purchase_date'],
@@ -148,7 +149,7 @@ class PurchaseService
 
         $sale = Sale::lockForUpdate()->find($data['adjusted_sale_id'] ?? 0);
 
-        if (! $sale || $sale->status !== 'active' || $sale->party_id !== (int) $data['party_id']) {
+        if (! $sale || $sale->status !== 'active' || $sale->customer_id !== (int) ($data['customer_id'] ?? 0)) {
             throw new BusinessRuleException('Choose one of this customer\'s active sales to adjust the due against.');
         }
 

@@ -12,7 +12,7 @@ class StoreSaleRequest extends ApiRequest
     {
         return [
             'vehicle_id' => ['required', $this->shopExists('vehicles')],
-            'party_id' => ['required', $this->shopExists('parties')],
+            'customer_id' => ['required', $this->shopExists('customers')],
             'sale_date' => ['required', 'date', 'before_or_equal:today'],
             'sale_price' => ['required', 'numeric', 'min:1'],
             'payment_type' => ['required', Rule::in(['cash', 'due', 'installment'])],
@@ -35,7 +35,7 @@ class StoreSaleRequest extends ApiRequest
     {
         return [
             'vehicle_id.required' => 'Select a vehicle.',
-            'party_id.required' => 'Select the buyer.',
+            'customer_id.required' => 'Select the buyer.',
             'guarantor_phone.regex' => 'Enter a valid mobile number (7 to 20 digits).',
             'sale_price.required' => 'Sale price is required.',
             'sale_date.before_or_equal' => 'Sale date cannot be in the future.',

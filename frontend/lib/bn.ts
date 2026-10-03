@@ -8,7 +8,7 @@ export const BN: Record<string, string> = {
   "Investor transactions": "বিনিয়োগকারী লেনদেন", "Customer transactions": "গ্রাহক লেনদেন", "Supplier transactions": "সরবরাহকারী লেনদেন",
   "Investor payment": "বিনিয়োগকারী পরিশোধ", "Vehicle Hub": "ভেহিকেল হাব",
   // buttons
-  Save: "সংরক্ষণ", Cancel: "বাতিল", Edit: "সম্পাদনা", View: "দেখুন", Back: "পিছনে", Delete: "মুছুন", Close: "বন্ধ", Next: "পরবর্তী", Previous: "আগের",
+  Action: "অ্যাকশন", Save: "সংরক্ষণ", Cancel: "বাতিল", Edit: "সম্পাদনা", View: "দেখুন", Back: "পিছনে", Delete: "মুছুন", Close: "বন্ধ", Next: "পরবর্তী", Previous: "আগের",
   "Sign in": "সাইন ইন", Logout: "লগআউট", "Print / PDF": "প্রিন্ট / পিডিএফ", Memo: "মেমো", Filters: "ফিল্টার", "Show results": "ফলাফল দেখুন",
   "Buy vehicle": "গাড়ি কিনুন", "New customer": "নতুন গ্রাহক", "New supplier": "নতুন সরবরাহকারী", "New investor": "নতুন বিনিয়োগকারী", "New shop": "নতুন দোকান",
   "Create sale": "বিক্রয় তৈরি করুন", "Save as draft": "খসড়া সংরক্ষণ", "Update draft": "খসড়া হালনাগাদ", Resume: "চালু করুন", "Collect payment": "টাকা আদায়",

@@ -75,7 +75,7 @@ export default function CategoriesPage() {
     { header: "Default CC", cell: ({ row }) => row.original.default_cc ?? "-" },
     { header: "Key", cell: ({ row }) => <code className="text-xs text-slate-500">{row.original.key}</code> },
     {
-      header: "",
+      header: "Action",
       id: "actions",
       cell: ({ row }) => (
         <div className="flex gap-2">

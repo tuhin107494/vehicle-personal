@@ -13,7 +13,7 @@ class SaleResource extends JsonResource
             ...parent::toArray($request),
             'grand_total' => $this->loadMissing('plan')->grandTotal(),
             'vehicle' => VehicleResource::make($this->whenLoaded('vehicle')),
-            'party' => PartyResource::make($this->whenLoaded('party')),
+            'customer' => CustomerResource::make($this->whenLoaded('customer')),
             'investor' => InvestorResource::make($this->whenLoaded('investor')),
             'purchase' => PurchaseResource::make($this->whenLoaded('purchase')),
             'plan' => InstallmentPlanResource::make($this->whenLoaded('plan')),

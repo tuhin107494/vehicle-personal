@@ -10,10 +10,10 @@ import { Input } from "@/components/ui/input";
 import { MobileCards, type CardItem } from "@/components/MobileCards";
 import { usePaging } from "@/lib/paging";
 
-type Sale = { id: number; vehicle: string; vehicle_name: string; party: string; phone: string; payment_type: string; total: number; received: number; due: number };
-type Purchase = { id: number; vehicle: string; vehicle_name: string; party: string; phone: string; memo_no: string | null; total: number; paid: number; due: number };
-type Collection = { id: number; sale_id: number; party: string; phone: string; vehicle: string; method: string; amount: number; note: string | null };
-type SupplierPay = { party: string; phone: string; vehicle: string | null; kind: string; method: string; amount: number; reference: string | null };
+type Sale = { id: number; vehicle: string; vehicle_name: string; name: string; phone: string; payment_type: string; total: number; received: number; due: number };
+type Purchase = { id: number; vehicle: string; vehicle_name: string; name: string; phone: string; memo_no: string | null; total: number; paid: number; due: number };
+type Collection = { id: number; sale_id: number; name: string; phone: string; vehicle: string; method: string; amount: number; note: string | null };
+type SupplierPay = { name: string; phone: string; vehicle: string | null; kind: string; method: string; amount: number; reference: string | null };
 type InvestorTx = { id: number; investor: string; phone: string | null; type: string; amount: number; direction: "in" | "out"; note: string | null };
 type Daily = {
   date: string;
@@ -159,7 +159,7 @@ export default function DailyReportPage() {
           </table>
 
           <Section tone="sales" pager={pg.sales} cards={{
-              items: pg.sales.items.map((r) => ({ key: r.id, title: r.vehicle_name || r.vehicle, sub: `#${r.id} · ${r.vehicle}`, amount: money(r.total), fields: [["Customer", `${r.party} · ${r.phone}`], ["Type", <span key="t" className="capitalize">{r.payment_type}</span>], ["Received", money(r.received)], ["Due", money(r.due)]] })),
+              items: pg.sales.items.map((r) => ({ key: r.id, title: r.vehicle_name || r.vehicle, sub: `#${r.id} · ${r.vehicle}`, amount: money(r.total), fields: [["Customer", `${r.name} · ${r.phone}`], ["Type", <span key="t" className="capitalize">{r.payment_type}</span>], ["Received", money(r.received)], ["Due", money(r.due)]] })),
               empty: "No sales on this day.",
               totals: [["Total", money(data.sales.total)], ["Received", money(data.sales.received)], ["Due", money(data.sales.due)]],
             }} title="Sales" count={data.sales.count}>
@@ -170,7 +170,7 @@ export default function DailyReportPage() {
                   <tr key={r.id} className="border-t border-emerald-200">
                     <td className={td("sales")}>#{r.id}</td>
                     <td className={td("sales")}>{r.vehicle_name || r.vehicle}<div className="text-xs text-slate-500">{r.vehicle}</div></td>
-                    <td className={td("sales")}>{r.party}<div className="text-xs text-slate-500">{r.phone}</div></td>
+                    <td className={td("sales")}>{r.name}<div className="text-xs text-slate-500">{r.phone}</div></td>
                     <td className={`${td("sales")} capitalize`}>{r.payment_type}</td>
                     <td className={`${td("sales")} text-right`}>{money(r.total)}</td>
                     <td className={`${td("sales")} text-right`}>{money(r.received)}</td>
@@ -184,7 +184,7 @@ export default function DailyReportPage() {
           </Section>
 
           <Section tone="purchases" pager={pg.purchases} cards={{
-              items: pg.purchases.items.map((r) => ({ key: r.id, title: r.vehicle_name || r.vehicle, sub: r.vehicle, amount: money(r.total), fields: [["Bought from", `${r.party} · ${r.phone}`], ...(r.memo_no ? ([["Memo", r.memo_no]] as [string, React.ReactNode][]) : []), ["Paid", money(r.paid)], ["Unpaid now", money(r.due)]] })),
+              items: pg.purchases.items.map((r) => ({ key: r.id, title: r.vehicle_name || r.vehicle, sub: r.vehicle, amount: money(r.total), fields: [["Bought from", `${r.name} · ${r.phone}`], ...(r.memo_no ? ([["Memo", r.memo_no]] as [string, React.ReactNode][]) : []), ["Paid", money(r.paid)], ["Unpaid now", money(r.due)]] })),
               empty: "No purchases on this day.",
               totals: [["Total", money(data.purchases.total)], ["Paid", money(data.purchases.paid)], ["Unpaid now", money(data.purchases.due)]],
             }} title="Purchases" count={data.purchases.count}>
@@ -194,7 +194,7 @@ export default function DailyReportPage() {
                 {pg.purchases.items.map((r) => (
                   <tr key={r.id} className="border-t border-emerald-200">
                     <td className={td("purchases")}>{r.vehicle_name || r.vehicle}<div className="text-xs text-slate-500">{r.vehicle}</div></td>
-                    <td className={td("purchases")}>{r.party}<div className="text-xs text-slate-500">{r.phone}</div></td>
+                    <td className={td("purchases")}>{r.name}<div className="text-xs text-slate-500">{r.phone}</div></td>
                     <td className={td("purchases")}>{r.memo_no ?? "-"}</td>
                     <td className={`${td("purchases")} text-right`}>{money(r.total)}</td>
                     <td className={`${td("purchases")} text-right`}>{money(r.paid)}</td>
@@ -208,7 +208,7 @@ export default function DailyReportPage() {
           </Section>
 
           <Section tone="collection" pager={pg.collections} cards={{
-              items: pg.collections.items.map((r) => ({ key: r.id, title: r.party, sub: `${r.phone} · ${r.vehicle}`, amount: money(r.amount), fields: [["Method", <span key="m" className="capitalize">{r.method}</span>], ...(r.note ? ([["Note", r.note]] as [string, React.ReactNode][]) : [])] })),
+              items: pg.collections.items.map((r) => ({ key: r.id, title: r.name, sub: `${r.phone} · ${r.vehicle}`, amount: money(r.amount), fields: [["Method", <span key="m" className="capitalize">{r.method}</span>], ...(r.note ? ([["Note", r.note]] as [string, React.ReactNode][]) : [])] })),
               empty: "No due collected on this day.",
               totals: [["Total", money(data.collections.total)]],
             }} title="Due collection (from customers)" count={data.collections.count}>
@@ -217,7 +217,7 @@ export default function DailyReportPage() {
               <tbody>
                 {pg.collections.items.map((r) => (
                   <tr key={r.id} className="border-t border-emerald-200">
-                    <td className={td("collection")}>{r.party}<div className="text-xs text-slate-500">{r.phone}</div></td>
+                    <td className={td("collection")}>{r.name}<div className="text-xs text-slate-500">{r.phone}</div></td>
                     <td className={td("collection")}>{r.vehicle}</td>
                     <td className={`${td("collection")} capitalize`}>{r.method}</td>
                     <td className={td("collection")}>{r.note ?? ""}</td>
@@ -231,7 +231,7 @@ export default function DailyReportPage() {
           </Section>
 
           <Section tone="supplier" pager={pg.supplier} cards={{
-              items: pg.supplier.items.map((r, i) => ({ key: i, title: r.party, sub: `${r.phone}${r.vehicle ? ` · ${r.vehicle}` : ""}`, amount: money(r.amount), fields: [["Kind", r.kind], ["Method", <span key="m" className="capitalize">{r.method}</span>], ...(r.reference ? ([["Ref.", r.reference]] as [string, React.ReactNode][]) : [])] })),
+              items: pg.supplier.items.map((r, i) => ({ key: i, title: r.name, sub: `${r.phone}${r.vehicle ? ` · ${r.vehicle}` : ""}`, amount: money(r.amount), fields: [["Kind", r.kind], ["Method", <span key="m" className="capitalize">{r.method}</span>], ...(r.reference ? ([["Ref.", r.reference]] as [string, React.ReactNode][]) : [])] })),
               empty: "No supplier payments on this day.",
               totals: [["Total", money(data.supplier_payments.total)]],
             }} title="Supplier transactions (paid)" count={data.supplier_payments.count}>
@@ -240,7 +240,7 @@ export default function DailyReportPage() {
               <tbody>
                 {pg.supplier.items.map((r, i) => (
                   <tr key={i} className="border-t border-emerald-200">
-                    <td className={td("supplier")}>{r.party}<div className="text-xs text-slate-500">{r.phone}</div></td>
+                    <td className={td("supplier")}>{r.name}<div className="text-xs text-slate-500">{r.phone}</div></td>
                     <td className={td("supplier")}>{r.vehicle ?? "-"}</td>
                     <td className={td("supplier")}>{r.kind}</td>
                     <td className={`${td("supplier")} capitalize`}>{r.method}</td>

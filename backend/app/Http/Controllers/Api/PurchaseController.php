@@ -30,13 +30,15 @@ class PurchaseController extends Controller implements HasMiddleware
     public function index(Request $request): JsonResponse
     {
         $purchases = Purchase::query()
-            ->with(['vehicle', 'party'])
-            ->when($request->party_id, fn ($q, $id) => $q->where('party_id', $id))
+            ->with(['vehicle', 'supplier', 'customer'])
+            ->when($request->supplier_id, fn ($q, $id) => $q->where('supplier_id', $id))
+            ->when($request->customer_id, fn ($q, $id) => $q->where('customer_id', $id))
             ->when($request->vehicle_id, fn ($q, $id) => $q->where('vehicle_id', $id))
             ->when($request->search, fn ($q, $s) => $q->where(fn ($q) => $q
                 ->where('memo_no', 'like', "%$s%")
                 ->orWhereHas('vehicle', fn ($q) => $q->where('chassis_no', 'like', "%$s%")->orWhere('model', 'like', "%$s%"))
-                ->orWhereHas('party', fn ($q) => $q->where('name', 'like', "%$s%"))))
+                ->orWhereHas('supplier', fn ($q) => $q->where('name', 'like', "%$s%"))
+                ->orWhereHas('customer', fn ($q) => $q->where('name', 'like', "%$s%"))))
             ->latest('purchase_date')->latest('id')
             ->paginate($request->integer('per_page', 15));
 
@@ -47,19 +49,19 @@ class PurchaseController extends Controller implements HasMiddleware
     {
         $purchase = $this->purchases->create($request->validated(), $request->user());
 
-        return $this->success(PurchaseResource::make($purchase->load(['vehicle', 'party'])), 'Purchase recorded', 201);
+        return $this->success(PurchaseResource::make($purchase->load(['vehicle', 'supplier', 'customer'])), 'Purchase recorded', 201);
     }
 
     public function show(Purchase $purchase): JsonResponse
     {
-        return $this->success(PurchaseResource::make($purchase->load(['vehicle', 'party', 'creator'])));
+        return $this->success(PurchaseResource::make($purchase->load(['vehicle', 'supplier', 'customer', 'creator'])));
     }
 
     public function update(UpdatePurchaseRequest $request, Purchase $purchase): JsonResponse
     {
         $purchase = $this->purchases->update($purchase, $request->validated());
 
-        return $this->success(PurchaseResource::make($purchase->load(['vehicle', 'party'])), 'Purchase updated');
+        return $this->success(PurchaseResource::make($purchase->load(['vehicle', 'supplier', 'customer'])), 'Purchase updated');
     }
 
     public function destroy(Purchase $purchase): JsonResponse

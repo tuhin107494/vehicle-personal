@@ -21,7 +21,7 @@ export default function DashboardPage() {
 
   const overdueCols: Col<Installment>[] = [
     { header: "Sale", cell: ({ row }) => <Link className="underline" href={`/sales/${row.original.plan?.sale?.id}`}>#{row.original.plan?.sale?.id}</Link> },
-    { header: "Buyer", cell: ({ row }) => row.original.plan?.sale?.party?.name },
+    { header: "Buyer", cell: ({ row }) => row.original.plan?.sale?.customer?.name },
     { header: "Vehicle", cell: ({ row }) => row.original.plan?.sale?.vehicle?.chassis_no },
     { header: "Installment", cell: ({ row }) => `#${row.original.seq_no}` },
     { header: "Due date", cell: ({ row }) => <span className="font-medium text-red-600">{fmtDate(row.original.due_date)}</span> },
@@ -29,7 +29,7 @@ export default function DashboardPage() {
   ];
   const promiseCols: Col<Promise_>[] = [
     { header: "Sale", cell: ({ row }) => <Link className="underline" href={`/sales/${row.original.sale_id}`}>#{row.original.sale_id}</Link> },
-    { header: "Buyer", cell: ({ row }) => row.original.sale?.party?.name },
+    { header: "Buyer", cell: ({ row }) => row.original.sale?.customer?.name },
     { header: "Vehicle", cell: ({ row }) => row.original.sale?.vehicle?.chassis_no },
     { header: "Promised", cell: ({ row }) => money(row.original.promised_amount) },
   ];

@@ -14,7 +14,7 @@ export function openSaleMemo(sale: Sale, shop: string) {
   if (!w) return false;
 
   const v = sale.vehicle;
-  const p = sale.party;
+  const p = sale.customer;
   const installments = sale.plan?.installments ?? [];
   const payments = (sale.payments ?? []).filter((x) => x.amount > 0);
   const vehicleName = [v?.brand, v?.model, v?.year].filter(Boolean).join(" ");

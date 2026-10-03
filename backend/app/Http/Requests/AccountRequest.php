@@ -11,7 +11,9 @@ class AccountRequest extends ApiRequest
     {
         $rules = [
             'side' => ['required', Rule::in(['supplier', 'customer'])],
-            'party_id' => ['required', 'integer', $this->shopExists('parties')],
+            // the person: a customer when collecting, a supplier when paying
+            'customer_id' => ['required_if:side,customer', 'nullable', 'integer', $this->shopExists('customers')],
+            'supplier_id' => ['required_if:side,supplier', 'nullable', 'integer', $this->shopExists('suppliers')],
         ];
 
         if ($this->isMethod('post')) {
@@ -32,7 +34,8 @@ class AccountRequest extends ApiRequest
     {
         return [
             'side.required' => 'Choose supplier or customer.',
-            'party_id.required' => 'Select the supplier or customer.',
+            'customer_id.required_if' => 'Select the customer.',
+            'supplier_id.required_if' => 'Select the supplier.',
             'amount.required' => 'Enter the amount.',
             'amount.min' => 'Amount must be greater than zero.',
             'method.required' => 'Choose how it was paid.',

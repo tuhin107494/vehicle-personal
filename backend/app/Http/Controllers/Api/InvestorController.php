@@ -49,7 +49,7 @@ class InvestorController extends Controller implements HasMiddleware
     /** What each vehicle the investor financed has paid back so far, and what is still to be paid. */
     public function vehiclePayments(Investor $investor): JsonResponse
     {
-        $plans = $investor->plans()->with(['sale.vehicle:id,chassis_no,brand,model', 'sale.party:id,name', 'installments:id,plan_id,due_date,status'])
+        $plans = $investor->plans()->with(['sale.vehicle:id,chassis_no,brand,model', 'sale.customer:id,name', 'installments:id,plan_id,due_date,status'])
             ->whereHas('sale', fn ($q) => $q->where('status', 'active'))->get();
         $paid = InvestorSettlement::where('investor_id', $investor->id)->whereIn('plan_id', $plans->pluck('id'))
             ->selectRaw('plan_id, type, SUM(amount) as total')->groupBy('plan_id', 'type')->get()->groupBy('plan_id');
@@ -65,7 +65,7 @@ class InvestorController extends Controller implements HasMiddleware
 
             return [
                 'plan_id' => $plan->id, 'sale_id' => $plan->sale_id, 'vehicle' => $vehicle->chassis_no,
-                'vehicle_name' => trim("{$vehicle->brand} {$vehicle->model}"), 'buyer' => $plan->sale->party->name,
+                'vehicle_name' => trim("{$vehicle->brand} {$vehicle->model}"), 'buyer' => $plan->sale->customer->name,
                 'principal' => (float) $plan->principal, 'principal_paid' => $returned, 'principal_due' => max(round($plan->principal - $returned, 2), 0),
                 'profit' => $profit, 'profit_paid' => $profitPaid, 'profit_due' => max(round($profit - $profitPaid, 2), 0),
                 // the investor's share is paid in step with the plan: principal + profit spread over the installments
@@ -166,7 +166,7 @@ class InvestorController extends Controller implements HasMiddleware
         return $this->success([
             'investor' => InvestorResource::make($investor),
             'summary' => $portfolio->summary($investor),
-            'sales' => SaleResource::collection($investor->sales()->with(['vehicle', 'party', 'plan'])->latest('id')->get()),
+            'sales' => SaleResource::collection($investor->sales()->with(['vehicle', 'customer', 'plan'])->latest('id')->get()),
             'settlements' => InvestorSettlementResource::collection($investor->settlements()->latest('date')->latest('id')->get()),
         ]);
     }

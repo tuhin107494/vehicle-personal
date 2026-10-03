@@ -114,7 +114,7 @@ export default function SaleDetailPage() {
       <Card className="mb-4">
         <KV items={[
           ["Vehicle", <Link key="v" className="underline" href={`/vehicles/${sale.vehicle_id}`}>{sale.vehicle?.chassis_no}</Link>],
-          ["Buyer", <Link key="b" className="underline" href={`/parties/${sale.party_id}`}>{sale.party?.name}</Link>],
+          ["Buyer", <Link key="b" className="underline" href={`/customers/${sale.customer_id}`}>{sale.customer?.name}</Link>],
           ["Sale date", fmtDate(sale.sale_date)], ["Sale price", money(sale.sale_price)], ["Down payment", money(sale.down_payment)],
           ["Type", <Badge key="t" tone="blue">{sale.payment_type}</Badge>], ["Status", <StatusBadge key="s" status={sale.status} />],
           ...(sale.guarantor_phone ? [["Guarantor", <a key="g" className="underline" href={`tel:${sale.guarantor_phone}`}>{sale.guarantor_phone}</a>] as [string, React.ReactNode]] : []),

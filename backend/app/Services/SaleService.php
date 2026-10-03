@@ -37,7 +37,7 @@ class SaleService
             $sale = Sale::create([
                 'vehicle_id' => $vehicle->id,
                 'purchase_id' => $vehicle->current_purchase_id,
-                'party_id' => $data['party_id'],
+                'customer_id' => $data['customer_id'],
                 'sale_date' => $data['sale_date'],
                 'sale_price' => $price,
                 'down_payment' => $down,

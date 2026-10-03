@@ -25,7 +25,7 @@ class SaleController extends Controller implements HasMiddleware
     }
 
     private const DETAIL = [
-        'vehicle', 'party', 'investor', 'purchase', 'creator', 'plan.installments',
+        'vehicle', 'customer', 'investor', 'purchase', 'creator', 'plan.installments',
         'payments.receiver', 'promises', 'registrationLogs.user',
     ];
 
@@ -34,7 +34,7 @@ class SaleController extends Controller implements HasMiddleware
     public function index(Request $request): JsonResponse
     {
         $sales = Sale::query()
-            ->with(['vehicle', 'party', 'plan', 'investor'])
+            ->with(['vehicle', 'customer', 'plan', 'investor'])
             ->when($request->boolean('with_investor'), fn ($q) => $q->whereNotNull('investor_id'))
             ->when($request->investor_id, fn ($q, $v) => $q->where('investor_id', $v))
             ->when($request->status, fn ($q, $v) => $q->where('status', $v))
@@ -42,11 +42,11 @@ class SaleController extends Controller implements HasMiddleware
             ->when($request->payment_type, fn ($q, $v) => $q->where('payment_type', $v))
             ->when($request->payment_status, fn ($q, $v) => $q->where('payment_status', $v))
             ->when($request->registration_status, fn ($q, $v) => $q->where('registration_status', $v))
-            ->when($request->party_id, fn ($q, $v) => $q->where('party_id', $v))
+            ->when($request->customer_id, fn ($q, $v) => $q->where('customer_id', $v))
             ->when($request->vehicle_id, fn ($q, $v) => $q->where('vehicle_id', $v))
             ->when($request->search, fn ($q, $s) => $q->where(fn ($q) => $q
                 ->whereHas('vehicle', fn ($q) => $q->where('chassis_no', 'like', "%$s%")->orWhere('model', 'like', "%$s%"))
-                ->orWhereHas('party', fn ($q) => $q->where('name', 'like', "%$s%")->orWhere('phone', 'like', "%$s%"))))
+                ->orWhereHas('customer', fn ($q) => $q->where('name', 'like', "%$s%")->orWhere('phone', 'like', "%$s%"))))
             ->latest('sale_date')->latest('id')
             ->paginate($request->integer('per_page', 15));
 

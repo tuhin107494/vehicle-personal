@@ -29,10 +29,10 @@ export default function VehiclesPage() {
 
   const columns: Col<Vehicle>[] = [
     { header: "Chassis", cell: ({ row }) => <span className="font-medium">{row.original.chassis_no}</span> },
-    { header: "Type", cell: ({ row }) => <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${typeColor(categories.find((c) => c.key === row.original.vehicle_type)?.id ?? 0).badge}`}>{nameOf(row.original.vehicle_type)}</span> },
-    { header: "Vehicle", cell: ({ row }) => [row.original.brand, row.original.model, row.original.year].filter(Boolean).join(" ") || "-" },
-    { header: "Engine", accessorKey: "engine_no", meta: { className: "hidden min-[1450px]:table-cell" } },
-    { header: "Reg. no", meta: { className: "hidden min-[1450px]:table-cell" }, cell: ({ row }) => row.original.registration_no ?? "-" },
+    { header: "Engine", accessorKey: "engine_no" },
+    { header: "Type", meta: { className: "hidden min-[1250px]:table-cell" }, cell: ({ row }) => <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${typeColor(categories.find((c) => c.key === row.original.vehicle_type)?.id ?? 0).badge}`}>{nameOf(row.original.vehicle_type)}</span> },
+    { header: "Vehicle", cell: ({ row }) => <span className="inline-block max-w-[8.5rem] whitespace-normal leading-tight">{[row.original.brand, row.original.model, row.original.year].filter(Boolean).join(" ") || "-"}</span> },
+    { header: "Reg. no", meta: { className: "hidden min-[1600px]:table-cell" }, cell: ({ row }) => row.original.registration_no ?? "-" },
     {
       header: "Registration",
       cell: ({ row }) => {
@@ -44,18 +44,17 @@ export default function VehiclesPage() {
       },
     },
     { header: "Status", cell: ({ row }) => <StatusBadge status={row.original.status} /> },
-    { header: "Cost", cell: ({ row }) => row.original.status === "in_stock" ? money((row.original.current_purchase?.price ?? 0) + (row.original.current_purchase?.cost_extra ?? 0)) : "-" },
     {
-      header: "",
+      header: "Action",
       id: "actions",
       cell: ({ row }) => (
         <div className="flex w-full items-center justify-end gap-1.5 whitespace-nowrap md:w-auto">
           {row.original.status === "sold" && (row.original.sale_due ?? 0) > 0 && can("payments.collect") && (
-            <Link className="inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-sky-200 px-1.5 py-1 text-[11px] md:py-1.5 md:text-xs md:flex-none md:gap-1.5 md:px-2.5 font-medium text-sky-700 hover:bg-sky-50" href={`/due-collection?vehicle_id=${row.original.id}`} title="Due collection"><HandCoins className="size-3 shrink-0 md:size-4" /> <span className="md:hidden">Due</span></Link>
+            <Link className="inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-sky-200 px-1.5 py-1 text-[11px] md:py-1.5 md:text-xs md:flex-none md:gap-1.5 md:px-2.5 font-medium text-sky-700 hover:bg-sky-50" href={`/due-collection?vehicle_id=${row.original.id}`} title="Due collection"><HandCoins className="size-3 shrink-0 md:size-4" /> <span>Due</span></Link>
           )}
-          <Link className="inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-violet-200 px-1.5 py-1 text-[11px] md:py-1.5 md:text-xs md:flex-none md:gap-1.5 md:px-2.5 font-medium text-violet-700 hover:bg-violet-50" href={`/vehicles/${row.original.id}`} title="View"><Eye className="size-3 shrink-0 md:size-4" /> <span className="md:hidden">View</span></Link>
-          <Link className="inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-amber-200 px-1.5 py-1 text-[11px] md:py-1.5 md:text-xs md:flex-none md:gap-1.5 md:px-2.5 font-medium text-amber-700 hover:bg-amber-50" href={`/vehicles/${row.original.id}?tab=history`} title="History"><History className="size-3 shrink-0 md:size-4" /> <span className="md:hidden">History</span></Link>
-          {can("vehicles.edit") && <Button title="Edit" className="h-7 min-w-0 flex-1 gap-1 px-1.5 text-[11px] md:h-8 md:text-xs md:flex-none md:gap-1.5 md:px-2.5" variant="outline" size="sm" onClick={() => { setEditing(row.original); setOpen(true); }}><Pencil className="size-3 md:size-4 text-emerald-600" /> <span className="md:hidden">Edit</span></Button>}
+          <Link className="inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-violet-200 px-1.5 py-1 text-[11px] md:py-1.5 md:text-xs md:flex-none md:gap-1.5 md:px-2.5 font-medium text-violet-700 hover:bg-violet-50" href={`/vehicles/${row.original.id}`} title="View"><Eye className="size-3 shrink-0 md:size-4" /> <span>View</span></Link>
+          <Link className="inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-amber-200 px-1.5 py-1 text-[11px] md:py-1.5 md:text-xs md:flex-none md:gap-1.5 md:px-2.5 font-medium text-amber-700 hover:bg-amber-50" href={`/vehicles/${row.original.id}?tab=history`} title="History"><History className="size-3 shrink-0 md:size-4" /> <span>History</span></Link>
+          {can("vehicles.edit") && <Button title="Edit" className="h-7 min-w-0 flex-1 gap-1 px-1.5 text-[11px] md:h-8 md:text-xs md:flex-none md:gap-1.5 md:px-2.5" variant="outline" size="sm" onClick={() => { setEditing(row.original); setOpen(true); }}><Pencil className="size-3 md:size-4 text-emerald-600" /> <span>Edit</span></Button>}
         </div>
       ),
     },

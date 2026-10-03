@@ -1,8 +1,13 @@
-export type Party = {
+export type Customer = {
   id: number; name: string; father_name: string | null; phone: string; alt_phone: string | null; nid: string | null;
-  address: string | null; type: "customer" | "supplier" | "both"; notes: string | null;
-  bank_name?: string | null; bank_branch?: string | null; bank_account_name?: string | null; bank_account_no?: string | null; bank_info?: string | null; receivable_due?: number; payable_due?: number;
+  address: string | null; notes: string | null; receivable_due?: number;
 };
+export type Supplier = {
+  id: number; name: string; phone: string; alt_phone: string | null; nid: string | null; address: string | null; notes: string | null;
+  bank_name?: string | null; bank_branch?: string | null; bank_account_name?: string | null; bank_account_no?: string | null; bank_info?: string | null; payable_due?: number;
+};
+/** Whoever sold a purchase to us: the supplier, or the customer for a second-hand buy-back. */
+export type Seller = { id: number; name: string; phone: string; alt_phone: string | null; nid?: string | null };
 export type Investor = {
   id: number; name: string; phone: string | null; alt_phone: string | null; nid: string | null; address: string | null;
   bank_name?: string | null; bank_branch?: string | null; bank_account_name?: string | null; bank_account_no?: string | null; bank_info: string | null; opening_balance: number;
@@ -10,8 +15,8 @@ export type Investor = {
   formula_invested?: number | null; formula_profit?: number | null; formula_months?: number | null; formula_rate_month?: number | null; formula_rate_year?: number | null; notes: string | null; is_active: boolean;
 };
 export type Purchase = {
-  id: number; vehicle_id: number; party_id: number; purchase_date: string; price: number; paid_amount: number;
-  cost_extra: number; due_adjustment: number; adjusted_sale_id: number | null; source: "supplier" | "customer"; memo_no: string | null; payment_status: string; payment_method: string | null; payment_reference: string | null; notes: string | null; vehicle?: Vehicle; party?: Party;
+  id: number; vehicle_id: number; supplier_id: number | null; customer_id: number | null; purchase_date: string; price: number; paid_amount: number;
+  cost_extra: number; due_adjustment: number; adjusted_sale_id: number | null; source: "supplier" | "customer"; memo_no: string | null; payment_status: string; payment_method: string | null; payment_reference: string | null; notes: string | null; vehicle?: Vehicle; supplier?: Supplier; customer?: Customer; seller?: Seller;
 };
 export type Vehicle = {
   id: number; chassis_no: string; engine_no: string; registration_no: string | null; vehicle_type: string; brand: string | null;
@@ -43,10 +48,10 @@ export type RegLog = {
   user?: { id: number; name: string };
 };
 export type Sale = {
-  id: number; vehicle_id: number; party_id: number; sale_date: string; sale_price: number; down_payment: number;
+  id: number; vehicle_id: number; customer_id: number; sale_date: string; sale_price: number; down_payment: number;
   payment_type: "cash" | "due" | "installment"; guarantor_phone: string | null; total_paid: number; due_amount: number; grand_total: number;
   payment_status: "paid" | "partial" | "unpaid"; status: "active" | "cancelled"; cancel_reason: string | null;
-  registration_status: string; vehicle?: Vehicle; party?: Party; investor?: Investor; plan?: Plan;
+  registration_status: string; vehicle?: Vehicle; customer?: Customer; investor?: Investor; plan?: Plan;
   payments?: Payment[]; promises?: Promise_[]; registration_logs?: RegLog[];
 };
 export type Settlement = {
@@ -65,9 +70,9 @@ export type PermissionT = { id: number; key: string; name: string; group: string
 export type ShopUser = { id: number; name: string; email: string; role: string; role_label: string; is_active: boolean };
 export type CallRow = {
   type: "installment" | "promise"; id: number; label: string; sale_id: number; due_date: string; days_left: number;
-  amount: number; sale_due: number; party_total_due: number;
+  amount: number; sale_due: number; customer_total_due: number;
   overdue_by: { months: number; days: number; total_days: number } | null;
-  party: { id: number; name: string; phone: string; alt_phone: string | null; address: string | null };
+  customer: { id: number; name: string; phone: string; alt_phone: string | null; address: string | null };
   vehicle: { id: number; chassis_no: string; brand: string | null; model: string | null };
 };
 export type DraftT = {
@@ -76,7 +81,7 @@ export type DraftT = {
 };
 
 export type AccountSummary = {
-  party: { id: number; name: string; phone: string; alt_phone: string | null; bank_name?: string | null; bank_branch?: string | null; bank_account_name?: string | null; bank_account_no?: string | null; bank_info?: string | null };
+  person: { id: number; name: string; phone: string; alt_phone: string | null; bank_name?: string | null; bank_branch?: string | null; bank_account_name?: string | null; bank_account_no?: string | null; bank_info?: string | null };
   total_due: number; advance_available: number; current_due?: number; days_late?: number;
   items: { kind: "sale" | "purchase"; id: number; date: string; vehicle: string; due: number; vehicle_name?: string; engine_no?: string | null; memo_no?: string | null; payment_type?: string; current_due?: number; days_late?: number; next_date?: string | null }[];
 };

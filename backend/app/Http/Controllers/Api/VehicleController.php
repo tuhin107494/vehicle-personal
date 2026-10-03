@@ -60,7 +60,7 @@ class VehicleController extends Controller implements HasMiddleware
 
     public function show(Vehicle $vehicle): JsonResponse
     {
-        return $this->success(VehicleResource::make($vehicle->load(['currentPurchase.party', 'currentSale.party'])));
+        return $this->success(VehicleResource::make($vehicle->load(['currentPurchase.supplier', 'currentPurchase.customer', 'currentSale.customer'])));
     }
 
     public function update(VehicleRequest $request, Vehicle $vehicle): JsonResponse
@@ -89,7 +89,7 @@ class VehicleController extends Controller implements HasMiddleware
             'registration_no' => ['required_without:chassis_no', 'nullable', 'string'],
         ], ['chassis_no.required_without' => 'Enter a chassis or registration number to look up.']);
 
-        $vehicle = Vehicle::with('currentSale.party') // who has it now, so the buy form can select that customer
+        $vehicle = Vehicle::with('currentSale.customer') // who has it now, so the buy form can select that customer
             ->when($request->filled('chassis_no'), fn ($q) => $q->where('chassis_no', trim($request->chassis_no)))
             ->when(! $request->filled('chassis_no'), fn ($q) => $q->where('registration_no', trim($request->registration_no)))
             ->first();
@@ -109,11 +109,11 @@ class VehicleController extends Controller implements HasMiddleware
             return $this->success([]);
         }
 
-        $sales = Sale::with(['vehicle', 'party'])
+        $sales = Sale::with(['vehicle', 'customer'])
             ->where('status', 'active')
             ->whereHas('vehicle', fn ($q) => $q->where('status', 'sold')->whereColumn('vehicles.current_sale_id', 'sales.id'))
             ->where(fn ($q) => $q
-                ->whereHas('party', fn ($q) => $q->where('name', 'like', "%$term%")->orWhere('phone', 'like', "%$term%")->orWhere('alt_phone', 'like', "%$term%")->orWhere('nid', 'like', "%$term%"))
+                ->whereHas('customer', fn ($q) => $q->where('name', 'like', "%$term%")->orWhere('phone', 'like', "%$term%")->orWhere('alt_phone', 'like', "%$term%")->orWhere('nid', 'like', "%$term%"))
                 ->orWhereHas('vehicle', fn ($q) => $q->where('chassis_no', 'like', "%$term%")->orWhere('engine_no', 'like', "%$term%")->orWhere('registration_no', 'like', "%$term%")))
             ->latest('sale_date')->latest('id')->limit(20)->get();
 
@@ -122,15 +122,15 @@ class VehicleController extends Controller implements HasMiddleware
 
     public function history(Vehicle $vehicle): JsonResponse
     {
-        $purchases = $vehicle->purchases()->with('party')->get();
-        $sales = $vehicle->sales()->with(['party', 'payments'])->orderBy('sale_date')->orderBy('id')->get();
+        $purchases = $vehicle->purchases()->with(['supplier', 'customer'])->get();
+        $sales = $vehicle->sales()->with(['customer', 'payments'])->orderBy('sale_date')->orderBy('id')->get();
         $saleIds = $sales->pluck('id');
         $events = collect();
 
         foreach ($purchases as $p) {
             $events->push([
                 'type' => 'purchase', 'date' => $p->purchase_date->toDateString(), 'sort' => $p->purchase_date->copy()->addSeconds($p->id),
-                'title' => ($p->source === 'customer' ? 'Returned by ' : 'Purchased from ').$p->party->name, 'amount' => $p->price, 'ref_id' => $p->id, 'data' => $p,
+                'title' => ($p->source === 'customer' ? 'Returned by ' : 'Purchased from ').($p->source === 'customer' ? $p->customer : $p->supplier)->name, 'amount' => $p->price, 'ref_id' => $p->id, 'data' => $p,
                 'how' => collect([
                     (float) $p->paid_amount > 0 ? ucfirst($p->payment_method ?: 'cash').' '.number_format((float) $p->paid_amount) : null,
                     (float) $p->due_adjustment > 0 ? 'Adjustment '.number_format((float) $p->due_adjustment) : null,
@@ -141,7 +141,7 @@ class VehicleController extends Controller implements HasMiddleware
         foreach ($sales as $s) {
             $events->push([
                 'type' => 'sale', 'date' => $s->sale_date->toDateString(), 'sort' => $s->sale_date->copy()->addSeconds($s->id),
-                'title' => 'Sold to '.$s->party->name.' ('.$s->payment_type.')', 'amount' => $s->sale_price, 'ref_id' => $s->id, 'data' => $s, 'how' => null,
+                'title' => 'Sold to '.$s->customer->name.' ('.$s->payment_type.')', 'amount' => $s->sale_price, 'ref_id' => $s->id, 'data' => $s, 'how' => null,
             ]);
 
             if ($s->status === 'cancelled') {

@@ -12,10 +12,10 @@ import { ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Col, DataTable } from "@/components/DataTable";
-import { PartySelect } from "@/components/Selects";
+import { CustomerSelect, SupplierSelect } from "@/components/Selects";
 import { ResponsiveFilters } from "@/components/ResponsiveFilters";
 import { InvestorTransactions } from "@/components/InvestorTransactions";
-import { PartyStatement } from "@/components/PartyStatement";
+import { PersonStatement } from "@/components/PersonStatement";
 
 type Stock = { total_count: number; total_cost: number; vehicles: Vehicle[] };
 type Dues = { total_due: number; sales: (Sale & { next_due_date: string | null })[] };
@@ -28,7 +28,7 @@ function StockReport() {
   const cols: Col<Vehicle>[] = [
     { header: "Chassis", cell: ({ row }) => <span className="font-medium">{row.original.chassis_no}</span> },
     { header: "Vehicle", cell: ({ row }) => [row.original.brand, row.original.model, row.original.year].filter(Boolean).join(" ") },
-    { header: "Seller", cell: ({ row }) => (row.original.current_purchase as any)?.party?.name ?? "-" },
+    { header: "Seller", cell: ({ row }) => row.original.current_purchase?.seller?.name ?? "-" },
     { header: "Bought", cell: ({ row }) => fmtDate(row.original.current_purchase?.purchase_date) },
     { header: "Cost", cell: ({ row }) => money((row.original.current_purchase?.price ?? 0) + (row.original.current_purchase?.cost_extra ?? 0)) },
     { header: "Days in stock", cell: ({ row }) => row.original.days_in_stock ?? "-" },
@@ -48,8 +48,8 @@ function DuesReport() {
   if (error || !data) return <ErrorText message={error ?? "Failed"} />;
   const cols: Col<Dues["sales"][number]>[] = [
     { header: "Sale", cell: ({ row }) => <span className="font-medium">#{row.original.id}</span> },
-    { header: "Buyer", cell: ({ row }) => row.original.party?.name },
-    { header: "Phone", cell: ({ row }) => row.original.party?.phone },
+    { header: "Buyer", cell: ({ row }) => row.original.customer?.name },
+    { header: "Phone", cell: ({ row }) => row.original.customer?.phone },
     { header: "Vehicle", cell: ({ row }) => row.original.vehicle?.chassis_no },
     { header: "Type", accessorKey: "payment_type" },
     { header: "Paid", cell: ({ row }) => money(row.original.total_paid) },
@@ -133,7 +133,7 @@ function PurchasesReport() {
   const [source, setSource] = useState("");
   const [supplier, setSupplier] = useState("");
   const { categories } = useCategories();
-  const qs = new URLSearchParams({ ...(from && { from }), ...(to && { to }), ...(type && { vehicle_type: type }), ...(source && { source }), ...(supplier && { party_id: supplier }) });
+  const qs = new URLSearchParams({ ...(from && { from }), ...(to && { to }), ...(type && { vehicle_type: type }), ...(source && { source }), ...(supplier && { supplier_id: supplier }) });
   const { data, loading, error } = useFetch<{ totals: Record<string, number>; by_type: TypeRow[]; purchases: (Purchase & { total_cost: number; unpaid: number })[] }>(`/reports/purchases?${qs}`);
 
   const cols: Col<NonNullable<typeof data>["purchases"][number]>[] = [
@@ -141,7 +141,7 @@ function PurchasesReport() {
     { header: "Memo no.", cell: ({ row }) => row.original.memo_no ?? "-" },
     { header: "Vehicle", cell: ({ row }) => <span className="font-medium">{row.original.vehicle?.chassis_no}</span> },
     { header: "Type", cell: ({ row }) => categories.find((c) => c.key === row.original.vehicle?.vehicle_type)?.name ?? "-" },
-    { header: "Bought from", cell: ({ row }) => <span>{row.original.party?.name} <span className="text-xs text-slate-500">({row.original.source === "customer" ? "customer, second hand" : "supplier"})</span></span> },
+    { header: "Bought from", cell: ({ row }) => <span>{row.original.seller?.name} <span className="text-xs text-slate-500">({row.original.source === "customer" ? "customer, second hand" : "supplier"})</span></span> },
     { header: "Price", cell: ({ row }) => money(row.original.price) },
     { header: "Extra cost", cell: ({ row }) => money(row.original.cost_extra) },
     { header: "Total cost", cell: ({ row }) => <b>{money(row.original.total_cost)}</b> },
@@ -158,7 +158,7 @@ function PurchasesReport() {
             <option value="">All</option><option value="supplier">Suppliers</option><option value="customer">Customers (second hand)</option>
           </NativeSelect>
         </Field>
-        <PartySelect filter type="supplier" label="Supplier" allowCreate={false} value={supplier} onChange={setSupplier} />
+        <SupplierSelect filter allowCreate={false} value={supplier} onChange={setSupplier} />
       </Filters>
       {error && <ErrorText message={error} />}
       {data && (
@@ -185,7 +185,7 @@ function SalesReport() {
   const [status, setStatus] = useState("");
   const [customer, setCustomer] = useState("");
   const { categories } = useCategories();
-  const qs = new URLSearchParams({ ...(from && { from }), ...(to && { to }), ...(type && { vehicle_type: type }), ...(paymentType && { payment_type: paymentType }), ...(status && { status }), ...(customer && { party_id: customer }) });
+  const qs = new URLSearchParams({ ...(from && { from }), ...(to && { to }), ...(type && { vehicle_type: type }), ...(paymentType && { payment_type: paymentType }), ...(status && { status }), ...(customer && { customer_id: customer }) });
   const { data, loading, error } = useFetch<{ totals: Record<string, number>; by_type: TypeRow[]; sales: (Sale & { cost: number; profit: number })[] }>(`/reports/sales?${qs}`);
 
   const cols: Col<NonNullable<typeof data>["sales"][number]>[] = [
@@ -193,7 +193,7 @@ function SalesReport() {
     { header: "Sale", cell: ({ row }) => <span className="font-medium">#{row.original.id}</span> },
     { header: "Vehicle", cell: ({ row }) => row.original.vehicle?.chassis_no },
     { header: "Type", cell: ({ row }) => categories.find((c) => c.key === row.original.vehicle?.vehicle_type)?.name ?? "-" },
-    { header: "Buyer", cell: ({ row }) => row.original.party?.name },
+    { header: "Buyer", cell: ({ row }) => row.original.customer?.name },
     { header: "Payment", cell: ({ row }) => <span className="capitalize">{row.original.payment_type}</span> },
     { header: "Price", cell: ({ row }) => money(row.original.sale_price) },
     { header: "Paid", cell: ({ row }) => money(row.original.total_paid) },
@@ -212,7 +212,7 @@ function SalesReport() {
             <option value="">All</option><option value="cash">Cash</option><option value="due">Due</option><option value="installment">Installment</option>
           </NativeSelect>
         </Field>
-        <PartySelect filter type="customer" label="Customer" allowCreate={false} value={customer} onChange={setCustomer} />
+        <CustomerSelect filter allowCreate={false} value={customer} onChange={setCustomer} />
         <Field label="Sale status">
           <NativeSelect className={inputCls} value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">All</option><option value="active">Active</option><option value="cancelled">Cancelled</option>
@@ -271,8 +271,8 @@ export default function ReportsPage() {
       {tab === "stock" && <StockReport />}
       {tab === "dues" && <DuesReport />}
       {tab === "investors" && <InvestorsReport />}
-      {tab === "customer" && <PartyStatement side="customer" />}
-      {tab === "supplier" && <PartyStatement side="supplier" />}
+      {tab === "customer" && <PersonStatement side="customer" />}
+      {tab === "supplier" && <PersonStatement side="supplier" />}
       {tab === "investor" && <InvestorTransactions />}
     </>
   );

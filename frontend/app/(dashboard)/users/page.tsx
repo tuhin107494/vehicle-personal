@@ -77,7 +77,7 @@ export default function UsersPage() {
     { header: "Email", accessorKey: "email" },
     { header: "Role", cell: ({ row }) => <Badge tone={row.original.role === "shop_owner" ? "green" : "blue"}>{row.original.role_label}</Badge> },
     { header: "Status", cell: ({ row }) => <Badge tone={row.original.is_active ? "green" : "gray"}>{row.original.is_active ? "Active" : "Disabled"}</Badge> },
-    { header: "", id: "actions", cell: ({ row }) => row.original.role !== "shop_owner" && <Button variant="outline" onClick={() => { setEditing(row.original); setOpen(true); }}><Pencil className="size-4 text-sky-600" /> Edit</Button> },
+    { header: "Action", id: "actions", cell: ({ row }) => row.original.role !== "shop_owner" && <Button variant="outline" onClick={() => { setEditing(row.original); setOpen(true); }}><Pencil className="size-4 text-sky-600" /> Edit</Button> },
   ];
 
   return (

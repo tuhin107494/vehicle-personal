@@ -38,7 +38,7 @@ export default function InvestorPaymentPage() {
     { header: "Profit", cell: ({ row }) => money(row.original.profit) },
     { header: "Profit paid", cell: ({ row }) => money(row.original.profit_paid) },
     { header: "Profit due", cell: ({ row }) => <b className={row.original.profit_due > 0 ? "text-amber-700" : ""}>{money(row.original.profit_due)}</b> },
-    { header: "", id: "pay", cell: ({ row }) => can("settlements.manage") && (row.original.principal_due > 0 || row.original.profit_due > 0) && (
+    { header: "Action", id: "pay", cell: ({ row }) => can("settlements.manage") && (row.original.principal_due > 0 || row.original.profit_due > 0) && (
       <Button variant="outline" size="sm" className="border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100 hover:text-violet-800" onClick={() => setPay(row.original)}><Wallet className="size-4" /> Pay</Button>
     ) },
   ];

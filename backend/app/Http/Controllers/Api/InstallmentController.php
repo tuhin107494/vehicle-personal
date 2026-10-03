@@ -22,7 +22,7 @@ class InstallmentController extends Controller implements HasMiddleware
     public function index(Request $request): JsonResponse
     {
         $installments = Installment::query()
-            ->with(['plan.sale.vehicle', 'plan.sale.party'])
+            ->with(['plan.sale.vehicle', 'plan.sale.customer'])
             ->when($request->status === 'overdue', fn ($q) => $q->where(fn ($q) => $q
                 ->where('status', 'overdue')
                 ->orWhere(fn ($q) => $q->whereIn('status', ['pending', 'partial'])->whereDate('due_date', '<', today()))))

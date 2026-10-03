@@ -8,7 +8,7 @@ use App\Http\Controllers\Api\DraftController;
 use App\Http\Controllers\Api\InstallmentController;
 use App\Http\Controllers\Api\InvestorController;
 use App\Http\Controllers\Api\InvestorSettlementController;
-use App\Http\Controllers\Api\PartyController;
+use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\PayableController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PermissionController;
@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\ShopController;
+use App\Http\Controllers\Api\SupplierController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\VehicleCategoryController;
 use App\Http\Controllers\Api\VehicleColorController;
@@ -33,6 +34,7 @@ Route::post('reset-password', [AuthController::class, 'resetPassword'])->middlew
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('logout', [AuthController::class, 'logout']);
     Route::get('me', [AuthController::class, 'me']);
+    Route::put('profile', [AuthController::class, 'updateProfile']);
 
     // Platform: super admin only.
     Route::middleware('role:super_admin')->group(function () {
@@ -67,12 +69,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('reports/investor-transactions', [ReportController::class, 'investorTransactions']);
         Route::get('reports/daily', [ReportController::class, 'daily']);
         Route::get('reports/transactions', [ReportController::class, 'transactions']);
-        Route::get('reports/party-summary', [ReportController::class, 'partySummary']);
-        Route::get('reports/party-transactions', [ReportController::class, 'partyTransactions']);
+        Route::get('reports/person-summary', [ReportController::class, 'personSummary']);
+        Route::get('reports/person-transactions', [ReportController::class, 'personTransactions']);
         Route::get('reports/investors', [ReportController::class, 'investors']);
 
-        Route::apiResource('parties', PartyController::class)->except('destroy');
-        Route::get('parties/{party}/history', [PartyController::class, 'history']);
+        Route::apiResource('customers', CustomerController::class)->except('destroy');
+        Route::get('customers/{customer}/history', [CustomerController::class, 'history']);
+        Route::apiResource('suppliers', SupplierController::class)->except('destroy');
+        Route::get('suppliers/{supplier}/history', [SupplierController::class, 'history']);
 
         Route::apiResource('investors', InvestorController::class)->except('destroy');
         Route::put('investors/{investor}/profit-formula', [InvestorController::class, 'saveProfitFormula']);
@@ -113,7 +117,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('settings', [SettingsController::class, 'update']);
         Route::get('collections/summary', [CollectionController::class, 'summary']);
         Route::get('collections/upcoming', [CollectionController::class, 'upcoming']);
-        Route::delete('parties/{party}', [PartyController::class, 'destroy']);
+        Route::delete('customers/{customer}', [CustomerController::class, 'destroy']);
+        Route::delete('suppliers/{supplier}', [SupplierController::class, 'destroy']);
         Route::delete('investors/{investor}', [InvestorController::class, 'destroy']);
         Route::delete('vehicles/{vehicle}', [VehicleController::class, 'destroy']);
         Route::delete('purchases/{purchase}', [PurchaseController::class, 'destroy']);

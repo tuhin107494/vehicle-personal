@@ -1,7 +1,7 @@
 "use client";
 
-import { PartyList } from "@/components/PartyList";
+import { CustomerList } from "@/components/CustomerList";
 
 export default function CustomersPage() {
-  return <PartyList kind="customer" />;
+  return <CustomerList />;
 }

@@ -14,7 +14,8 @@ class Purchase extends Model
     protected $fillable = [
         'shop_id',
         'vehicle_id',
-        'party_id',
+        'supplier_id',
+        'customer_id',
         'source',
         'memo_no',
         'purchase_date',
@@ -46,9 +47,21 @@ class Purchase extends Model
         return $this->belongsTo(Vehicle::class);
     }
 
-    public function party(): BelongsTo
+    public function supplier(): BelongsTo
     {
-        return $this->belongsTo(Party::class);
+        return $this->belongsTo(Supplier::class);
+    }
+
+    /** Set when a second-hand vehicle was bought back from a customer. */
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
+    }
+
+    /** Whoever sold it to us: the supplier, or the customer for a buy-back. */
+    public function seller(): ?Model
+    {
+        return $this->source === 'customer' ? $this->customer : $this->supplier;
     }
 
     public function creator(): BelongsTo

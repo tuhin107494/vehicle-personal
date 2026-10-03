@@ -5,7 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\AccountRequest;
-use App\Models\Party;
+use App\Models\Customer;
+use App\Models\Supplier;
 use App\Models\Purchase;
 use App\Models\Sale;
 use App\Models\Vehicle;
@@ -26,14 +27,14 @@ class AccountController extends Controller
     {
         $this->authorizeSide($request);
 
-        return $this->success($this->summaryFor($request->input('side'), Party::findOrFail($request->input('party_id'))));
+        return $this->success($this->summaryFor($request->input('side'), $this->person($request)));
     }
 
     public function store(AccountRequest $request): JsonResponse
     {
         $this->authorizeSide($request);
         $side = $request->input('side');
-        $party = Party::findOrFail($request->input('party_id'));
+        $party = $this->person($request);
         $amount = round((float) $request->input('amount'), 2);
         $data = $request->safe()->only(['method', 'paid_at', 'reference', 'note']);
 
@@ -41,7 +42,7 @@ class AccountController extends Controller
             $left = $amount;
 
             if ($side === 'customer') {
-                $sales = Sale::where('party_id', $party->id)->where('status', 'active')->where('due_amount', '>', 0)
+                $sales = Sale::where('customer_id', $party->id)->where('status', 'active')->where('due_amount', '>', 0)
                     ->when($request->filled('sale_id'), fn ($q) => $q->where('id', $request->input('sale_id')))
                     ->orderBy('sale_date')->orderBy('id')->get();
 
@@ -62,7 +63,7 @@ class AccountController extends Controller
                 return;
             }
 
-            $purchases = Purchase::where('party_id', $party->id)->whereRaw('price - paid_amount - due_adjustment > 0')->orderBy('purchase_date')->orderBy('id')->get();
+            $purchases = Purchase::where('supplier_id', $party->id)->whereRaw('price - paid_amount - due_adjustment > 0')->orderBy('purchase_date')->orderBy('id')->get();
 
             foreach ($purchases as $purchase) {
                 if ($left <= 0) {
@@ -76,7 +77,7 @@ class AccountController extends Controller
 
             if ($left > 0) {
                 // nothing (more) is owed to them, so the rest is paid ahead of the next purchase
-                $this->payables->addAdvance(['party_id' => $party->id, 'amount' => $left, 'method' => $data['method']] + $data, $request->user());
+                $this->payables->addAdvance(['supplier_id' => $party->id, 'amount' => $left, 'method' => $data['method']] + $data, $request->user());
             }
         });
 
@@ -93,12 +94,20 @@ class AccountController extends Controller
         abort_unless($request->user()->hasPermission($key), 403, 'You do not have permission to do this.');
     }
 
-    private function summaryFor(string $side, Party $party): array
+    /** The customer being collected from, or the supplier being paid. */
+    private function person(AccountRequest $request): Customer|Supplier
+    {
+        return $request->input('side') === 'customer'
+            ? Customer::findOrFail($request->input('customer_id'))
+            : Supplier::findOrFail($request->input('supplier_id'));
+    }
+
+    private function summaryFor(string $side, Customer|Supplier $party): array
     {
         $party = $party->only(['id', 'name', 'phone', 'alt_phone', 'bank_name', 'bank_branch', 'bank_account_name', 'bank_account_no', 'bank_info']);
 
         if ($side === 'customer') {
-            $items = Sale::with(['vehicle:id,chassis_no,engine_no,brand,model,year', 'purchase:id,memo_no', 'plan.installments', 'promises'])->where('party_id', $party['id'])->where('status', 'active')->where('due_amount', '>', 0)
+            $items = Sale::with(['vehicle:id,chassis_no,engine_no,brand,model,year', 'purchase:id,memo_no', 'plan.installments', 'promises'])->where('customer_id', $party['id'])->where('status', 'active')->where('due_amount', '>', 0)
                 ->orderBy('sale_date')->orderBy('id')->get()
                 ->map(fn (Sale $s) => [
                     'kind' => 'sale', 'id' => $s->id, 'date' => $s->sale_date->toDateString(),
@@ -107,17 +116,17 @@ class AccountController extends Controller
                 ] + $this->lateness($s));
 
             return [
-                'party' => $party, 'total_due' => round($items->sum('due'), 2), 'current_due' => round($items->sum('current_due'), 2),
+                'person' => $party, 'total_due' => round($items->sum('due'), 2), 'current_due' => round($items->sum('current_due'), 2),
                 'days_late' => (int) $items->max('days_late'), 'advance_available' => 0, 'items' => $items->values(),
             ];
         }
 
-        $items = Purchase::with('vehicle:id,chassis_no,engine_no,brand,model,year')->where('party_id', $party['id'])->whereRaw('price - paid_amount - due_adjustment > 0')
+        $items = Purchase::with('vehicle:id,chassis_no,engine_no,brand,model,year')->where('supplier_id', $party['id'])->whereRaw('price - paid_amount - due_adjustment > 0')
             ->orderBy('purchase_date')->orderBy('id')->get()
             ->map(fn (Purchase $p) => ['kind' => 'purchase', 'id' => $p->id, 'date' => $p->purchase_date->toDateString(), 'vehicle' => $p->vehicle->chassis_no, 'vehicle_name' => $this->vehicleName($p->vehicle), 'engine_no' => $p->vehicle->engine_no, 'memo_no' => $p->memo_no, 'due' => $this->payables->balance($p)]);
 
         return [
-            'party' => $party,
+            'person' => $party,
             'total_due' => round($items->sum('due'), 2),
             'advance_available' => $this->payables->advanceBalance($party['id']),
             'items' => $items->values(),

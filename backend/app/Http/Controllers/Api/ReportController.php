@@ -10,7 +10,8 @@ use App\Http\Resources\VehicleResource;
 use App\Models\Advance;
 use App\Models\Investor;
 use App\Models\InvestorSettlement;
-use App\Models\Party;
+use App\Models\Customer;
+use App\Models\Supplier;
 use App\Models\Payment;
 use App\Models\Purchase;
 use App\Models\PurchasePayment;
@@ -33,7 +34,7 @@ class ReportController extends Controller implements HasMiddleware
 
     public function stock(): JsonResponse
     {
-        $vehicles = Vehicle::with('currentPurchase.party')->where('status', 'in_stock')->limit(1000)->get(); // a safety cap, far above any real stock
+        $vehicles = Vehicle::with(['currentPurchase.supplier', 'currentPurchase.customer'])->where('status', 'in_stock')->limit(1000)->get(); // a safety cap, far above any real stock
 
         return $this->success([
             'total_count' => $vehicles->count(),
@@ -47,7 +48,7 @@ class ReportController extends Controller implements HasMiddleware
 
     public function dues(): JsonResponse
     {
-        $sales = Sale::with(['vehicle', 'party', 'plan.installments', 'promises'])
+        $sales = Sale::with(['vehicle', 'customer', 'plan.installments', 'promises'])
             ->where('status', 'active')->where('due_amount', '>', 0)->orderByDesc('due_amount')->limit(1000)->get(); // a safety cap
 
         return $this->success([
@@ -74,11 +75,12 @@ class ReportController extends Controller implements HasMiddleware
     {
         $request->validate(['from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from']]);
 
-        $purchases = Purchase::with(['vehicle', 'party'])
+        $purchases = Purchase::with(['vehicle', 'supplier', 'customer'])
             ->when($request->from, fn ($q, $v) => $q->whereDate('purchase_date', '>=', $v))
             ->when($request->to, fn ($q, $v) => $q->whereDate('purchase_date', '<=', $v))
             ->when($request->vehicle_type, fn ($q, $t) => $q->whereHas('vehicle', fn ($q) => $q->where('vehicle_type', $t)))
-            ->when($request->party_id, fn ($q, $id) => $q->where('party_id', $id))
+            ->when($request->supplier_id, fn ($q, $id) => $q->where('supplier_id', $id))
+            ->when($request->customer_id, fn ($q, $id) => $q->where('customer_id', $id))
             ->when($request->source, fn ($q, $src) => $q->where('source', $src))
             ->orderByDesc('purchase_date')->orderByDesc('id')->get();
 
@@ -109,12 +111,12 @@ class ReportController extends Controller implements HasMiddleware
     {
         $request->validate(['from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from']]);
 
-        $sales = Sale::with(['vehicle', 'party', 'purchase', 'plan'])
+        $sales = Sale::with(['vehicle', 'customer', 'purchase', 'plan'])
             ->when($request->from, fn ($q, $v) => $q->whereDate('sale_date', '>=', $v))
             ->when($request->to, fn ($q, $v) => $q->whereDate('sale_date', '<=', $v))
             ->when($request->vehicle_type, fn ($q, $t) => $q->whereHas('vehicle', fn ($q) => $q->where('vehicle_type', $t)))
             ->when($request->payment_type, fn ($q, $t) => $q->where('payment_type', $t))
-            ->when($request->party_id, fn ($q, $id) => $q->where('party_id', $id))
+            ->when($request->customer_id, fn ($q, $id) => $q->where('customer_id', $id))
             ->when($request->status, fn ($q, $st) => $q->where('status', $st))
             ->orderByDesc('sale_date')->orderByDesc('id')->get();
 
@@ -150,16 +152,17 @@ class ReportController extends Controller implements HasMiddleware
      * A customer's or supplier's statement: what was charged (sales to a customer, purchases from a supplier),
      * what was paid, and the running balance (owed to us by a customer, owed by us to a supplier).
      */
-    public function partyTransactions(Request $request): JsonResponse
+    public function personTransactions(Request $request): JsonResponse
     {
         $request->validate([
             'side' => ['required', 'in:customer,supplier'],
-            'party_id' => ['required', 'integer', 'exists:parties,id'],
+            'customer_id' => ['required_if:side,customer', 'nullable', 'integer', 'exists:customers,id'],
+            'supplier_id' => ['required_if:side,supplier', 'nullable', 'integer', 'exists:suppliers,id'],
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date', 'after_or_equal:from'],
         ]);
 
-        $party = Party::findOrFail($request->party_id);
+        $party = $request->side === 'customer' ? Customer::findOrFail($request->customer_id) : Supplier::findOrFail($request->supplier_id);
         $entries = $request->side === 'customer' ? $this->customerEntries($party->id) : $this->supplierEntries($party->id);
 
         $sorted = collect($entries)->sortBy([['date', 'asc'], ['order', 'asc'], ['id', 'asc']])->values();
@@ -177,7 +180,7 @@ class ReportController extends Controller implements HasMiddleware
         });
 
         return $this->success([
-            'party' => $party->only(['id', 'name', 'phone', 'alt_phone', 'address']),
+            'person' => $party->only(['id', 'name', 'phone', 'alt_phone', 'address']),
             'side' => $request->side,
             'from' => $from,
             'to' => $to,
@@ -190,21 +193,21 @@ class ReportController extends Controller implements HasMiddleware
     }
 
     /** @param array<int,array{0:string,1:?string}> $details label/value pairs shown on the transaction's voucher */
-    private function entry(int $party_id, string $date, int $order, int $id, string $kind, string $description, ?string $vehicle, float $charge, float $paid, ?string $reference = null, string $no = '', array $details = []): array
+    private function entry(int $person_id, string $date, int $order, int $id, string $kind, string $description, ?string $vehicle, float $charge, float $paid, ?string $reference = null, string $no = '', array $details = []): array
     {
-        return compact('party_id', 'date', 'order', 'id', 'kind', 'description', 'vehicle', 'charge', 'paid', 'reference', 'no', 'details');
+        return compact('person_id', 'date', 'order', 'id', 'kind', 'description', 'vehicle', 'charge', 'paid', 'reference', 'no', 'details');
     }
 
-    private function customerEntries(?int $partyId = null): array
+    private function customerEntries(?int $customerId = null): array
     {
         $out = [];
-        $sales = Sale::with(['vehicle:id,chassis_no,brand,model,engine_no', 'payments.receiver:id,name', 'payments.installment:id,seq_no'])->when($partyId, fn ($q) => $q->where('party_id', $partyId))->get();
+        $sales = Sale::with(['vehicle:id,chassis_no,brand,model,engine_no', 'payments.receiver:id,name', 'payments.installment:id,seq_no'])->when($customerId, fn ($q) => $q->where('customer_id', $customerId))->get();
 
         foreach ($sales as $sale) {
             $vehicle = $sale->vehicle->chassis_no;
             $name = trim("{$sale->vehicle->brand} {$sale->vehicle->model}");
             $total = $sale->grandTotal();
-            $out[] = $this->entry($sale->party_id, $sale->sale_date->toDateString(), 0, $sale->id, 'sale', ucfirst($sale->payment_type).' sale', $vehicle, $total, 0, null, "SALE-{$sale->id}", [
+            $out[] = $this->entry($sale->customer_id, $sale->sale_date->toDateString(), 0, $sale->id, 'sale', ucfirst($sale->payment_type).' sale', $vehicle, $total, 0, null, "SALE-{$sale->id}", [
                 ['Vehicle', $name ?: null], ['Chassis', $vehicle], ['Engine', $sale->vehicle->engine_no], ['Payment type', ucfirst($sale->payment_type)],
                 ['Sale price', number_format($sale->sale_price, 2)], ['Down payment', number_format($sale->down_payment, 2)],
             ]);
@@ -212,7 +215,7 @@ class ReportController extends Controller implements HasMiddleware
             foreach ($sale->payments as $pay) {
                 $label = $pay->amount < 0 ? 'Refund' : ($pay->method === 'adjustment' ? 'Adjusted against purchase' : 'Payment received ('.$pay->method.')');
                 // a refund gives money back, so it adds to what they owe again
-                $out[] = $this->entry($sale->party_id, $pay->paid_at->toDateString(), 1, $pay->id, 'payment', $label, $vehicle, $pay->amount < 0 ? abs($pay->amount) : 0, $pay->amount > 0 ? $pay->amount : 0, $pay->reference, 'RCPT-'.$pay->id, [
+                $out[] = $this->entry($sale->customer_id, $pay->paid_at->toDateString(), 1, $pay->id, 'payment', $label, $vehicle, $pay->amount < 0 ? abs($pay->amount) : 0, $pay->amount > 0 ? $pay->amount : 0, $pay->reference, 'RCPT-'.$pay->id, [
                     ['Vehicle', $name ?: null], ['Chassis', $vehicle], ['Sale', "#{$sale->id}"], ['Method', ucfirst($pay->method)],
                     ['Installment', $pay->installment ? "#{$pay->installment->seq_no}" : null], ['Received by', $pay->receiver?->name], ['Note', $pay->note],
                 ]);
@@ -220,59 +223,60 @@ class ReportController extends Controller implements HasMiddleware
 
             if ($sale->status === 'cancelled') {
                 $net = round($sale->payments->sum('amount'), 2);
-                $out[] = $this->entry($sale->party_id, ($sale->cancelled_at ?? now())->toDateString(), 2, $sale->id, 'cancel', 'Sale cancelled', $vehicle, 0, round($total - $net, 2), null, "CXL-{$sale->id}", [['Chassis', $vehicle], ['Reason', $sale->cancel_reason]]);
+                $out[] = $this->entry($sale->customer_id, ($sale->cancelled_at ?? now())->toDateString(), 2, $sale->id, 'cancel', 'Sale cancelled', $vehicle, 0, round($total - $net, 2), null, "CXL-{$sale->id}", [['Chassis', $vehicle], ['Reason', $sale->cancel_reason]]);
             }
         }
 
         return $out;
     }
 
-    private function supplierEntries(?int $partyId = null): array
+    private function supplierEntries(?int $supplierId = null): array
     {
         $out = [];
-        $purchases = Purchase::with(['vehicle:id,chassis_no,brand,model,engine_no', 'payments'])->when($partyId, fn ($q) => $q->where('party_id', $partyId))->get();
+        $purchases = Purchase::with(['vehicle:id,chassis_no,brand,model,engine_no', 'payments'])->whereNotNull('supplier_id')->when($supplierId, fn ($q) => $q->where('supplier_id', $supplierId))->get();
 
         foreach ($purchases as $p) {
             $vehicle = $p->vehicle->chassis_no;
             $name = trim("{$p->vehicle->brand} {$p->vehicle->model}");
             $car = [['Vehicle', $name ?: null], ['Chassis', $vehicle], ['Engine', $p->vehicle->engine_no]];
-            $out[] = $this->entry($p->party_id, $p->purchase_date->toDateString(), 0, $p->id, 'purchase', ($p->source === 'customer' ? 'Bought back' : 'Purchase').($p->memo_no ? " · memo {$p->memo_no}" : ''), $vehicle, (float) $p->price, 0, null, "PUR-{$p->id}", [...$car, ['Memo no', $p->memo_no], ['Price', number_format($p->price, 2)]]);
+            $out[] = $this->entry($p->supplier_id, $p->purchase_date->toDateString(), 0, $p->id, 'purchase', ($p->source === 'customer' ? 'Bought back' : 'Purchase').($p->memo_no ? " · memo {$p->memo_no}" : ''), $vehicle, (float) $p->price, 0, null, "PUR-{$p->id}", [...$car, ['Memo no', $p->memo_no], ['Price', number_format($p->price, 2)]]);
 
             // paid when the purchase was recorded = everything paid minus the later payments
             $initial = round($p->paid_amount - $p->payments->sum('amount'), 2);
             if ($initial > 0) {
-                $out[] = $this->entry($p->party_id, $p->purchase_date->toDateString(), 1, $p->id, 'payment', 'Paid at purchase'.($p->payment_method ? " ({$p->payment_method})" : ''), $vehicle, 0, $initial, $p->payment_reference, "PAY-P{$p->id}", [...$car, ['Method', $p->payment_method ? ucfirst($p->payment_method) : null], ['Purchase', "#{$p->id}"]]);
+                $out[] = $this->entry($p->supplier_id, $p->purchase_date->toDateString(), 1, $p->id, 'payment', 'Paid at purchase'.($p->payment_method ? " ({$p->payment_method})" : ''), $vehicle, 0, $initial, $p->payment_reference, "PAY-P{$p->id}", [...$car, ['Method', $p->payment_method ? ucfirst($p->payment_method) : null], ['Purchase', "#{$p->id}"]]);
             }
 
             if ($p->due_adjustment > 0) {
-                $out[] = $this->entry($p->party_id, $p->purchase_date->toDateString(), 1, $p->id, 'payment', 'Adjusted against their dues', $vehicle, 0, (float) $p->due_adjustment, null, "ADJ-{$p->id}", [...$car, ['Purchase', "#{$p->id}"]]);
+                $out[] = $this->entry($p->supplier_id, $p->purchase_date->toDateString(), 1, $p->id, 'payment', 'Adjusted against their dues', $vehicle, 0, (float) $p->due_adjustment, null, "ADJ-{$p->id}", [...$car, ['Purchase', "#{$p->id}"]]);
             }
 
             foreach ($p->payments as $pay) {
                 // money taken from an advance was counted when the advance was given
                 $fromAdvance = $pay->method === 'advance';
-                $out[] = $this->entry($p->party_id, $pay->paid_at->toDateString(), 1, $pay->id, 'payment', $fromAdvance ? 'Paid from advance' : "Payment ({$pay->method})", $vehicle, 0, $fromAdvance ? 0 : (float) $pay->amount, $pay->reference, 'PAY-'.$pay->id, [...$car, ['Purchase', "#{$p->id}"], ['Method', ucfirst($pay->method)], ['Note', $pay->note]]);
+                $out[] = $this->entry($p->supplier_id, $pay->paid_at->toDateString(), 1, $pay->id, 'payment', $fromAdvance ? 'Paid from advance' : "Payment ({$pay->method})", $vehicle, 0, $fromAdvance ? 0 : (float) $pay->amount, $pay->reference, 'PAY-'.$pay->id, [...$car, ['Purchase', "#{$p->id}"], ['Method', ucfirst($pay->method)], ['Note', $pay->note]]);
             }
         }
 
-        foreach (Advance::query()->when($partyId, fn ($q) => $q->where('party_id', $partyId))->get() as $a) {
-            $out[] = $this->entry($a->party_id, $a->paid_at->toDateString(), 1, $a->id, 'advance', "Advance paid ({$a->method})", null, 0, (float) $a->amount, $a->reference, "ADV-{$a->id}", [['Method', ucfirst($a->method)], ['Note', $a->note]]);
+        foreach (Advance::query()->when($supplierId, fn ($q) => $q->where('supplier_id', $supplierId))->get() as $a) {
+            $out[] = $this->entry($a->supplier_id, $a->paid_at->toDateString(), 1, $a->id, 'advance', "Advance paid ({$a->method})", null, 0, (float) $a->amount, $a->reference, "ADV-{$a->id}", [['Method', ucfirst($a->method)], ['Note', $a->note]]);
         }
 
         return $out;
     }
 
     /** Every customer's (or supplier's) totals in a period, one line each: the list behind the statements. */
-    public function partySummary(Request $request): JsonResponse
+    public function personSummary(Request $request): JsonResponse
     {
         $request->validate(['side' => ['required', 'in:customer,supplier'], 'from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from']]);
 
         $entries = collect($request->side === 'customer' ? $this->customerEntries() : $this->supplierEntries());
         $from = $request->from;
         $to = $request->to;
-        $parties = Party::whereIn('id', $entries->pluck('party_id')->unique())->get(['id', 'name', 'phone', 'alt_phone'])->keyBy('id');
+        $model = $request->side === 'customer' ? Customer::class : Supplier::class;
+        $people = $model::whereIn('id', $entries->pluck('person_id')->unique())->get(['id', 'name', 'phone', 'alt_phone'])->keyBy('id');
 
-        $rows = $entries->groupBy('party_id')->map(function ($list, $partyId) use ($from, $to, $parties) {
+        $rows = $entries->groupBy('person_id')->map(function ($list, $personId) use ($from, $to, $people) {
             $opening = $from ? round($list->filter(fn ($e) => $e['date'] < $from)->sum(fn ($e) => $e['charge'] - $e['paid']), 2) : 0.0;
             $range = $list->filter(fn ($e) => (! $from || $e['date'] >= $from) && (! $to || $e['date'] <= $to));
             $charge = round($range->sum('charge'), 2);
@@ -280,7 +284,7 @@ class ReportController extends Controller implements HasMiddleware
             $last = $range->max('date');
 
             return [
-                'party' => $parties[$partyId]->only(['id', 'name', 'phone', 'alt_phone']),
+                'person' => $people[$personId]->only(['id', 'name', 'phone', 'alt_phone']),
                 'opening_balance' => $opening, 'charge' => $charge, 'paid' => $paid,
                 'closing_balance' => round($opening + $charge - $paid, 2), 'transactions' => $range->count(), 'last_date' => $last,
             ];
@@ -300,33 +304,33 @@ class ReportController extends Controller implements HasMiddleware
         $date = $request->date ?: today()->toDateString();
         $name = fn ($v) => trim(($v->brand ?? '').' '.($v->model ?? ''));
 
-        $sales = Sale::with(['vehicle:id,chassis_no,brand,model', 'party:id,name,phone', 'plan', 'payments'])->whereDate('sale_date', $date)->where('status', 'active')->orderBy('id')->get()
+        $sales = Sale::with(['vehicle:id,chassis_no,brand,model', 'customer:id,name,phone', 'plan', 'payments'])->whereDate('sale_date', $date)->where('status', 'active')->orderBy('id')->get()
             ->map(fn (Sale $s) => [
-                'id' => $s->id, 'vehicle' => $s->vehicle->chassis_no, 'vehicle_name' => $name($s->vehicle), 'party' => $s->party->name, 'phone' => $s->party->phone,
+                'id' => $s->id, 'vehicle' => $s->vehicle->chassis_no, 'vehicle_name' => $name($s->vehicle), 'name' => $s->customer->name, 'phone' => $s->customer->phone,
                 'payment_type' => $s->payment_type, 'total' => $s->grandTotal(), 'received' => round((float) $s->down_payment, 2), 'due' => round($s->grandTotal() - $s->down_payment, 2),
             ]);
 
-        $purchases = Purchase::with(['vehicle:id,chassis_no,brand,model', 'party:id,name,phone', 'payments'])->whereDate('purchase_date', $date)->orderBy('id')->get()
+        $purchases = Purchase::with(['vehicle:id,chassis_no,brand,model', 'supplier:id,name,phone', 'customer:id,name,phone', 'payments'])->whereDate('purchase_date', $date)->orderBy('id')->get()
             ->map(fn (Purchase $p) => [
-                'id' => $p->id, 'vehicle' => $p->vehicle->chassis_no, 'vehicle_name' => $name($p->vehicle), 'party' => $p->party->name, 'phone' => $p->party->phone, 'memo_no' => $p->memo_no,
+                'id' => $p->id, 'vehicle' => $p->vehicle->chassis_no, 'vehicle_name' => $name($p->vehicle), 'name' => ($p->supplier ?? $p->customer)->name, 'phone' => ($p->supplier ?? $p->customer)->phone, 'memo_no' => $p->memo_no,
                 'total' => (float) $p->price, 'paid' => round($p->paid_amount - $p->payments->sum('amount'), 2), 'due' => round($p->price - $p->paid_amount - $p->due_adjustment, 2),
             ]);
 
-        $collections = Payment::with(['sale.party:id,name,phone', 'sale.vehicle:id,chassis_no'])->whereDate('paid_at', $date)
+        $collections = Payment::with(['sale.customer:id,name,phone', 'sale.vehicle:id,chassis_no'])->whereDate('paid_at', $date)
             ->where('method', '!=', 'adjustment')
             // money paid when the vehicle was sold is counted with the sale, not as a collection
             ->where(fn ($q) => $q->whereNull('note')->orWhereNotIn('note', ['Full payment at sale', 'Down payment']))
             ->orderBy('id')->get()
             ->map(fn (Payment $p) => [
-                'id' => $p->id, 'sale_id' => $p->sale_id, 'party' => $p->sale->party->name, 'phone' => $p->sale->party->phone, 'vehicle' => $p->sale->vehicle->chassis_no,
+                'id' => $p->id, 'sale_id' => $p->sale_id, 'name' => $p->sale->customer->name, 'phone' => $p->sale->customer->phone, 'vehicle' => $p->sale->vehicle->chassis_no,
                 'method' => $p->method, 'amount' => (float) $p->amount, 'note' => $p->note,
             ]);
 
         $supplierPayments = collect()
-            ->concat(PurchasePayment::with(['purchase.party:id,name,phone', 'purchase.vehicle:id,chassis_no'])->whereDate('paid_at', $date)->where('method', '!=', 'advance')->orderBy('id')->get()
-                ->map(fn ($p) => ['party' => $p->purchase->party->name, 'phone' => $p->purchase->party->phone, 'vehicle' => $p->purchase->vehicle->chassis_no, 'kind' => 'Due paid', 'method' => $p->method, 'amount' => (float) $p->amount, 'reference' => $p->reference]))
-            ->concat(Advance::with('party:id,name,phone')->whereDate('paid_at', $date)->orderBy('id')->get()
-                ->map(fn ($a) => ['party' => $a->party->name, 'phone' => $a->party->phone, 'vehicle' => null, 'kind' => 'Advance paid', 'method' => $a->method, 'amount' => (float) $a->amount, 'reference' => $a->reference]))
+            ->concat(PurchasePayment::with(['purchase.supplier:id,name,phone', 'purchase.customer:id,name,phone', 'purchase.vehicle:id,chassis_no'])->whereDate('paid_at', $date)->where('method', '!=', 'advance')->orderBy('id')->get()
+                ->map(fn ($p) => ['name' => ($p->purchase->supplier ?? $p->purchase->customer)->name, 'phone' => ($p->purchase->supplier ?? $p->purchase->customer)->phone, 'vehicle' => $p->purchase->vehicle->chassis_no, 'kind' => 'Due paid', 'method' => $p->method, 'amount' => (float) $p->amount, 'reference' => $p->reference]))
+            ->concat(Advance::with('supplier:id,name,phone')->whereDate('paid_at', $date)->orderBy('id')->get()
+                ->map(fn ($a) => ['name' => $a->supplier->name, 'phone' => $a->supplier->phone, 'vehicle' => null, 'kind' => 'Advance paid', 'method' => $a->method, 'amount' => (float) $a->amount, 'reference' => $a->reference]))
             ->values();
 
         // entered by hand (add investment / pay installment); the entries a sale or collection makes by itself are not cash the shop moved
@@ -369,11 +373,12 @@ class ReportController extends Controller implements HasMiddleware
         $to = $request->to;
         $entries = collect($request->side === 'customer' ? $this->customerEntries() : $this->supplierEntries())
             ->filter(fn ($e) => (! $from || $e['date'] >= $from) && (! $to || $e['date'] <= $to))
-            ->sortBy([['date', 'asc'], ['party_id', 'asc'], ['order', 'asc'], ['id', 'asc']])->values();
-        $parties = Party::whereIn('id', $entries->pluck('party_id')->unique())->get(['id', 'name', 'phone'])->keyBy('id');
+            ->sortBy([['date', 'asc'], ['person_id', 'asc'], ['order', 'asc'], ['id', 'asc']])->values();
+        $model = $request->side === 'customer' ? Customer::class : Supplier::class;
+        $people = $model::whereIn('id', $entries->pluck('person_id')->unique())->get(['id', 'name', 'phone'])->keyBy('id');
 
         $rows = $entries->map(fn ($e) => [
-            'date' => $e['date'], 'party_id' => $e['party_id'], 'party' => $parties[$e['party_id']]->name ?? '-', 'phone' => $parties[$e['party_id']]->phone ?? null, 'kind' => $e['kind'],
+            'date' => $e['date'], 'person_id' => $e['person_id'], 'person' => $people[$e['person_id']]->name ?? '-', 'phone' => $people[$e['person_id']]->phone ?? null, 'kind' => $e['kind'],
             'description' => $e['description'], 'vehicle' => $e['vehicle'], 'reference' => $e['reference'], 'charge' => $e['charge'], 'paid' => $e['paid'],
             'no' => $e['no'], 'details' => array_values(array_filter($e['details'], fn ($d) => $d[1] !== null && $d[1] !== '')),
         ]);

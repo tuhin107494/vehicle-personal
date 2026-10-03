@@ -9,7 +9,8 @@ use App\Models\DuePromise;
 use App\Models\Installment;
 use App\Models\Investor;
 use App\Models\InvestorSettlement;
-use App\Models\Party;
+use App\Models\Customer;
+use App\Models\Supplier;
 use App\Models\Payment;
 use App\Models\Purchase;
 use App\Models\Sale;
@@ -59,7 +60,7 @@ class DashboardController extends Controller implements HasMiddleware
             'stock_by_type' => $stockByType,
             'vehicles' => ['in_stock' => Vehicle::where('status', 'in_stock')->count(), 'sold' => Vehicle::where('status', 'sold')->count()],
             'sale_types' => $payments,
-            'counts' => ['customers' => Party::whereIn('type', ['customer', 'both'])->count(), 'suppliers' => Party::whereIn('type', ['supplier', 'both'])->count(), 'investors' => Investor::count()],
+            'counts' => ['customers' => Customer::count(), 'suppliers' => Supplier::count(), 'investors' => Investor::count()],
             'payable' => round((float) $unpaid, 2),
             'invested' => round((float) InvestorSettlement::where('type', 'investment')->sum('amount'), 2),
             'stock_count' => Vehicle::where('status', 'in_stock')->count(),
@@ -68,10 +69,10 @@ class DashboardController extends Controller implements HasMiddleware
             'total_due' => (float) Sale::where('status', 'active')->sum('due_amount'),
             'overdue_count' => $overdue()->count(),
             'overdue_installments' => InstallmentResource::collection(
-                $overdue()->with(['plan.sale.vehicle', 'plan.sale.party'])->orderBy('due_date')->limit(10)->get()
+                $overdue()->with(['plan.sale.vehicle', 'plan.sale.customer'])->orderBy('due_date')->limit(10)->get()
             ),
             'promises_due_today' => DuePromiseResource::collection(
-                DuePromise::with(['sale.vehicle', 'sale.party'])->where('status', 'open')->whereDate('promised_date', today())->get()
+                DuePromise::with(['sale.vehicle', 'sale.customer'])->where('status', 'open')->whereDate('promised_date', today())->get()
             ),
         ]);
     }

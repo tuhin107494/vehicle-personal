@@ -17,9 +17,9 @@ class PayableService
         return round($purchase->price - $purchase->paid_amount - $purchase->due_adjustment, 2);
     }
 
-    public function advanceBalance(int $partyId): float
+    public function advanceBalance(int $supplierId): float
     {
-        return round((float) Advance::where('party_id', $partyId)->selectRaw('COALESCE(SUM(amount - used), 0) as r')->value('r'), 2);
+        return round((float) Advance::where('supplier_id', $supplierId)->selectRaw('COALESCE(SUM(amount - used), 0) as r')->value('r'), 2);
     }
 
     public function pay(Purchase $purchase, array $data, User $user): PurchasePayment
@@ -38,7 +38,7 @@ class PayableService
             }
 
             if ($data['method'] === 'advance') {
-                $this->useAdvance($purchase->party_id, $amount);
+                $this->useAdvance($purchase->supplier_id, $amount);
             }
 
             $payment = PurchasePayment::create([
@@ -64,7 +64,7 @@ class PayableService
     public function addAdvance(array $data, User $user): Advance
     {
         return Advance::create([
-            'party_id' => $data['party_id'],
+            'supplier_id' => $data['supplier_id'],
             'amount' => $data['amount'],
             'method' => $data['method'],
             'paid_at' => $data['paid_at'] ?? today()->toDateString(),
@@ -75,9 +75,9 @@ class PayableService
     }
 
     /** Takes the amount out of the supplier's advances, oldest first. */
-    private function useAdvance(int $partyId, float $amount): void
+    private function useAdvance(int $supplierId, float $amount): void
     {
-        $advances = Advance::where('party_id', $partyId)->whereColumn('used', '<', 'amount')->orderBy('paid_at')->orderBy('id')->lockForUpdate()->get();
+        $advances = Advance::where('supplier_id', $supplierId)->whereColumn('used', '<', 'amount')->orderBy('paid_at')->orderBy('id')->lockForUpdate()->get();
 
         if (round($advances->sum(fn ($a) => $a->amount - $a->used), 2) < $amount) {
             throw new BusinessRuleException('This supplier has only '.number_format($advances->sum(fn ($a) => $a->amount - $a->used), 2).' of advance left.');

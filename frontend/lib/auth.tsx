@@ -15,6 +15,7 @@ type AuthContextValue = {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  setUser: (user: User) => void;
   can: (permission: string) => boolean;
 };
 
@@ -55,7 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const can = useCallback((permission: string) => !!user?.permissions.includes(permission), [user]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, can }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, loading, login, logout, setUser, can }}>{children}</AuthContext.Provider>
   );
 }
 

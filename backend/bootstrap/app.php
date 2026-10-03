@@ -30,6 +30,9 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // a refused action ("cannot delete", "overpayment") is an answer to the user, not a bug: keep it out of the error log
+        $exceptions->dontReport(\App\Exceptions\BusinessRuleException::class);
+
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );

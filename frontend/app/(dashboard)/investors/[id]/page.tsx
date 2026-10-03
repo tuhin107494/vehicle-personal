@@ -33,7 +33,7 @@ export default function InvestorPortfolioPage() {
   const saleCols: Col<Sale>[] = [
     { header: "Sale", cell: ({ row }) => <span className="font-medium">#{row.original.id}</span> },
     { header: "Vehicle", cell: ({ row }) => row.original.vehicle?.chassis_no },
-    { header: "Buyer", cell: ({ row }) => row.original.party?.name },
+    { header: "Buyer", cell: ({ row }) => row.original.customer?.name },
     { header: "Financed", cell: ({ row }) => money(row.original.plan?.principal) },
     { header: "Payable", cell: ({ row }) => money(row.original.plan?.total_payable) },
     { header: "Due", cell: ({ row }) => money(row.original.due_amount) },

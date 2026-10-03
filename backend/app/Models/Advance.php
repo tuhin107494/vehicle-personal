@@ -12,7 +12,7 @@ class Advance extends Model
 
     protected $fillable = [
         'shop_id',
-        'party_id',
+        'supplier_id',
         'amount',
         'used',
         'method',
@@ -34,8 +34,8 @@ class Advance extends Model
         return round($this->amount - $this->used, 2);
     }
 
-    public function party(): BelongsTo
+    public function supplier(): BelongsTo
     {
-        return $this->belongsTo(Party::class);
+        return $this->belongsTo(Supplier::class);
     }
 }

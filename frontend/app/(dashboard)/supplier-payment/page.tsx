@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/app-ui";
 import { AccountForm } from "@/components/forms/AccountForm";
 
 function Form() {
-  return <AccountForm side="supplier" partyId={useSearchParams().get("party_id")} />;
+  return <AccountForm side="supplier" partyId={useSearchParams().get("supplier_id")} />;
 }
 
 export default function Page() {

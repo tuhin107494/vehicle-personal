@@ -10,10 +10,10 @@ import { toast } from "sonner";
 import { api, ApiError, applyServerErrors } from "@/lib/api";
 import { fmtDate, money, todayStr, toPayload } from "@/lib/format";
 import { useFetch } from "@/lib/hooks";
-import type { DraftT, Party, Purchase, Sale, Vehicle } from "@/lib/types";
+import type { Customer, DraftT, Purchase, Sale, Vehicle } from "@/lib/types";
 import { DraftsBar, draftValues } from "@/components/DraftsBar";
 import { Button, Card, Field, inputCls, KV, PageHeader, StatusBadge } from "@/components/app-ui";
-import { PartySelect } from "@/components/Selects";
+import { CustomerSelect, SupplierSelect } from "@/components/Selects";
 import { SearchSelect } from "@/components/SearchSelect";
 import { DEFAULT_FIELDS, useCategories, useTypeDefaults } from "@/lib/categories";
 import { useSettings } from "@/lib/settings";
@@ -62,7 +62,7 @@ function PurchaseForm() {
 
   // "From customer": pick the customer first, then one of the vehicles they bought from us (or another vehicle).
   const customerId = source === "customer" ? watch("party_id") : "";
-  const customer = useFetch<{ party: Party; sales: Sale[] }>(customerId ? `/parties/${customerId}/history` : null);
+  const customer = useFetch<{ customer: Customer; sales: Sale[] }>(customerId ? `/customers/${customerId}/history` : null);
   const activeSales = (customer.data?.sales ?? []).filter((s) => s.status === "active");
   const ownedSales = activeSales.filter((s) => s.vehicle?.status === "sold" && s.vehicle.current_sale_id === s.id); // still with this customer
   const totalDue = activeSales.reduce((sum, s) => sum + s.due_amount, 0);
@@ -107,7 +107,7 @@ function PurchaseForm() {
   const chooseFound = (saleId: string) => {
     const sale = found.data?.find((s) => String(s.id) === saleId);
     if (!sale?.vehicle) return;
-    changeCustomer(String(sale.party_id)); // fills the customer, whose details and vehicles then load
+    changeCustomer(String(sale.customer_id)); // fills the customer, whose details and vehicles then load
     pickSale(sale);
   };
 
@@ -144,7 +144,7 @@ function PurchaseForm() {
   const autoCustomer = (v: Vehicle) => {
     const sale = v.current_sale;
     if (source !== "customer" || v.status !== "sold" || !sale || sale.status !== "active") return;
-    if (String(sale.party_id) !== getValues("party_id")) setValue("party_id", String(sale.party_id), { shouldValidate: true });
+    if (String(sale.customer_id) !== getValues("party_id")) setValue("party_id", String(sale.customer_id), { shouldValidate: true });
     setPicked(String(sale.id));
   };
 
@@ -266,7 +266,7 @@ function PurchaseForm() {
     }
     try {
       const fields: Record<string, unknown> = {
-        source, ...toPayload({ party_id: v.party_id, memo_no: v.memo_no, purchase_date: v.purchase_date, price: v.price, paid_amount: v.paid_amount, cost_extra: v.cost_extra, notes: v.notes, payment_method: v.payment_method, payment_reference: v.payment_reference }, []),
+        source, ...toPayload({ [source === "customer" ? "customer_id" : "supplier_id"]: v.party_id, memo_no: v.memo_no, purchase_date: v.purchase_date, price: v.price, paid_amount: v.paid_amount, cost_extra: v.cost_extra, notes: v.notes, payment_method: v.payment_method, payment_reference: v.payment_reference }, []),
         ...toPayload({ registration_date: v.registration_date, tax_token_expiry: v.tax_token_expiry, fitness_expiry: v.fitness_expiry, insurance_expiry: v.insurance_expiry, mileage: v.mileage, condition_notes: v.condition_notes }, []),
         papers_received: v.papers_received ? "1" : "0",
         ...(adjusting > 0 && adjustSale ? { due_adjustment: adjusting, adjusted_sale_id: adjustSale.id } : {}),
@@ -309,17 +309,17 @@ function PurchaseForm() {
           <>
             <Card title="1. Customer (seller)">
               <div className="space-y-3">
-                <PartySelect type="customer" allowCreate label="Customer" value={watch("party_id")} onChange={changeCustomer} selectedLabel={customer.data?.party.name} error={errors.party_id?.message} />
+                <CustomerSelect allowCreate label="Customer" value={watch("party_id")} onChange={changeCustomer} selectedLabel={customer.data?.customer.name} error={errors.party_id?.message} />
                 {customer.data && (
                   <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
                     <KV items={[
-                      ["Name", customer.data.party.name], ["Father's name", customer.data.party.father_name], ["NID number", customer.data.party.nid], ["Mobile", customer.data.party.phone],
-                      ["Alt. mobile", customer.data.party.alt_phone], ["Address", customer.data.party.address],
+                      ["Name", customer.data.customer.name], ["Father's name", customer.data.customer.father_name], ["NID number", customer.data.customer.nid], ["Mobile", customer.data.customer.phone],
+                      ["Alt. mobile", customer.data.customer.alt_phone], ["Address", customer.data.customer.address],
                     ]} />
                     <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
                       <span>Vehicles bought from us: <b>{activeSales.length}</b></span>
                       <span className={totalDue > 0 ? "font-semibold text-amber-700" : "font-semibold text-emerald-700"}>Total due: {money(totalDue)}</span>
-                      <Link className="underline" href={`/parties/${customer.data.party.id}`} target="_blank">View customer</Link>
+                      <Link className="underline" href={`/customers/${customer.data.customer.id}`} target="_blank">View customer</Link>
                     </div>
                   </div>
                 )}
@@ -332,12 +332,12 @@ function PurchaseForm() {
                 onChange={chooseFound}
                 onQueryChange={setFindText}
                 loading={found.loading}
-                fallbackLabel={pickedSale?.vehicle ? `${pickedSale.vehicle.chassis_no} · ${customer.data?.party.name ?? ""}` : undefined}
+                fallbackLabel={pickedSale?.vehicle ? `${pickedSale.vehicle.chassis_no} · ${customer.data?.customer.name ?? ""}` : undefined}
                 placeholder="Search by customer name, mobile, NID, engine no. or chassis no...."
                 options={(found.data ?? []).map((sale) => ({
                   value: String(sale.id),
-                  label: `${sale.vehicle?.chassis_no} · ${sale.party?.name}`,
-                  hint: [[sale.party?.phone, sale.party?.alt_phone].filter(Boolean).join(" / "), sale.party?.nid ? `NID ${sale.party.nid}` : "", `Engine ${sale.vehicle?.engine_no}`, [sale.vehicle?.brand, sale.vehicle?.model].filter(Boolean).join(" "), sale.due_amount > 0 ? `Due ${money(sale.due_amount)}` : "Fully paid"].filter(Boolean).join(" · "),
+                  label: `${sale.vehicle?.chassis_no} · ${sale.customer?.name}`,
+                  hint: [[sale.customer?.phone, sale.customer?.alt_phone].filter(Boolean).join(" / "), sale.customer?.nid ? `NID ${sale.customer.nid}` : "", `Engine ${sale.vehicle?.engine_no}`, [sale.vehicle?.brand, sale.vehicle?.model].filter(Boolean).join(" "), sale.due_amount > 0 ? `Due ${money(sale.due_amount)}` : "Fully paid"].filter(Boolean).join(" · "),
                 }))}
               />
                 <p className="text-xs text-slate-500">Picking a vehicle we sold fills in its customer.</p>
@@ -421,7 +421,7 @@ function PurchaseForm() {
 
         <Card title={source === "customer" ? "4. Purchase details" : "Supplier & purchase details"}>
           <div className="grid gap-3 md:grid-cols-2">
-            {source === "supplier" && <PartySelect type="supplier" allowCreate={false} label="Supplier" value={watch("party_id")} onChange={(id) => setValue("party_id", id, { shouldValidate: true })} error={errors.party_id?.message} />}
+            {source === "supplier" && <SupplierSelect allowCreate={false} label="Supplier" value={watch("party_id")} onChange={(id) => setValue("party_id", id, { shouldValidate: true })} error={errors.party_id?.message} />}
             {source === "customer" && (
               <div className="space-y-3 md:col-span-2">
                 <div className="grid items-end gap-3 md:grid-cols-2 lg:grid-cols-4">

@@ -9,7 +9,7 @@ class StoreAdvanceRequest extends ApiRequest
     public function rules(): array
     {
         return [
-            'party_id' => ['required', 'integer', $this->shopExists('parties')],
+            'supplier_id' => ['required', 'integer', $this->shopExists('suppliers')],
             'amount' => ['required', 'numeric', 'min:1'],
             'method' => ['required', Rule::in(['cash', 'bank', 'mobile'])],
             'paid_at' => ['nullable', 'date', 'before_or_equal:today'],
@@ -21,7 +21,7 @@ class StoreAdvanceRequest extends ApiRequest
     public function messages(): array
     {
         return [
-            'party_id.required' => 'Select the supplier.',
+            'supplier_id.required' => 'Select the supplier.',
             'amount.required' => 'Enter the amount paid in advance.',
             'amount.min' => 'Amount must be greater than zero.',
             'method.required' => 'Choose how it was paid.',

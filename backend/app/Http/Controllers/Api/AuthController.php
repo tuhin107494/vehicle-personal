@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\ProfileRequest;
 use App\Models\User;
 use App\Support\PermissionCatalog;
 use Illuminate\Auth\Events\PasswordReset;
@@ -89,6 +90,22 @@ class AuthController extends Controller
     public function me(Request $request): JsonResponse
     {
         return $this->success($this->userData($request->user()->load('shop')));
+    }
+
+    /** Lets any signed-in user change their own name, email and (with the current password) password. */
+    public function updateProfile(ProfileRequest $request): JsonResponse
+    {
+        $user = $request->user();
+        $user->fill($request->only(['name', 'email']));
+
+        if ($request->filled('password')) {
+            $user->password = $request->input('password');
+            $user->tokens()->where('id', '!=', $user->currentAccessToken()->id)->delete(); // other devices are signed out
+        }
+
+        $user->save();
+
+        return $this->success($this->userData($user->load('shop')), 'Profile updated');
     }
 
     private function userData(User $user): array

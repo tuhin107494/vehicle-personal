@@ -10,11 +10,11 @@ import { toast } from "sonner";
 import { api, ApiError, applyServerErrors } from "@/lib/api";
 import { addDays, fmtDate, money, todayStr, toPayload, savedMsg } from "@/lib/format";
 import { useFetch } from "@/lib/hooks";
-import type { DraftT, Investor, Party, Sale, Vehicle } from "@/lib/types";
+import type { DraftT, Customer, Investor, Sale, Vehicle } from "@/lib/types";
 import { ProfitCalculator } from "@/components/forms/ProfitCalculator";
 import { DraftsBar, draftValues } from "@/components/DraftsBar";
 import { Button, Card, Field, inputCls, PageHeader } from "@/components/app-ui";
-import { InvestorSelect, PartySelect } from "@/components/Selects";
+import { CustomerSelect, InvestorSelect } from "@/components/Selects";
 import { SearchSelect } from "@/components/SearchSelect";
 import { useSettings } from "@/lib/settings";
 import { useCategories } from "@/lib/categories";
@@ -155,7 +155,7 @@ export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chosenInvestor.data]);
 
-  const buyer = useFetch<Party>(w.party_id ? `/parties/${w.party_id}` : null);
+  const buyer = useFetch<Customer>(w.party_id ? `/customers/${w.party_id}` : null);
   const picked = (vehicles.data ?? []).find((v) => String(v.id) === w.vehicle_id);
 
   // Choosing a vehicle brings its type's default sale price (Settings), unless a different price was already typed.
@@ -246,7 +246,7 @@ export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
     }
     try {
       const body = toPayload({
-        vehicle_id: v.vehicle_id, party_id: v.party_id, sale_date: v.sale_date, sale_price: v.sale_price, payment_type: v.payment_type, method: v.method,
+        vehicle_id: v.vehicle_id, customer_id: v.party_id, sale_date: v.sale_date, sale_price: v.sale_price, payment_type: v.payment_type, method: v.method,
         down_payment: v.payment_type === "cash" ? v.sale_price : v.down_payment,
         ...(v.payment_type !== "cash" && { guarantor_phone: v.guarantor_phone }),
         ...(v.payment_type === "due" && { promised_date: v.promised_date, promise_note: v.promise_note }),
@@ -260,7 +260,7 @@ export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
             ? (plan && plan.interest > 0 ? String(Math.round((Number(v.investor_share_amount || 0) / plan.interest) * 1000000) / 10000) : "0")
             : v.investor_share_percent,
         }),
-      }, ["vehicle_id", "party_id", "sale_price", "down_payment", "investor_id", "installment_count", "interest_rate", "interest_amount", "investor_share_percent"]);
+      }, ["vehicle_id", "customer_id", "sale_price", "down_payment", "investor_id", "installment_count", "interest_rate", "interest_amount", "investor_share_percent"]);
       const res = await api<Sale>("/sales", { method: "POST", body });
       if (draftId) await api(`/drafts/${draftId}`, { method: "DELETE" }).catch(() => {}); // the real sale exists now
       toast.success(savedMsg("Sale", false));
@@ -277,7 +277,7 @@ export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
         <p className="text-xs text-slate-500"><span className="text-red-600">*</span> Required</p>
         <Card title="1. Customer">
-          <PartySelect type="customer" label="Buyer" value={w.party_id} onChange={(id) => setValue("party_id", id, { shouldValidate: true })} error={errors.party_id?.message} />
+          <CustomerSelect label="Buyer" value={w.party_id} onChange={(id) => setValue("party_id", id, { shouldValidate: true })} error={errors.party_id?.message} />
           {buyer.data && (
             <dl className="mt-3 grid gap-x-4 gap-y-1 rounded-md border border-emerald-100 bg-emerald-50/50 p-3 text-sm sm:grid-cols-2">
               <Info k="Name" v={buyer.data.name} />

@@ -26,7 +26,7 @@ class PromiseController extends Controller implements HasMiddleware
     public function index(Request $request): JsonResponse
     {
         $promises = DuePromise::query()
-            ->with(['sale.vehicle', 'sale.party'])
+            ->with(['sale.vehicle', 'sale.customer'])
             ->when($request->status, fn ($q, $v) => $q->where('status', $v))
             ->when($request->from, fn ($q, $v) => $q->whereDate('promised_date', '>=', $v))
             ->when($request->to, fn ($q, $v) => $q->whereDate('promised_date', '<=', $v))

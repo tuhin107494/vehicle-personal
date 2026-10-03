@@ -27,20 +27,20 @@ class PayableController extends Controller implements HasMiddleware
     /** Purchases that are not paid in full, with each supplier's advance that could be used on them. */
     public function index(): JsonResponse
     {
-        $purchases = Purchase::with(['party', 'vehicle'])->whereRaw('price - paid_amount - due_adjustment > 0')->orderBy('purchase_date')->orderBy('id')->limit(1000)->get();
-        $advance = Advance::selectRaw('party_id, SUM(amount - used) as left_amount')->groupBy('party_id')->pluck('left_amount', 'party_id');
+        $purchases = Purchase::with(['supplier', 'vehicle'])->whereNotNull('supplier_id')->whereRaw('price - paid_amount - due_adjustment > 0')->orderBy('purchase_date')->orderBy('id')->limit(1000)->get();
+        $advance = Advance::selectRaw('supplier_id, SUM(amount - used) as left_amount')->groupBy('supplier_id')->pluck('left_amount', 'supplier_id');
 
         return $this->success($purchases->map(fn (Purchase $p) => [
             'id' => $p->id,
             'purchase_date' => $p->purchase_date->toDateString(),
-            'party' => $p->party->only(['id', 'name', 'phone', 'alt_phone']),
+            'supplier' => $p->supplier->only(['id', 'name', 'phone', 'alt_phone']),
             'vehicle' => $p->vehicle->only(['id', 'chassis_no', 'brand', 'model']),
             'source' => $p->source,
             'price' => $p->price,
             'paid_amount' => $p->paid_amount,
             'due_adjustment' => $p->due_adjustment,
             'balance' => $this->payables->balance($p),
-            'advance_available' => round((float) ($advance[$p->party_id] ?? 0), 2),
+            'advance_available' => round((float) ($advance[$p->supplier_id] ?? 0), 2),
         ])->values());
     }
 
@@ -61,13 +61,13 @@ class PayableController extends Controller implements HasMiddleware
 
     public function advances(): JsonResponse
     {
-        return $this->success(Advance::with('party:id,name,phone')->orderByDesc('paid_at')->orderByDesc('id')->limit(200)->get());
+        return $this->success(Advance::with('supplier:id,name,phone')->orderByDesc('paid_at')->orderByDesc('id')->limit(200)->get());
     }
 
     public function storeAdvance(StoreAdvanceRequest $request): JsonResponse
     {
         $advance = $this->payables->addAdvance($request->validated(), $request->user());
 
-        return $this->success($advance->load('party:id,name,phone'), 'Advance recorded', 201);
+        return $this->success($advance->load('supplier:id,name,phone'), 'Advance recorded', 201);
     }
 }
