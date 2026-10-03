@@ -1,0 +1,43 @@
+<?php
+
+namespace App\Models;
+
+use App\Models\Concerns\BelongsToShop;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class Installment extends Model
+{
+    use BelongsToShop;
+
+    protected $fillable = [
+        'shop_id',
+        'plan_id',
+        'seq_no',
+        'due_date',
+        'amount',
+        'paid_amount',
+        'status',
+        'paid_at',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'due_date' => 'date:Y-m-d',
+            'amount' => 'float',
+            'paid_amount' => 'float',
+            'paid_at' => 'datetime',
+        ];
+    }
+
+    public function plan(): BelongsTo
+    {
+        return $this->belongsTo(InstallmentPlan::class, 'plan_id');
+    }
+
+    public function remaining(): float
+    {
+        return round($this->amount - $this->paid_amount, 2);
+    }
+}

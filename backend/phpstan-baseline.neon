@@ -1,0 +1,601 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$chassis_no\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/AccountController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$engine_no\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/AccountController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$installments\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/AccountController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$memo_no\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/AccountController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$promised_amount\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/AccountController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$promised_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/AccountController.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Http/Controllers/Api/AccountController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Purchase\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/Api/AccountController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Sale\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/Api/AccountController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/Api/AccountController.php
+
+		-
+			message: '#^Parameter \#1 \$v of method App\\Http\\Controllers\\Api\\AccountController\:\:vehicleName\(\) expects App\\Models\\Vehicle, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Http/Controllers/Api/AccountController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$is_active\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/AuthController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$due_amount\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/CollectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$sale\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/CollectionController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Api\\CollectionController\:\:rows\(\) should return Illuminate\\Support\\Collection\<int, array\<string, mixed\>\> but returns Illuminate\\Support\\Collection\<int, non\-empty\-array\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/Api/CollectionController.php
+
+		-
+			message: '#^Parameter \#4 \$sale of method App\\Http\\Controllers\\Api\\CollectionController\:\:row\(\) expects App\\Models\\Sale, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Api/CollectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/DraftController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Investor\:\:\$current_due\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/InvestorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Http/Controllers/Api/InvestorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$installments\.$#'
+			identifier: property.notFound
+			count: 5
+			path: app/Http/Controllers/Api/InvestorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$interest_amount\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/InvestorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$investor_share_percent\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/InvestorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$number_of_installments\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/InvestorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$principal\.$#'
+			identifier: property.notFound
+			count: 7
+			path: app/Http/Controllers/Api/InvestorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$sale\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/InvestorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$sale_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/InvestorController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/Api/InvestorController.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/PayableController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Purchase\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/Api/PayableController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$amount\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/ReportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$brand\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/ReportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$chassis_no\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Http/Controllers/Api/ReportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$engine_no\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/ReportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Http/Controllers/Api/ReportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$installment\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/ReportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$installments\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/ReportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$method\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Http/Controllers/Api/ReportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$model\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/ReportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 5
+			path: app/Http/Controllers/Api/ReportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$note\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/ReportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$paid_at\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/ReportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$party\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Http/Controllers/Api/ReportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone\.$#'
+			identifier: property.notFound
+			count: 5
+			path: app/Http/Controllers/Api/ReportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$promised_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/ReportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$purchase_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/ReportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$receiver\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/ReportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$reference\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/ReportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$vehicle\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/ReportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$vehicle_type\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/ReportController.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 6
+			path: app/Http/Controllers/Api/ReportController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Advance\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/Api/ReportController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\InvestorSettlement\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 2
+			path: app/Http/Controllers/Api/ReportController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Purchase\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/Api/ReportController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Sale\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/Api/ReportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$is_active\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/ShopController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$cancel_reason\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/VehicleController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$cancelled_at\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/VehicleController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$due_adjustment\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/VehicleController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 6
+			path: app/Http/Controllers/Api/VehicleController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/VehicleController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$paid_amount\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/VehicleController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$party\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/VehicleController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$payment_method\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/VehicleController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$payment_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/VehicleController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$price\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/VehicleController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$purchase_date\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/VehicleController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$sale_date\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/VehicleController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$sale_price\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/VehicleController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$source\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/VehicleController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/VehicleController.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Http/Controllers/Api/VehicleController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Pagination\\AbstractPaginator\:\:lastPage\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/Controller.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Pagination\\AbstractPaginator\:\:total\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/Controller.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$is_active\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Middleware/EnsureShopUser.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\DuePromiseResource\:\:\$promised_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/DuePromiseResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\DuePromiseResource\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Resources/DuePromiseResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\InstallmentResource\:\:\$due_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/InstallmentResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\InstallmentResource\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Resources/InstallmentResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\PaymentResource\:\:\$receiver\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/PaymentResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RegistrationLogResource\:\:\$user\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RegistrationLogResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\SaleResource\:\:\$creator\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/SaleResource.php
+
+		-
+			message: '#^Call to an undefined method App\\Http\\Resources\\SaleResource\:\:loadMissing\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Resources/SaleResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ShopResource\:\:\$owner\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ShopResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\UserResource\:\:\$role\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Resources/UserResource.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$total_payable\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Sale.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 1
+			path: app/Providers/AppServiceProvider.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/InvestorPortfolioService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$principal\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/InvestorPortfolioService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/PaymentService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$installments\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/PaymentService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$investor_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/PaymentService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$investor_share_percent\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/PaymentService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$principal\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/PaymentService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$promised_amount\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/PaymentService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$promised_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/PaymentService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$total_payable\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/PaymentService.php
+
+		-
+			message: '#^Cannot call method lt\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Services/PaymentService.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:purchases\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Services/PurchaseService.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:installments\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Services/SaleService.php
+
+		-
+			message: '#^Method App\\Support\\ShopSettings\:\:typeDefaults\(\) should return array\<string, array\<string, int\|string\>\> but returns array\<string, stdClass\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Support/ShopSettings.php

@@ -1,0 +1,564 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Installment;
+use App\Models\Investor;
+use App\Models\Party;
+use App\Models\Permission;
+use App\Models\Sale;
+use App\Models\Shop;
+use App\Models\User;
+use App\Models\Vehicle;
+use App\Services\ShopService;
+use Database\Seeders\PermissionSeeder;
+use Database\Seeders\VehicleCategorySeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Laravel\Sanctum\Sanctum;
+use Tests\TestCase;
+
+class VehicleFlowTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private User $admin;
+
+    private Shop $shop;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seed(PermissionSeeder::class);
+        $this->seed(VehicleCategorySeeder::class);
+        $this->shop = app(ShopService::class)->create(['name' => 'Shop A'], ['name' => 'Owner', 'email' => 'owner@a.test', 'password' => 'password']);
+        $this->admin = User::factory()->create(['role' => 'admin', 'shop_id' => $this->shop->id]);
+        Sanctum::actingAs($this->admin);
+    }
+
+    private function stockVehicle(string $chassis = 'CH-1'): Vehicle
+    {
+        $seller = Party::create(['name' => 'Seller', 'phone' => '0100'.rand(1000, 9999), 'type' => 'supplier']);
+
+        $id = $this->postJson('/api/purchases', [
+            'vehicle_type' => 'motorcycle', 'chassis_no' => $chassis, 'engine_no' => 'EN-'.$chassis, 'brand' => 'Toyota', 'model' => 'Axio',
+            'party_id' => $seller->id, 'purchase_date' => today()->toDateString(), 'price' => 800000,
+        ])->assertCreated()->json('data.vehicle_id');
+
+        return Vehicle::findOrFail($id);
+    }
+
+    private function buyer(): Party
+    {
+        return Party::create(['name' => 'Buyer', 'phone' => '0200'.rand(1000, 9999), 'type' => 'customer']);
+    }
+
+    private function saleData(Vehicle $v, array $extra = []): array
+    {
+        return $extra + [
+            'vehicle_id' => $v->id, 'party_id' => $this->buyer()->id, 'sale_date' => today()->subDay()->toDateString(),
+            'sale_price' => 1000000, 'payment_type' => 'cash', 'down_payment' => 1000000,
+        ];
+    }
+
+    public function test_cannot_buy_vehicle_that_is_in_stock(): void
+    {
+        $v = $this->stockVehicle();
+        $seller = Party::first();
+
+        $this->postJson('/api/purchases', [
+            'vehicle_id' => $v->id, 'party_id' => $seller->id, 'purchase_date' => today()->toDateString(), 'price' => 1,
+        ])->assertStatus(409);
+    }
+
+    public function test_cash_sale_is_paid_and_vehicle_becomes_sold(): void
+    {
+        $v = $this->stockVehicle();
+
+        $this->postJson('/api/sales', $this->saleData($v))->assertCreated()
+            ->assertJsonPath('data.payment_status', 'paid')->assertJsonPath('data.due_amount', 0);
+
+        $this->assertSame('sold', $v->fresh()->status);
+        $this->postJson('/api/sales', $this->saleData($v))->assertStatus(422)->assertJsonValidationErrors('vehicle_id');
+    }
+
+    public function test_due_sale_promise_date_is_optional_and_balance_is_tracked(): void
+    {
+        $v = $this->stockVehicle();
+
+        // no promise date: the sale still carries its due, there is just no promise to track
+        $plain = $this->postJson('/api/sales', $this->saleData($v, ['payment_type' => 'due', 'down_payment' => 400000]))
+            ->assertCreated()->assertJsonPath('data.due_amount', 600000)->json('data');
+        $this->assertDatabaseMissing('due_promises', ['sale_id' => $plain['id']]);
+        $this->postJson("/api/sales/{$plain['id']}/cancel", ['reason' => 'test'])->assertOk();
+
+        $sale = $this->postJson('/api/sales', $this->saleData($v, [
+            'payment_type' => 'due', 'down_payment' => 400000, 'promised_date' => today()->addDays(10)->toDateString(),
+        ]))->assertCreated()->assertJsonPath('data.due_amount', 600000)->assertJsonPath('data.payment_status', 'partial')->json('data');
+
+        $this->postJson("/api/sales/{$sale['id']}/payments", ['amount' => 700000])->assertStatus(409);
+        $this->postJson("/api/sales/{$sale['id']}/payments", ['amount' => 600000])->assertCreated()
+            ->assertJsonPath('data.sale.payment_status', 'paid');
+
+        $this->assertDatabaseHas('due_promises', ['sale_id' => $sale['id'], 'status' => 'kept']);
+    }
+
+    public function test_installment_schedule_remainder_goes_to_last_and_investor_is_credited(): void
+    {
+        $v = $this->stockVehicle();
+        $investor = Investor::create(['name' => 'Inv']);
+
+        $sale = $this->postJson('/api/sales', $this->saleData($v, [
+            'payment_type' => 'installment', 'down_payment' => 400000, 'investor_id' => $investor->id,
+            'installment_count' => 3, 'first_due_date' => today()->addMonth()->toDateString(),
+            'interest_rate' => 10, 'investor_share_percent' => 50,
+        ]))->assertCreated()->json('data');
+
+        // principal 600000 + 10% = 660000 over 3 installments
+        $this->assertEquals(660000, $sale['plan']['total_payable']);
+        $amounts = collect($sale['plan']['installments'])->pluck('amount')->all();
+        $this->assertEquals([220000, 220000, 220000], $amounts);
+        $this->assertEquals(1060000, $sale['grand_total']);
+
+        $this->postJson("/api/sales/{$sale['id']}/payments", ['amount' => 330000])->assertCreated();
+
+        $this->assertSame(['paid', 'partial', 'pending'], Installment::orderBy('seq_no')->pluck('status')->all());
+        // 330000 collected: principal part 300000, interest part 30000, investor profit 15000
+        $this->assertDatabaseHas('investor_settlements', ['investor_id' => $investor->id, 'type' => 'principal_return', 'amount' => 300000]);
+        $this->assertDatabaseHas('investor_settlements', ['investor_id' => $investor->id, 'type' => 'profit_share', 'amount' => 15000]);
+
+        $this->getJson("/api/investors/{$investor->id}/portfolio")->assertOk()
+            ->assertJsonPath('data.summary.invested', 600000)->assertJsonPath('data.summary.outstanding', 300000);
+    }
+
+    public function test_installment_without_investor_and_with_interest_as_amount(): void
+    {
+        $v = $this->stockVehicle();
+
+        $sale = $this->postJson('/api/sales', $this->saleData($v, [
+            'payment_type' => 'installment', 'down_payment' => 400000,
+            'installment_count' => 3, 'first_due_date' => today()->addMonth()->toDateString(),
+            'interest_amount' => 60000,
+        ]))->assertCreated()->json('data');
+
+        // principal 600000 + 60000 interest = 660000, the shop finances it itself
+        $this->assertEquals(660000, $sale['plan']['total_payable']);
+        $this->assertEquals(10, $sale['plan']['interest_rate']);
+        $this->assertNull($sale['investor']);
+
+        $this->postJson("/api/sales/{$sale['id']}/payments", ['amount' => 220000])->assertCreated();
+        $this->assertDatabaseCount('investor_settlements', 0);
+    }
+
+    public function test_supplier_due_can_be_paid_in_parts_and_from_an_advance(): void
+    {
+        $seller = Party::create(['name' => 'Seller', 'phone' => '01700099999', 'type' => 'supplier']);
+        $purchase = $this->postJson('/api/purchases', [
+            'vehicle_type' => 'motorcycle', 'chassis_no' => 'PAY-1', 'engine_no' => 'EN-PAY-1', 'party_id' => $seller->id,
+            'purchase_date' => today()->toDateString(), 'price' => 500000, 'paid_amount' => 100000,
+        ])->assertCreated()->json('data');
+
+        $this->getJson('/api/payables')->assertOk()->assertJsonPath('data.0.balance', 400000)->assertJsonPath('data.0.advance_available', 0);
+
+        // part payment
+        $this->postJson("/api/purchases/{$purchase['id']}/payments", ['amount' => 150000, 'method' => 'bank'])->assertCreated()->assertJsonPath('data.balance', 250000);
+        $this->postJson("/api/purchases/{$purchase['id']}/payments", ['amount' => 300000, 'method' => 'cash'])->assertStatus(409);
+
+        // an advance paid earlier, then used on the purchase
+        $this->postJson('/api/advances', ['party_id' => $seller->id, 'amount' => 100000, 'method' => 'cash'])->assertCreated();
+        $this->getJson('/api/payables')->assertJsonPath('data.0.advance_available', 100000);
+        $this->postJson("/api/purchases/{$purchase['id']}/payments", ['amount' => 150000, 'method' => 'advance'])->assertStatus(409); // only 100,000 of advance
+        $this->postJson("/api/purchases/{$purchase['id']}/payments", ['amount' => 100000, 'method' => 'advance'])->assertCreated()->assertJsonPath('data.balance', 150000);
+        $this->assertDatabaseHas('advances', ['party_id' => $seller->id, 'used' => 100000]);
+
+        // the rest in cash clears it
+        $this->postJson("/api/purchases/{$purchase['id']}/payments", ['amount' => 150000, 'method' => 'cash'])->assertCreated()->assertJsonPath('data.balance', 0);
+        $this->assertDatabaseHas('purchases', ['id' => $purchase['id'], 'paid_amount' => 500000, 'payment_status' => 'paid']);
+        $this->getJson('/api/payables')->assertOk()->assertJsonCount(0, 'data');
+        $this->postJson("/api/purchases/{$purchase['id']}/payments", ['amount' => 1, 'method' => 'cash'])->assertStatus(409);
+        $this->deleteJson("/api/purchases/{$purchase['id']}")->assertStatus(409);
+    }
+
+    public function test_account_form_pays_suppliers_and_collects_from_customers_oldest_first(): void
+    {
+        $seller = Party::create(['name' => 'Seller', 'phone' => '01700088888', 'type' => 'supplier']);
+        $buy = fn (string $chassis, string $date) => $this->postJson('/api/purchases', [
+            'vehicle_type' => 'motorcycle', 'chassis_no' => $chassis, 'engine_no' => "E-$chassis", 'party_id' => $seller->id,
+            'purchase_date' => $date, 'price' => 100000, 'paid_amount' => 0,
+        ])->assertCreated()->json('data');
+        $first = $buy('ACC-1', today()->subDays(5)->toDateString());
+        $second = $buy('ACC-2', today()->subDays(2)->toDateString());
+
+        $this->getJson("/api/accounts?side=supplier&party_id={$seller->id}")->assertOk()
+            ->assertJsonPath('data.total_due', 200000)->assertJsonPath('data.items.0.id', $first['id']);
+
+        // 150,000 clears the older purchase and half of the newer one
+        $this->postJson('/api/accounts', ['side' => 'supplier', 'party_id' => $seller->id, 'amount' => 150000, 'method' => 'cash'])
+            ->assertCreated()->assertJsonPath('data.total_due', 50000);
+        $this->assertDatabaseHas('purchases', ['id' => $first['id'], 'paid_amount' => 100000, 'payment_status' => 'paid']);
+        $this->assertDatabaseHas('purchases', ['id' => $second['id'], 'paid_amount' => 50000, 'payment_status' => 'partial']);
+
+        // paying more than is owed saves the rest as an advance
+        $this->postJson('/api/accounts', ['side' => 'supplier', 'party_id' => $seller->id, 'amount' => 80000, 'method' => 'bank'])
+            ->assertCreated()->assertJsonPath('data.total_due', 0)->assertJsonPath('data.advance_available', 30000);
+
+        // the statement agrees: 200,000 bought, 230,000 paid (30,000 of it ahead)
+        $this->getJson("/api/reports/party-transactions?side=supplier&party_id={$seller->id}")->assertOk()
+            ->assertJsonPath('data.total_charge', 200000)->assertJsonPath('data.total_paid', 230000)->assertJsonPath('data.closing_balance', -30000);
+
+        // a customer: oldest sale first, never more than they owe
+        $buyer = $this->buyer();
+        $v1 = $this->stockVehicle('ACC-3');
+        $v2 = $this->stockVehicle('ACC-4');
+        foreach ([[$v1, -4], [$v2, -2]] as [$v, $off]) {
+            $this->postJson('/api/sales', $this->saleData($v, [
+                'party_id' => $buyer->id, 'sale_date' => today()->addDays($off)->toDateString(), 'sale_price' => 100000,
+                'payment_type' => 'due', 'down_payment' => 40000,
+            ]))->assertCreated();
+        }
+        $this->postJson('/api/accounts', ['side' => 'customer', 'party_id' => $buyer->id, 'amount' => 200000, 'method' => 'cash'])->assertStatus(409);
+        $this->postJson('/api/accounts', ['side' => 'customer', 'party_id' => $buyer->id, 'amount' => 90000, 'method' => 'cash'])
+            ->assertCreated()->assertJsonPath('data.total_due', 30000)->assertJsonPath('data.items.0.current_due', 30000)->assertJsonPath('data.days_late', 0);
+        $this->assertDatabaseHas('sales', ['vehicle_id' => $v1->id, 'due_amount' => 0, 'payment_status' => 'paid']);
+        $this->assertDatabaseHas('sales', ['vehicle_id' => $v2->id, 'due_amount' => 30000]);
+
+        // one vehicle only: limited to that vehicle's due
+        $sale2 = Sale::where('vehicle_id', $v2->id)->first();
+        $this->postJson('/api/accounts', ['side' => 'customer', 'party_id' => $buyer->id, 'sale_id' => $sale2->id, 'amount' => 30001, 'method' => 'cash'])->assertStatus(409);
+        $this->postJson('/api/accounts', ['side' => 'customer', 'party_id' => $buyer->id, 'sale_id' => $sale2->id, 'amount' => 10000, 'method' => 'cash'])->assertCreated();
+        $this->assertDatabaseHas('sales', ['vehicle_id' => $v2->id, 'due_amount' => 20000]);
+        $this->getJson("/api/reports/party-transactions?side=customer&party_id={$buyer->id}")->assertOk()
+            ->assertJsonPath('data.closing_balance', 20000)->assertJsonPath('data.total_charge', 200000);
+        $this->getJson("/api/reports/party-transactions?side=customer&party_id={$buyer->id}&from=".today()->addDay()->toDateString())->assertOk()
+            ->assertJsonPath('data.opening_balance', 20000)->assertJsonCount(0, 'data.rows');
+        $all = $this->getJson('/api/reports/transactions?side=customer')->assertOk();
+        $this->assertSame(200000.0, (float) $all->json('data.total_charge'));
+        $this->assertSame($buyer->id, $all->json('data.rows.0.party_id'));
+        $this->assertStringStartsWith('SALE-', $all->json('data.rows.0.no'));
+        $this->assertNotEmpty($all->json('data.rows.0.details'));
+        $day = $this->getJson('/api/reports/daily')->assertOk();
+        $investor = Investor::create(['name' => 'Daily Inv', 'phone' => '01700099999']);
+        $this->postJson('/api/investor-settlements', ['investor_id' => $investor->id, 'type' => 'investment', 'amount' => 40000, 'date' => today()->toDateString()])->assertCreated();
+        $this->postJson('/api/investor-settlements', ['investor_id' => $investor->id, 'type' => 'profit_share', 'amount' => 3000, 'date' => today()->toDateString()])->assertCreated();
+        $this->getJson('/api/reports/daily')->assertOk()->assertJsonPath('data.investor_received.total', 40000)->assertJsonPath('data.investor_received.count', 1)->assertJsonPath('data.investor_paid.total', 3000);
+        $this->getJson('/api/reports/investor-transactions?type=investment')->assertOk()->assertJsonPath('data.totals.investment', 40000)->assertJsonPath('data.totals.profit_share', 0);
+        $this->getJson('/api/reports/investor-transactions')->assertOk()->assertJsonPath('data.totals.profit_share', 3000);
+        $day->assertJsonPath('data.collections.total', 100000)->assertJsonPath('data.supplier_payments.total', 230000);
+        $this->getJson('/api/reports/daily?date='.today()->subDays(2)->toDateString())->assertOk()
+            ->assertJsonPath('data.sales.count', 1)->assertJsonPath('data.sales.received', 40000)->assertJsonPath('data.sales.due', 60000);
+        $customers = collect($this->getJson('/api/reports/party-summary?side=customer')->assertOk()->json('data.rows'))->firstWhere('party.id', $buyer->id);
+        $this->assertSame(20000, (int) $customers['closing_balance']);
+        $suppliers = collect($this->getJson('/api/reports/party-summary?side=supplier')->assertOk()->json('data.rows'))->firstWhere('party.id', $seller->id);
+        $this->assertSame(-30000, (int) $suppliers['closing_balance']);
+    }
+
+    public function test_installment_rounding_remainder_on_last(): void
+    {
+        $v = $this->stockVehicle();
+        $investor = Investor::create(['name' => 'Inv']);
+
+        $sale = $this->postJson('/api/sales', $this->saleData($v, [
+            'payment_type' => 'installment', 'down_payment' => 0, 'investor_id' => $investor->id,
+            'installment_count' => 3, 'first_due_date' => today()->addMonth()->toDateString(), 'sale_price' => 1000,
+        ]))->assertCreated()->json('data');
+
+        $this->assertEquals([333.33, 333.33, 333.34], collect($sale['plan']['installments'])->pluck('amount')->all());
+    }
+
+    public function test_cancel_returns_vehicle_to_stock_and_cancels_schedule(): void
+    {
+        $v = $this->stockVehicle();
+        $investor = Investor::create(['name' => 'Inv']);
+        $sale = $this->postJson('/api/sales', $this->saleData($v, [
+            'payment_type' => 'installment', 'down_payment' => 400000, 'investor_id' => $investor->id,
+            'installment_count' => 2, 'first_due_date' => today()->addMonth()->toDateString(),
+        ]))->json('data');
+
+        $this->postJson("/api/sales/{$sale['id']}/cancel", [])->assertStatus(422);
+        $this->postJson("/api/sales/{$sale['id']}/cancel", ['reason' => 'Buyer backed out', 'refund_amount' => 400000])
+            ->assertOk()->assertJsonPath('data.status', 'cancelled');
+
+        $this->assertSame('in_stock', $v->fresh()->status);
+        $this->assertSame(0, Installment::where('status', '!=', 'cancelled')->count());
+        $this->assertDatabaseHas('payments', ['sale_id' => $sale['id'], 'amount' => -400000]);
+        $this->getJson("/api/investors/{$investor->id}/portfolio")->assertJsonPath('data.summary.outstanding', 0);
+
+        // can be sold again: history keeps both sales
+        $this->postJson('/api/sales', $this->saleData($v))->assertCreated();
+        $this->assertCount(2, $v->sales);
+    }
+
+    public function test_staff_cannot_cancel(): void
+    {
+        $v = $this->stockVehicle();
+        $sale = $this->postJson('/api/sales', $this->saleData($v))->json('data');
+
+        Sanctum::actingAs(User::factory()->create(['role' => 'moderator', 'shop_id' => $this->shop->id]));
+        $this->postJson("/api/sales/{$sale['id']}/cancel", ['reason' => 'x'])->assertForbidden();
+    }
+
+    public function test_investor_profit_formula_is_saved_with_its_rates(): void
+    {
+        $investor = Investor::create(['name' => 'Formula Inv', 'phone' => '01700077777']);
+
+        $this->putJson("/api/investors/{$investor->id}/profit-formula", ['invested' => 30000, 'profit' => 8800, 'months' => 24])
+            ->assertOk()->assertJsonPath('data.formula_invested', 30000)->assertJsonPath('data.formula_profit', 8800)
+            ->assertJsonPath('data.formula_months', 24)->assertJsonPath('data.formula_rate_month', 1.2222)->assertJsonPath('data.formula_rate_year', 14.6664);
+        $this->putJson("/api/investors/{$investor->id}/profit-formula", ['invested' => 0, 'profit' => 10, 'months' => 12])->assertStatus(422);
+        $this->putJson("/api/investors/{$investor->id}/profit-formula", ['invested' => 1000, 'profit' => 10])->assertStatus(422);
+    }
+
+    public function test_investor_vehicle_payments_lists_each_financed_vehicle(): void
+    {
+        $investor = Investor::create(['name' => 'VP Inv', 'phone' => '01700066666']);
+        $this->getJson("/api/investors/{$investor->id}/vehicle-payments")->assertOk()->assertJsonPath('data.rows', [])->assertJsonPath('data.totals.principal_due', 0);
+    }
+
+    public function test_registration_moves_one_step_only(): void
+    {
+        $v = $this->stockVehicle();
+        $sale = $this->postJson('/api/sales', $this->saleData($v))->json('data');
+
+        $this->patchJson("/api/sales/{$sale['id']}/registration", ['status' => 'file_received'])->assertStatus(409);
+        $this->patchJson("/api/sales/{$sale['id']}/registration", ['status' => 'bank_chalan_done'])->assertOk();
+        $this->patchJson("/api/sales/{$sale['id']}/registration", ['status' => 'pending'])->assertStatus(409);
+        $this->patchJson("/api/sales/{$sale['id']}/registration", ['status' => 'pending', 'note' => 'Wrong chalan'])->assertOk();
+        $this->assertDatabaseCount('registration_logs', 2);
+    }
+
+    public function test_vehicle_history_and_error_format(): void
+    {
+        $v = $this->stockVehicle();
+        $this->postJson('/api/sales', $this->saleData($v))->assertCreated();
+
+        $types = collect($this->getJson("/api/vehicles/{$v->id}/history")->assertOk()->json('data.timeline'))->pluck('type')->all();
+        $this->assertContains('purchase', $types);
+        $this->assertContains('sale', $types);
+        $this->assertContains('payment', $types);
+
+        $this->getJson('/api/sales/9999')->assertNotFound()->assertJsonPath('success', false);
+        $this->getJson('/api/dashboard')->assertOk()->assertJsonStructure(['data' => ['stock_count', 'total_due', 'overdue_count']]);
+    }
+
+    public function test_purchase_keeps_full_details_and_refreshes_on_repurchase(): void
+    {
+        $seller = Party::create(['name' => 'Sup', 'phone' => '0199', 'type' => 'supplier']);
+
+        $data = $this->postJson('/api/purchases', [
+            'vehicle_type' => 'cng', 'chassis_no' => 'D-1', 'engine_no' => 'D-E1', 'registration_no' => 'DHA-1', 'brand' => 'Bajaj', 'mileage' => 42000,
+            'papers_received' => true, 'registration_date' => '2020-05-01', 'tax_token_expiry' => '2027-01-01', 'condition_notes' => 'Good',
+            'party_id' => $seller->id, 'purchase_date' => today()->toDateString(), 'price' => 300000, 'paid_amount' => 100000,
+            'payment_method' => 'bank', 'payment_reference' => 'TRX-9',
+        ])->assertCreated()->assertJsonPath('data.payment_method', 'bank')->json('data');
+
+        $vehicle = Vehicle::find($data['vehicle_id']);
+        $this->assertSame(42000, $vehicle->mileage);
+        $this->assertTrue($vehicle->papers_received);
+
+        // sell, then repurchase: vehicle details are refreshed
+        $this->postJson('/api/sales', $this->saleData($vehicle))->assertCreated();
+        $this->postJson('/api/purchases', [
+            'vehicle_id' => $vehicle->id, 'registration_no' => 'DHA-1', 'mileage' => 55000, 'party_id' => $seller->id, 'purchase_date' => today()->toDateString(), 'price' => 1,
+        ])->assertCreated();
+        $this->assertSame(55000, $vehicle->fresh()->mileage);
+
+    }
+
+    public function test_shop_can_add_a_new_colour_once(): void
+    {
+        $this->postJson('/api/vehicle-colors', ['name' => 'pearl white'])->assertCreated()->assertJsonPath('data', 'Pearl white');
+        $this->postJson('/api/vehicle-colors', ['name' => 'Pearl white'])->assertStatus(422);
+        $this->postJson('/api/vehicle-colors', ['name' => 'Red'])->assertStatus(422)->assertJsonPath('errors.name.0', 'This colour is already in the list.');
+        $this->getJson('/api/vehicle-colors')->assertOk()->assertJsonPath('data.0', 'Pearl white');
+    }
+
+    public function test_purchase_and_sales_reports_total_correctly_and_filter(): void
+    {
+        $seller = Party::create(['name' => 'Sup', 'phone' => '0188', 'type' => 'supplier']);
+        $buy = fn (string $ch, string $type, int $price, string $date) => $this->postJson('/api/purchases', [
+            'vehicle_type' => $type, 'chassis_no' => $ch, 'engine_no' => "E-$ch", 'party_id' => $seller->id,
+            'purchase_date' => $date, 'price' => $price, 'paid_amount' => 100, 'cost_extra' => 50,
+        ])->assertCreated()->json('data.vehicle_id');
+
+        $cng = $buy('R-1', 'cng', 1000, today()->toDateString());
+        $buy('R-2', 'motorcycle', 500, today()->subDays(40)->toDateString());
+
+        $this->getJson('/api/reports/purchases')->assertOk()
+            ->assertJsonPath('data.totals.count', 2)->assertJsonPath('data.totals.price', 1500)->assertJsonPath('data.totals.total_cost', 1600)
+            ->assertJsonPath('data.totals.paid', 200)->assertJsonPath('data.totals.unpaid', 1300);
+        $this->getJson('/api/reports/purchases?from='.today()->subDays(7)->toDateString())->assertJsonPath('data.totals.count', 1);
+        $this->getJson('/api/reports/purchases?vehicle_type=motorcycle')->assertJsonPath('data.totals.price', 500);
+
+        // sell the CNG for 1400: profit = 1400 - (1000 + 50); a cancelled sale is listed but not counted
+        $sale = $this->postJson('/api/sales', $this->saleData(Vehicle::find($cng), ['sale_price' => 1400, 'down_payment' => 1400]))->assertCreated()->json('data');
+        $this->getJson('/api/reports/sales')->assertOk()
+            ->assertJsonPath('data.totals.count', 1)->assertJsonPath('data.totals.sales_amount', 1400)->assertJsonPath('data.totals.profit', 350)
+            ->assertJsonPath('data.by_type.0.type', 'cng');
+
+        $this->postJson("/api/sales/{$sale['id']}/cancel", ['reason' => 'test'])->assertOk();
+        $this->getJson('/api/reports/sales')->assertJsonPath('data.totals.count', 0)->assertJsonPath('data.totals.cancelled', 1)->assertJsonCount(1, 'data.sales');
+
+        // reports need the reports permission
+        Sanctum::actingAs(User::factory()->create(['role' => 'moderator', 'shop_id' => $this->shop->id]));
+        $this->getJson('/api/reports/sales')->assertForbidden();
+    }
+
+    public function test_vehicle_can_be_looked_up_by_registration_number(): void
+    {
+        $seller = Party::create(['name' => 'Sup', 'phone' => '0166', 'type' => 'supplier']);
+        $this->postJson('/api/purchases', [
+            'vehicle_type' => 'car', 'chassis_no' => 'L-1', 'engine_no' => 'L-E1', 'registration_no' => 'DHA-55', 'registration_date' => '2021-03-04',
+            'tax_token_expiry' => '2027-03-04', 'party_id' => $seller->id, 'purchase_date' => today()->toDateString(), 'price' => 10,
+        ])->assertCreated();
+
+        $this->getJson('/api/vehicles/lookup?registration_no=DHA-55')->assertOk()
+            ->assertJsonPath('data.chassis_no', 'L-1')->assertJsonPath('data.registration_date', '2021-03-04')->assertJsonPath('data.tax_token_expiry', '2027-03-04');
+        $this->getJson('/api/vehicles/lookup?registration_no=NOPE')->assertOk()->assertJsonPath('data', null);
+        $this->getJson('/api/vehicles/lookup')->assertStatus(422);
+    }
+
+    public function test_purchase_source_matches_the_seller_type(): void
+    {
+        $supplier = Party::create(['name' => 'Sup', 'phone' => '0155', 'type' => 'supplier']);
+        $customer = Party::create(['name' => 'Cus', 'phone' => '0144', 'type' => 'customer']);
+        $both = Party::create(['name' => 'Both', 'phone' => '0133', 'type' => 'both']);
+        $buy = fn ($party, string $source, string $ch) => $this->postJson('/api/purchases', [
+            'source' => $source, 'vehicle_type' => 'cng', 'chassis_no' => $ch, 'engine_no' => "E-$ch", 'party_id' => $party->id,
+            'purchase_date' => today()->toDateString(), 'price' => 100,
+        ]);
+
+        $buy($supplier, 'supplier', 'S-1')->assertCreated()->assertJsonPath('data.source', 'supplier');
+        $buy($customer, 'customer', 'S-2')->assertCreated()->assertJsonPath('data.source', 'customer');
+        $buy($both, 'customer', 'S-3')->assertCreated();
+        $buy($customer, 'supplier', 'S-4')->assertStatus(422)->assertJsonPath('errors.party_id.0', 'Select a supplier for this purchase.');
+        $buy($supplier, 'customer', 'S-5')->assertStatus(422)->assertJsonPath('errors.party_id.0', 'Select a customer for a second-hand purchase.');
+
+        $this->getJson('/api/reports/purchases?source=customer')->assertJsonPath('data.totals.count', 2);
+    }
+
+    public function test_vehicles_with_customers_can_be_found_by_name_phone_engine_or_chassis(): void
+    {
+        $v = $this->stockVehicle('F-CH-9');
+        $buyer = Party::create(['name' => 'Rahman Ali', 'phone' => '01755001122', 'alt_phone' => '01855003344', 'nid' => '1998123456789', 'type' => 'customer']);
+        $sale = $this->postJson('/api/sales', $this->saleData($v, ['party_id' => $buyer->id, 'payment_type' => 'due', 'down_payment' => 400000, 'promised_date' => today()->addDays(9)->toDateString()]))->assertCreated()->json('data');
+
+        foreach (['rahman', '0175500', '01855003344', '1998123456789', 'EN-F-CH-9', 'F-CH-9'] as $term) {
+            $this->getJson('/api/vehicles/owned?search='.$term)->assertOk()
+                ->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $sale['id'])->assertJsonPath('data.0.party.name', 'Rahman Ali')->assertJsonPath('data.0.party.nid', '1998123456789')
+                ->assertJsonPath('data.0.due_amount', 600000)->assertJsonPath('data.0.vehicle.chassis_no', 'F-CH-9');
+        }
+        $this->getJson('/api/vehicles/owned?search=nobody')->assertJsonCount(0, 'data');
+        $this->getJson('/api/vehicles/owned?search=r')->assertJsonCount(0, 'data');     // too short to search
+
+        // once the sale is cancelled the vehicle is back in stock, so it is no longer "with a customer"
+        $this->postJson("/api/sales/{$sale['id']}/cancel", ['reason' => 'x'])->assertOk();
+        $this->getJson('/api/vehicles/owned?search=rahman')->assertJsonCount(0, 'data');
+    }
+
+    public function test_lookup_tells_which_customer_has_the_vehicle(): void
+    {
+        $v = $this->stockVehicle('W-CH-1');
+        $this->getJson('/api/vehicles/lookup?chassis_no=W-CH-1')->assertOk()->assertJsonPath('data.current_sale', null);
+
+        $buyer = Party::create(['name' => 'Holder', 'phone' => '01990001111', 'type' => 'customer']);
+        $sale = $this->postJson('/api/sales', $this->saleData($v, ['party_id' => $buyer->id]))->assertCreated()->json('data');
+
+        $this->getJson('/api/vehicles/lookup?chassis_no=W-CH-1')->assertOk()
+            ->assertJsonPath('data.current_sale.id', $sale['id'])->assertJsonPath('data.current_sale.party.name', 'Holder')
+            ->assertJsonPath('data.current_sale.party_id', $buyer->id)->assertJsonPath('data.current_sale.status', 'active');
+    }
+
+    public function test_due_can_be_adjusted_against_a_buy_back_from_the_customer(): void
+    {
+        $v = $this->stockVehicle('B-CH-1');
+        $customer = Party::create(['name' => 'Returner', 'phone' => '01990002222', 'type' => 'customer']);
+        $other = Party::create(['name' => 'Someone else', 'phone' => '01990003333', 'type' => 'customer']);
+        $sale = $this->postJson('/api/sales', $this->saleData($v, [
+            'party_id' => $customer->id, 'payment_type' => 'due', 'down_payment' => 400000, 'promised_date' => today()->addDays(9)->toDateString(),
+        ]))->assertCreated()->json('data'); // price 1,000,000, due 600,000
+
+        $buy = fn (array $extra) => $this->postJson('/api/purchases', $extra + [
+            'source' => 'customer', 'vehicle_id' => $v->id, 'party_id' => $customer->id, 'purchase_date' => today()->toDateString(), 'price' => 700000,
+        ]);
+
+        // guard rails
+        $buy(['due_adjustment' => 650000, 'adjusted_sale_id' => $sale['id']])->assertStatus(409);                       // more than is owed
+        $buy(['due_adjustment' => 100000, 'adjusted_sale_id' => $sale['id'], 'paid_amount' => 650000])->assertStatus(409); // more than the price
+        $buy(['due_adjustment' => 100000])->assertStatus(409);                                                          // no sale chosen
+        $buy(['due_adjustment' => 100000, 'adjusted_sale_id' => $sale['id'], 'party_id' => $other->id])->assertStatus(409); // another customer's
+
+        // a different vehicle of the same customer: its sale cannot be used, only the returned vehicle's own sale
+        $second = $this->stockVehicle('B-CH-2');
+        $secondSale = $this->postJson('/api/sales', $this->saleData($second, [
+            'party_id' => $customer->id, 'payment_type' => 'due', 'down_payment' => 100000, 'promised_date' => today()->addDays(9)->toDateString(),
+        ]))->assertCreated()->json('data');
+        $buy(['due_adjustment' => 100000, 'adjusted_sale_id' => $secondSale['id']])->assertStatus(409)
+            ->assertJsonPath('message', 'The due can only be adjusted against the sale of the vehicle being bought back.');
+        $this->assertSame('sold', $v->fresh()->status);
+
+        // adjust 500,000 of the 600,000 due, pay the customer the remaining 200,000 in cash
+        $purchase = $buy(['due_adjustment' => 500000, 'adjusted_sale_id' => $sale['id'], 'paid_amount' => 200000])
+            ->assertCreated()->assertJsonPath('data.due_adjustment', 500000)->assertJsonPath('data.payment_status', 'paid')->json('data');
+
+        $this->getJson("/api/sales/{$sale['id']}")->assertOk()->assertJsonPath('data.due_amount', 100000)->assertJsonPath('data.total_paid', 900000);
+        $this->assertDatabaseHas('payments', ['sale_id' => $sale['id'], 'amount' => 500000, 'method' => 'adjustment']);
+        $this->assertSame('in_stock', $v->fresh()->status);
+
+        // a set-off purchase cannot be deleted
+        $this->deleteJson("/api/purchases/{$purchase['id']}")->assertStatus(409);
+    }
+
+    public function test_purchase_keeps_the_sellers_memo_number_unique_per_seller(): void
+    {
+        $a = Party::create(['name' => 'Seller A', 'phone' => '0171110001', 'type' => 'supplier']);
+        $b = Party::create(['name' => 'Seller B', 'phone' => '0171110002', 'type' => 'supplier']);
+        $buy = fn (Party $seller, string $chassis, ?string $memo) => $this->postJson('/api/purchases', array_filter([
+            'vehicle_type' => 'cng', 'chassis_no' => $chassis, 'engine_no' => "E-$chassis", 'party_id' => $seller->id,
+            'purchase_date' => today()->toDateString(), 'price' => 100, 'memo_no' => $memo,
+        ]));
+
+        $buy($a, 'M-1', 'MEMO-501')->assertCreated()->assertJsonPath('data.memo_no', 'MEMO-501');
+        $buy($a, 'M-2', 'MEMO-501')->assertStatus(422)->assertJsonPath('errors.memo_no.0', 'This memo number is already recorded for this seller.');
+        $buy($b, 'M-3', 'MEMO-501')->assertCreated();   // another seller can use the same number
+        $buy($a, 'M-4', null)->assertCreated();         // memo is optional
+        $buy($a, 'M-5', null)->assertCreated();         // and many purchases may have none
+
+        $this->getJson('/api/purchases?search=MEMO-501')->assertJsonPath('meta.total', 2);
+        $this->getJson('/api/reports/purchases')->assertJsonPath('data.purchases.0.memo_no', null);
+    }
+
+    public function test_purchases_and_sales_can_be_saved_as_drafts_without_side_effects(): void
+    {
+        $v = $this->stockVehicle('DR-1');
+
+        // a draft keeps half-filled data as it is: no validation, no effect on stock or money
+        $draft = $this->postJson('/api/drafts', ['type' => 'sale', 'label' => 'DR-1 sale', 'data' => ['vehicle_id' => (string) $v->id, 'sale_price' => '', 'payment_type' => 'due']])
+            ->assertCreated()->assertJsonPath('data.label', 'DR-1 sale')->assertJsonPath('data.data.payment_type', 'due')->json('data');
+        $this->assertSame('in_stock', $v->fresh()->status);
+        $this->assertDatabaseCount('sales', 0);
+
+        $this->postJson('/api/drafts', ['type' => 'purchase', 'data' => ['chassis_no' => 'NEW-1']])->assertCreated();
+        $this->getJson('/api/drafts?type=sale')->assertOk()->assertJsonCount(1, 'data');
+        $this->getJson('/api/drafts?type=purchase')->assertOk()->assertJsonCount(1, 'data');
+        $this->getJson('/api/drafts')->assertStatus(422);                                   // type is required
+
+        // update, then delete
+        $this->putJson("/api/drafts/{$draft['id']}", ['label' => 'Updated', 'data' => ['sale_price' => '900000']])->assertOk()->assertJsonPath('data.data.sale_price', '900000');
+        $this->putJson("/api/drafts/{$draft['id']}", ['type' => 'purchase', 'data' => ['x' => 1]])->assertStatus(422);  // cannot change kind
+        $this->deleteJson("/api/drafts/{$draft['id']}")->assertOk();
+        $this->getJson('/api/drafts?type=sale')->assertJsonCount(0, 'data');
+
+        // empty / invalid
+        $this->postJson('/api/drafts', ['type' => 'sale'])->assertStatus(422);
+        $this->postJson('/api/drafts', ['type' => 'loan', 'data' => ['a' => 1]])->assertStatus(422);
+
+        // permission follows the record kind: a moderator may keep purchase and sale drafts (both default permissions)
+        $mod = User::factory()->create(['role' => 'moderator', 'shop_id' => $this->shop->id]);
+        Sanctum::actingAs($mod);
+        $this->getJson('/api/drafts?type=purchase')->assertOk();
+        DB::table('role_permissions')->where('shop_id', $this->shop->id)->where('role', 'moderator')
+            ->whereIn('permission_id', Permission::where('key', 'sales.create')->pluck('id'))->delete();
+        Sanctum::actingAs(User::find($mod->id)); // a fresh instance, so its permissions are read again
+        $this->getJson('/api/drafts?type=sale')->assertForbidden();
+    }
+}
