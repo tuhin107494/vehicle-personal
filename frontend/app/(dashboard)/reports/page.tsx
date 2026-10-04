@@ -1,6 +1,12 @@
 "use client";
 
 import { viewCol } from "@/components/ViewLink";
+import { toast } from "sonner";
+import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { openSaleMemo } from "@/components/SaleMemo";
+import { printVoucher } from "@/components/TransactionVoucher";
+import { purchaseVoucher } from "@/lib/purchaseVoucher";
 import { useState } from "react";
 import { fmtDate, label, money } from "@/lib/format";
 import { useCategories } from "@/lib/categories";
@@ -136,6 +142,7 @@ function PurchasesReport() {
   const qs = new URLSearchParams({ ...(from && { from }), ...(to && { to }), ...(type && { vehicle_type: type }), ...(source && { source }), ...(supplier && { supplier_id: supplier }) });
   const { data, loading, error } = useFetch<{ totals: Record<string, number>; by_type: TypeRow[]; purchases: (Purchase & { total_cost: number; unpaid: number })[] }>(`/reports/purchases?${qs}`);
 
+  const { user } = useAuth();
   const cols: Col<NonNullable<typeof data>["purchases"][number]>[] = [
     { header: "Date", cell: ({ row }) => fmtDate(row.original.purchase_date) },
     { header: "Memo no.", cell: ({ row }) => row.original.memo_no ?? "-" },
@@ -147,7 +154,7 @@ function PurchasesReport() {
     { header: "Total cost", cell: ({ row }) => <b>{money(row.original.total_cost)}</b> },
     { header: "Paid", cell: ({ row }) => money(row.original.paid_amount) },
     { header: "Unpaid", cell: ({ row }) => <span className={row.original.unpaid > 0 ? "font-medium text-amber-700" : ""}>{money(row.original.unpaid)}</span> },
-    viewCol<NonNullable<typeof data>["purchases"][number]>((x) => `/vehicles/${x.vehicle_id}`),
+    viewCol<NonNullable<typeof data>["purchases"][number]>((x) => `/vehicles/${x.vehicle_id}`, (x) => printVoucher(purchaseVoucher(x), x.source === "customer" ? "customer" : "supplier", user?.shop?.name ?? "Vehicle Hub")),
   ];
 
   return (
@@ -188,6 +195,7 @@ function SalesReport() {
   const qs = new URLSearchParams({ ...(from && { from }), ...(to && { to }), ...(type && { vehicle_type: type }), ...(paymentType && { payment_type: paymentType }), ...(status && { status }), ...(customer && { customer_id: customer }) });
   const { data, loading, error } = useFetch<{ totals: Record<string, number>; by_type: TypeRow[]; sales: (Sale & { cost: number; profit: number })[] }>(`/reports/sales?${qs}`);
 
+  const { user } = useAuth();
   const cols: Col<NonNullable<typeof data>["sales"][number]>[] = [
     { header: "Date", cell: ({ row }) => fmtDate(row.original.sale_date) },
     { header: "Sale", cell: ({ row }) => <span className="font-medium">#{row.original.id}</span> },
@@ -201,7 +209,13 @@ function SalesReport() {
     { header: "Cost", cell: ({ row }) => money(row.original.cost) },
     { header: "Profit", cell: ({ row }) => <b className="text-emerald-700">{row.original.status === "active" ? money(row.original.profit) : "-"}</b> },
     { header: "Status", cell: ({ row }) => <StatusBadge status={row.original.status} /> },
-    viewCol<NonNullable<typeof data>["sales"][number]>((x) => `/sales/${x.id}`),
+    viewCol<NonNullable<typeof data>["sales"][number]>((x) => `/sales/${x.id}`, async (x) => {
+      try {
+        openSaleMemo((await api<Sale>(`/sales/${x.id}`)).data, user?.shop?.name ?? "Vehicle Hub"); // the memo needs the full sale: plan and payments
+      } catch {
+        toast.error("Could not load the sale.");
+      }
+    }),
   ];
 
   return (

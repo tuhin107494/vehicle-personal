@@ -38,7 +38,9 @@ class AccountController extends Controller
         $amount = round((float) $request->input('amount'), 2);
         $data = $request->safe()->only(['method', 'paid_at', 'reference', 'note']);
 
-        DB::transaction(function () use ($side, $party, $amount, $data, $request) {
+        $vouchers = []; // numbers of the ledger entries this payment created, as the reports print them
+
+        DB::transaction(function () use ($side, $party, $amount, $data, $request, &$vouchers) {
             $left = $amount;
 
             if ($side === 'customer') {
@@ -56,7 +58,9 @@ class AccountController extends Controller
                     }
 
                     $take = min($left, $sale->due_amount);
-                    $this->payments->collect($sale, ['amount' => $take] + $data, $request->user());
+                    foreach ($this->payments->collect($sale, ['amount' => $take] + $data, $request->user()) as $payment) {
+                        $vouchers[] = 'CP-'.$payment->id;
+                    }
                     $left = round($left - $take, 2);
                 }
 
@@ -71,18 +75,18 @@ class AccountController extends Controller
                 }
 
                 $take = min($left, $this->payables->balance($purchase));
-                $this->payables->pay($purchase, ['amount' => $take] + $data, $request->user());
+                $vouchers[] = 'SP-'.$this->payables->pay($purchase, ['amount' => $take] + $data, $request->user())->id;
                 $left = round($left - $take, 2);
             }
 
             if ($left > 0) {
                 // nothing (more) is owed to them, so the rest is paid ahead of the next purchase
-                $this->payables->addAdvance(['supplier_id' => $party->id, 'amount' => $left, 'method' => $data['method']] + $data, $request->user());
+                $vouchers[] = 'SP-'.$this->payables->addAdvance(['supplier_id' => $party->id, 'amount' => $left, 'method' => $data['method']] + $data, $request->user())->id;
             }
         });
 
         return $this->success(
-            $this->summaryFor($side, $party),
+            $this->summaryFor($side, $party) + ['vouchers' => $vouchers],
             $side === 'customer' ? 'Payment received' : 'Payment recorded',
             201,
         );

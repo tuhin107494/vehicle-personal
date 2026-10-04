@@ -1,8 +1,9 @@
 "use client";
 
-import { Calculator } from "lucide-react";
+import { Calculator, Printer } from "lucide-react";
+import Link from "next/link";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -13,7 +14,9 @@ import { useFetch } from "@/lib/hooks";
 import type { DraftT, Customer, Investor, Sale, Vehicle } from "@/lib/types";
 import { ProfitCalculator } from "@/components/forms/ProfitCalculator";
 import { DraftsBar, draftValues } from "@/components/DraftsBar";
-import { Button, Card, Field, inputCls, PageHeader } from "@/components/app-ui";
+import { Button, Card, Field, inputCls, Modal, PageHeader } from "@/components/app-ui";
+import { openSaleMemo } from "@/components/SaleMemo";
+import { useAuth } from "@/lib/auth";
 import { CustomerSelect, InvestorSelect } from "@/components/Selects";
 import { SearchSelect } from "@/components/SearchSelect";
 import { useSettings } from "@/lib/settings";
@@ -105,18 +108,21 @@ function promiseDate(choice: string, from: string) {
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
-  const router = useRouter();
+  const { user } = useAuth();
+  const [created, setCreated] = useState<Sale | null>(null); // the sale just saved: the form stays and offers the memo
   const params = useSearchParams();
   const vehicles = useFetch<Vehicle[]>(investorMode ? "/vehicles?per_page=100" : "/vehicles?status=in_stock&per_page=100");
   const { categories, nameOf } = useCategories();
 
-  const { register, handleSubmit, reset, setValue, getValues, watch, setError, formState: { errors, isSubmitting } } = useForm<Values>({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      vehicle_id: params.get("vehicle") ?? "", party_id: "", sale_date: todayStr(), sale_price: "", payment_type: investorMode ? "installment" : "cash", down_payment: "",
+  const blank = (vehicleId: string): Values => ({
+      vehicle_id: vehicleId, party_id: "", sale_date: todayStr(), sale_price: "", payment_type: investorMode ? "installment" : "cash", down_payment: "",
       method: "cash", promised_date: "", promise_note: "", investor_id: "", guarantor_phone: "", installment_count: "24", first_due_date: addDays(30),
       frequency: "monthly", interest_rate: "0", interest_mode: "percent", interest_amount: "", investor_share_percent: "0", investor_share_mode: "percent", investor_share_amount: "", investor_rate: "",
-    },
+  });
+
+  const { register, handleSubmit, reset, setValue, getValues, watch, setError, formState: { errors, isSubmitting } } = useForm<Values>({
+    resolver: zodResolver(schema),
+    defaultValues: blank(params.get("vehicle") ?? ""),
   });
 
   const settings = useSettings();
@@ -264,7 +270,13 @@ export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
       const res = await api<Sale>("/sales", { method: "POST", body });
       if (draftId) await api(`/drafts/${draftId}`, { method: "DELETE" }).catch(() => {}); // the real sale exists now
       toast.success(savedMsg("Sale", false));
-      router.replace("/vehicles"); // back to the list; the message above confirms the sale
+      // stay on this page: clear the form, refresh the stock list and offer the memo
+      const full = await api<Sale>(`/sales/${res.data.id}`).then((r) => r.data).catch(() => res.data);
+      setCreated(full);
+      reset(blank(""));
+      setDraftId(null);
+      setDraftsKey((k) => k + 1);
+      vehicles.reload();
     } catch (e) {
       toast.error(applyServerErrors(e, setError));
     }
@@ -440,6 +452,20 @@ export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
           <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Saving..." : "Create sale"}</Button>
         </div>
       </form>
+
+      <Modal open={!!created} onClose={() => setCreated(null)} title="Sale created">
+        {created && (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">Sale #{created.id} · {created.customer?.name} · {created.vehicle?.chassis_no}</p>
+            <p className="text-sm font-semibold text-slate-800">Sale price {money(created.sale_price)}</p>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="outline" onClick={() => setCreated(null)}>Close</Button>
+              <Link className="inline-flex items-center rounded-lg border border-violet-200 bg-white px-3 py-2 text-sm font-medium text-violet-700 hover:bg-violet-50" href={`/sales/${created.id}`}>View sale</Link>
+              <Button onClick={() => { openSaleMemo(created, user?.shop?.name ?? "Vehicle Hub"); setCreated(null); }}><Printer className="size-4" /> Print memo</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </>
   );
 }

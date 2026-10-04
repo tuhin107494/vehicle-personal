@@ -45,6 +45,26 @@ class DemoSeeder extends Seeder
             'supplier_id' => $seller->id, 'purchase_date' => today()->subDays(40)->toDateString(), 'price' => $v[6], 'paid_amount' => $v[6],
         ], $admin)->vehicle);
 
+        // ten more bikes and three-wheelers left in stock, bought from the other suppliers (two still part-unpaid)
+        $suppliers = Supplier::where('id', '!=', $seller->id)->orderBy('id')->get();
+        foreach ([
+            ['CH-2001', 'EN-2001', 'motorcycle', 'Honda', 'CB Shine 125', 2022, 150000, 150000],
+            ['CH-2002', 'EN-2002', 'motorcycle', 'Yamaha', 'FZS V3', 2021, 260000, 260000],
+            ['CH-2003', 'EN-2003', 'motorcycle', 'Suzuki', 'Gixxer SF', 2022, 280000, 200000],
+            ['CH-2004', 'EN-2004', 'motorcycle', 'Bajaj', 'Pulsar 150', 2020, 175000, 175000],
+            ['CH-2005', 'EN-2005', 'motorcycle', 'TVS', 'Apache RTR 160', 2021, 190000, 190000],
+            ['CH-2006', 'EN-2006', 'cng', 'Bajaj', 'RE Compact CNG', 2019, 320000, 320000],
+            ['CH-2007', 'EN-2007', 'cng', 'Piaggio', 'Ape City', 2020, 300000, 220000],
+            ['CH-2008', 'EN-2008', 'auto_rickshaw', 'Mahindra', 'Alfa Auto', 2021, 270000, 270000],
+            ['CH-2009', 'EN-2009', 'auto_rickshaw', 'Atul', 'Gem Auto', 2019, 240000, 240000],
+            ['CH-2010', 'EN-2010', 'motorcycle', 'Hero', 'Hunk 150R', 2022, 165000, 165000],
+        ] as $i => $v) {
+            $purchases->create([
+                'chassis_no' => $v[0], 'engine_no' => $v[1], 'vehicle_type' => $v[2], 'brand' => $v[3], 'model' => $v[4], 'year' => $v[5],
+                'supplier_id' => $suppliers[$i % $suppliers->count()]->id, 'purchase_date' => today()->subDays(15 - $i)->toDateString(), 'price' => $v[6], 'paid_amount' => $v[7],
+            ], $admin);
+        }
+
         $sales->create([
             'vehicle_id' => $vehicles[0]->id, 'customer_id' => $buyers[0]->id, 'sale_date' => today()->subDays(20)->toDateString(),
             'sale_price' => 400000, 'payment_type' => 'cash', 'down_payment' => 400000,

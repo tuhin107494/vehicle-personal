@@ -6,12 +6,16 @@ const cap = (v?: string | null) => { const t = label(v); return t === "-" ? "" :
 const pdate = (v?: string | null) => (v ? fmtDate(v) : "-");
 
 /**
- * Opens the sale memo as a clean one-page document in a new window and starts the print dialog,
- * where "Save as PDF" downloads it. Pass `print: false` to only show it.
+ * Prints the sale memo as a clean one-page document from a hidden frame (no new tab, so it works on phones)
+ * and starts the print dialog, where "Save as PDF" downloads it. The file is named Sale-<id>.
  */
 export function openSaleMemo(sale: Sale, shop: string) {
-  const w = window.open("", "_blank", "width=900,height=1000");
-  if (!w) return false;
+  const frame = document.createElement("iframe");
+  frame.setAttribute("aria-hidden", "true");
+  frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+  document.body.appendChild(frame);
+  const w = frame.contentWindow;
+  if (!w) { frame.remove(); return false; }
 
   const v = sale.vehicle;
   const p = sale.customer;
@@ -21,7 +25,7 @@ export function openSaleMemo(sale: Sale, shop: string) {
 
   const rows = (pairs: [string, unknown][]) => pairs.filter(([, val]) => val !== null && val !== undefined && val !== "").map(([k, val]) => `<tr><td class="k">${esc(k)}</td><td>${esc(val)}</td></tr>`).join("");
 
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Sale memo ${esc(sale.id)} - ${esc(p?.name)}</title>
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Sale-${esc(sale.id)}</title>
 <style>
 *{box-sizing:border-box}body{font-family:system-ui,-apple-system,sans-serif;margin:28px;color:#111;font-size:13px}
 h1{font-size:20px;margin:0}h2{font-size:13px;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.05em;color:#065f46}
@@ -52,7 +56,13 @@ ${payments.length ? `<h2>Payments received</h2><table><tr><th>Date</th><th>Metho
 
 <div class="sign"><div>Customer signature</div><div>Guarantor signature</div><div>Authorised signature</div></div>
 <p class="note">Printed on ${esc(fmtDate(new Date().toISOString()))}</p>
-<script>window.onload=function(){window.print()}</script></body></html>`);
+</body></html>`);
   w.document.close();
+  // Browsers name the saved PDF after the page title.
+  const pageTitle = document.title;
+  const restore = () => { document.title = pageTitle; frame.remove(); };
+  w.onafterprint = restore;
+  setTimeout(() => { document.title = `Sale-${sale.id}`; w.focus(); w.print(); }, 250);
+  setTimeout(restore, 120000);
   return true;
 }

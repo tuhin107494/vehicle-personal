@@ -2,7 +2,8 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Printer } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -12,8 +13,11 @@ import { fmtDate, money, todayStr, toPayload } from "@/lib/format";
 import { useFetch } from "@/lib/hooks";
 import type { Customer, DraftT, Purchase, Sale, Vehicle } from "@/lib/types";
 import { DraftsBar, draftValues } from "@/components/DraftsBar";
-import { Button, Card, Field, inputCls, KV, PageHeader, StatusBadge } from "@/components/app-ui";
+import { Button, Card, Field, inputCls, KV, Modal, PageHeader, StatusBadge } from "@/components/app-ui";
 import { CustomerSelect, SupplierSelect } from "@/components/Selects";
+import { printVoucher } from "@/components/TransactionVoucher";
+import { purchaseVoucher } from "@/lib/purchaseVoucher";
+import { useAuth } from "@/lib/auth";
 import { SearchSelect } from "@/components/SearchSelect";
 import { DEFAULT_FIELDS, useCategories, useTypeDefaults } from "@/lib/categories";
 import { useSettings } from "@/lib/settings";
@@ -45,15 +49,18 @@ const vehicleValuesFrom = (v: Vehicle) => ({
   ...detailsFrom(v),
 });
 
+const blankForm = (chassis = ""): Values => ({ ...blankVehicle, ...blankDetails, chassis_no: chassis, payment_method: "", payment_reference: "", party_id: "", memo_no: "", purchase_date: todayStr(), price: "", paid_amount: "", cost_extra: "", notes: "" });
+
 function PurchaseForm() {
-  const router = useRouter();
+  const { user } = useAuth();
+  const [created, setCreated] = useState<Purchase | null>(null); // the purchase just saved: the page stays and offers the voucher
   const params = useSearchParams();
   const [source, setSource] = useState<"supplier" | "customer">("supplier"); // where the vehicle is bought from
   const [vehicle, setVehicle] = useState<Vehicle | null>(null); // set when the chassis or registration number matches an existing vehicle
 
   const { register, handleSubmit, reset, setValue, getValues, watch, setError, formState: { errors, isSubmitting } } = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { ...blankVehicle, ...blankDetails, chassis_no: params.get("chassis") ?? "", payment_method: "", payment_reference: "", party_id: "", memo_no: "", purchase_date: todayStr(), price: "", paid_amount: "", cost_extra: "", notes: "" },
+    defaultValues: blankForm(params.get("chassis") ?? ""),
   });
 
   const settings = useSettings();
@@ -279,7 +286,14 @@ function PurchaseForm() {
       const res = await api<Purchase>("/purchases", { method: "POST", body: form });
       if (draftId) await api(`/drafts/${draftId}`, { method: "DELETE" }).catch(() => {}); // the real record exists now
       toast.success("Vehicle added successfully");
-      router.replace("/vehicles"); // back to the list; the message above confirms the purchase
+      // stay on this page: clear the form and offer the voucher
+      setCreated(res.data);
+      reset(blankForm());
+      setVehicle(null);
+      setPicked("");
+      resetAdjust();
+      setDraftId(null);
+      setDraftsKey((k) => k + 1);
     } catch (e) {
       toast.error(applyServerErrors(e, setError));
     }
@@ -480,6 +494,25 @@ function PurchaseForm() {
           <Button type="submit" disabled={isSubmitting || blocked}>{isSubmitting ? "Saving..." : vehicle ? "Record repurchase" : "Record purchase"}</Button>
         </div>
       </form>
+
+      <Modal open={!!created} onClose={() => setCreated(null)} title="Vehicle purchased">
+        {created && (() => {
+          const seller = created.supplier ?? created.customer;
+          const due = Math.max(0, created.price - created.paid_amount - created.due_adjustment);
+          const voucher = purchaseVoucher(created);
+          return (
+            <div className="space-y-3">
+              <p className="text-sm text-slate-600">Purchase #{created.id} · {seller?.name} · {created.vehicle?.chassis_no}</p>
+              <p className="text-sm font-semibold text-slate-800">Price {money(created.price)} · Paid {money(created.paid_amount)}{due > 0 ? ` · Due ${money(due)}` : ""}</p>
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button variant="outline" onClick={() => setCreated(null)}>Close</Button>
+                <Link className="inline-flex items-center rounded-lg border border-violet-200 bg-white px-3 py-2 text-sm font-medium text-violet-700 hover:bg-violet-50" href={`/vehicles/${created.vehicle_id}`}>View vehicle</Link>
+                <Button onClick={() => { printVoucher(voucher, created.source === "customer" ? "customer" : "supplier", user?.shop?.name ?? "Vehicle Hub"); setCreated(null); }}><Printer className="size-4" /> Print voucher</Button>
+              </div>
+            </div>
+          );
+        })()}
+      </Modal>
     </>
   );
 }

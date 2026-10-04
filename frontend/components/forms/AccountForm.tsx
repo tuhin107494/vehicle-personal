@@ -13,6 +13,8 @@ import type { AccountSummary } from "@/lib/types";
 import { Button, Card, Field, inputCls, Pagination } from "@/components/app-ui";
 import { usePaging } from "@/lib/paging";
 import { CustomerSelect, SupplierSelect } from "@/components/Selects";
+import { useAuth } from "@/lib/auth";
+import { TransactionVoucher, type VoucherTx } from "@/components/TransactionVoucher";
 import { SearchSelect } from "@/components/SearchSelect";
 import type { Sale } from "@/lib/types";
 import { Input } from "@/components/ui/input";
@@ -40,6 +42,8 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
   const { register, handleSubmit, reset, setValue, setError, watch, formState: { errors, isSubmitting } } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: { ...blank, side } });
   const w = watch();
   const text = SIDES[side];
+  const { user } = useAuth();
+  const [vouchers, setVouchers] = useState<VoucherTx[]>([]); // the receipts shown after a payment (one per purchase or installment it paid)
 
   const summary = useFetch<AccountSummary>(w.party_id ? `/accounts?side=${side}&${side === "customer" ? "customer_id" : "supplier_id"}=${w.party_id}` : null);
   // Customers can pay one vehicle's due; empty means spread over all, oldest first.
@@ -90,10 +94,18 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
     }
     try {
       const res = await api("/accounts", { method: "POST", body: { ...toPayload({ ...v, [side === "customer" ? "customer_id" : "supplier_id"]: v.party_id }, [side === "customer" ? "customer_id" : "supplier_id", "amount"]), sale_id: side === "customer" && saleId ? Number(saleId) : null } });
-      toast.success(res.message);
-      reset({ ...blank, side: v.side, party_id: v.party_id });
+      toast.success(`${res.message} successfully`);
+      {
+        // the same vouchers the reports print, so a later download has the same number and file name
+        const nos: string[] = (res.data as { vouchers?: string[] }).vouchers ?? [];
+        api<{ rows: (VoucherTx & { person_id: number })[] }>(`/reports/transactions?side=${side}&from=${v.paid_at}&to=${v.paid_at}`)
+          .then((r) => setVouchers(r.data.rows.filter((x) => nos.includes(x.no) && x.person_id === Number(v.party_id))))
+          .catch(() => {});
+      }
+      reset({ ...blank, side: v.side }); // the whole form clears, including the person
       setSaleId("");
-      summary.reload();
+      setFound(null);
+      setVq("");
     } catch (e) {
       toast.error(applyServerErrors(e, setError));
     }
@@ -237,6 +249,7 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
           </div>
         </Card>
       </form>
+      <TransactionVoucher tx={vouchers[0] ?? null} count={vouchers.length} side={side} shop={user?.shop?.name ?? "Vehicle Hub"} onClose={() => setVouchers([])} onDownloaded={() => setVouchers((q) => q.slice(1))} />
     </>
   );
 }

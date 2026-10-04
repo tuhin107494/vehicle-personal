@@ -176,7 +176,7 @@ class ReportController extends Controller implements HasMiddleware
         $rows = $inRange->map(function ($e) use (&$balance) {
             $balance = round($balance + $e['charge'] - $e['paid'], 2);
 
-            return ['date' => $e['date'], 'kind' => $e['kind'], 'description' => $e['description'], 'vehicle' => $e['vehicle'], 'reference' => $e['reference'], 'charge' => $e['charge'], 'paid' => $e['paid'], 'balance' => $balance];
+            return ['date' => $e['date'], 'kind' => $e['kind'], 'description' => $e['description'], 'vehicle' => $e['vehicle'], 'reference' => $e['reference'], 'charge' => $e['charge'], 'paid' => $e['paid'], 'balance' => $balance, 'no' => $e['no'], 'details' => array_values(array_filter($e['details'], fn ($d) => $d[1] !== null && $d[1] !== ''))];
         });
 
         return $this->success([
@@ -215,7 +215,7 @@ class ReportController extends Controller implements HasMiddleware
             foreach ($sale->payments as $pay) {
                 $label = $pay->amount < 0 ? 'Refund' : ($pay->method === 'adjustment' ? 'Adjusted against purchase' : 'Payment received ('.$pay->method.')');
                 // a refund gives money back, so it adds to what they owe again
-                $out[] = $this->entry($sale->customer_id, $pay->paid_at->toDateString(), 1, $pay->id, 'payment', $label, $vehicle, $pay->amount < 0 ? abs($pay->amount) : 0, $pay->amount > 0 ? $pay->amount : 0, $pay->reference, 'RCPT-'.$pay->id, [
+                $out[] = $this->entry($sale->customer_id, $pay->paid_at->toDateString(), 1, $pay->id, 'payment', $label, $vehicle, $pay->amount < 0 ? abs($pay->amount) : 0, $pay->amount > 0 ? $pay->amount : 0, $pay->reference, 'CP-'.$pay->id, [
                     ['Vehicle', $name ?: null], ['Chassis', $vehicle], ['Sale', "#{$sale->id}"], ['Method', ucfirst($pay->method)],
                     ['Installment', $pay->installment ? "#{$pay->installment->seq_no}" : null], ['Received by', $pay->receiver?->name], ['Note', $pay->note],
                 ]);
@@ -254,12 +254,12 @@ class ReportController extends Controller implements HasMiddleware
             foreach ($p->payments as $pay) {
                 // money taken from an advance was counted when the advance was given
                 $fromAdvance = $pay->method === 'advance';
-                $out[] = $this->entry($p->supplier_id, $pay->paid_at->toDateString(), 1, $pay->id, 'payment', $fromAdvance ? 'Paid from advance' : "Payment ({$pay->method})", $vehicle, 0, $fromAdvance ? 0 : (float) $pay->amount, $pay->reference, 'PAY-'.$pay->id, [...$car, ['Purchase', "#{$p->id}"], ['Method', ucfirst($pay->method)], ['Note', $pay->note]]);
+                $out[] = $this->entry($p->supplier_id, $pay->paid_at->toDateString(), 1, $pay->id, 'payment', $fromAdvance ? 'Paid from advance' : "Payment ({$pay->method})", $vehicle, 0, $fromAdvance ? 0 : (float) $pay->amount, $pay->reference, 'SP-'.$pay->id, [...$car, ['Purchase', "#{$p->id}"], ['Method', ucfirst($pay->method)], ['Note', $pay->note]]);
             }
         }
 
         foreach (Advance::query()->when($supplierId, fn ($q) => $q->where('supplier_id', $supplierId))->get() as $a) {
-            $out[] = $this->entry($a->supplier_id, $a->paid_at->toDateString(), 1, $a->id, 'advance', "Advance paid ({$a->method})", null, 0, (float) $a->amount, $a->reference, "ADV-{$a->id}", [['Method', ucfirst($a->method)], ['Note', $a->note]]);
+            $out[] = $this->entry($a->supplier_id, $a->paid_at->toDateString(), 1, $a->id, 'advance', "Advance paid ({$a->method})", null, 0, (float) $a->amount, $a->reference, "SP-{$a->id}", [['Method', ucfirst($a->method)], ['Note', $a->note]]);
         }
 
         return $out;

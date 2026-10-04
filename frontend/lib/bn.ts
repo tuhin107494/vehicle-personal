@@ -8,7 +8,7 @@ export const BN: Record<string, string> = {
   "Investor transactions": "ইনভেস্টর লেনদেন", "Customer transactions": "কাস্টমার লেনদেন", "Supplier transactions": "সাপ্লায়ার লেনদেন",
   "Investor payment": "ইনভেস্টর পরিশোধ", "Vehicle Hub": "ভেহিকেল হাব",
   // buttons
-  Action: "অ্যাকশন", Save: "সংরক্ষণ", Cancel: "বাতিল", Edit: "এডিট", View: "দেখুন", Back: "পিছনে", Delete: "মুছুন", Close: "বন্ধ", Next: "পরবর্তী", Previous: "আগের",
+  Action: "অ্যাকশন", "Sale created": "বিক্রয় সম্পন্ন", "Vehicle purchased": "গাড়ি ক্রয় সম্পন্ন", "Print voucher": "ভাউচার প্রিন্ট", "View vehicle": "গাড়ি দেখুন", "Print memo": "মেমো প্রিন্ট", "View sale": "বিক্রয় দেখুন", Print: "প্রিন্ট", "Bought (credit)": "কেনা (জমা)", "Paid (debit)": "পরিশোধ (খরচ)", "Sold (debit)": "বিক্রি (বাকি)", "Received (credit)": "গৃহীত (জমা)", "Payment received successfully": "পেমেন্ট সফলভাবে গ্রহণ করা হয়েছে", "Payment recorded successfully": "পেমেন্ট সফলভাবে নথিভুক্ত হয়েছে", Save: "সংরক্ষণ", Cancel: "বাতিল", Edit: "এডিট", View: "দেখুন", Back: "পিছনে", Delete: "মুছুন", Close: "বন্ধ", Next: "পরবর্তী", Previous: "আগের",
   "Sign in": "সাইন ইন", Logout: "লগআউট", "Print / PDF": "প্রিন্ট / পিডিএফ", Memo: "মেমো", Filters: "ফিল্টার", "Show results": "ফলাফল দেখুন",
   "Buy vehicle": "গাড়ি কিনুন", "New customer": "নতুন কাস্টমার", "New supplier": "নতুন সাপ্লায়ার", "New investor": "নতুন ইনভেস্টর", "New shop": "নতুন দোকান",
   "Create sale": "বিক্রয় তৈরি করুন", "Save as draft": "খসড়া সংরক্ষণ", "Update draft": "খসড়া হালনাগাদ", Resume: "চালু করুন", "Collect payment": "টাকা আদায়",
