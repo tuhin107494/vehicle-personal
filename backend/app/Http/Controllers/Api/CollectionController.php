@@ -105,11 +105,22 @@ class CollectionController extends Controller implements HasMiddleware
         $totals = Sale::where('status', 'active')->whereIn('customer_id', $rows->pluck('customer.id')->unique())
             ->selectRaw('customer_id, SUM(due_amount) as total')->groupBy('customer_id')->pluck('total', 'customer_id');
 
-        return $rows->map(fn ($r) => $r + ['customer_total_due' => round((float) ($totals[$r['customer']['id']] ?? 0), 2)])
+        return $rows->map(fn (array $r) => $this->withCustomerTotal($r, $totals))
             ->sortBy('due_date')->values();
     }
 
-    private function row(string $type, int $id, string $label, Sale $sale, $dueDate, float $amount): array
+    /**
+     * @param  array<string,mixed>  $row
+     * @param  Collection<int|string,mixed>  $totals  customer id => everything they owe across active sales
+     * @return array<string,mixed>
+     */
+    private function withCustomerTotal(array $row, Collection $totals): array
+    {
+        return $row + ['customer_total_due' => round((float) ($totals[$row['customer']['id']] ?? 0), 2)];
+    }
+
+    /** @return array<string,mixed> */
+    private function row(string $type, int $id, string $label, Sale $sale, Carbon $dueDate, float $amount): array
     {
         $due = $dueDate->copy()->startOfDay();
         $daysLeft = (int) today()->diffInDays($due, false);

@@ -21,7 +21,7 @@ import { useAuth } from "@/lib/auth";
 import { SearchSelect } from "@/components/SearchSelect";
 import { DEFAULT_FIELDS, useCategories, useTypeDefaults } from "@/lib/categories";
 import { useSettings } from "@/lib/settings";
-import { blankDetails, blankVehicle, DETAIL_NUMERIC, detailFields, detailsFrom, VEHICLE_NUMERIC, VehicleDetailFields, VehicleFields, vehicleFields } from "@/components/forms/VehicleForm";
+import { blankDetails, blankVehicle, detailFields, detailsFrom, VehicleDetailFields, VehicleFields, vehicleFields } from "@/components/forms/VehicleForm";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 

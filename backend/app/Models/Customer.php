@@ -23,12 +23,17 @@ class Customer extends Model
         'notes',
     ];
 
+    /** @return HasMany<Sale, $this> */
     public function sales(): HasMany
     {
         return $this->hasMany(Sale::class);
     }
 
-    /** Vehicles bought back from this customer. */
+    /**
+     * Vehicles bought back from this customer.
+     *
+     * @return HasMany<Purchase, $this>
+     */
     public function purchases(): HasMany
     {
         return $this->hasMany(Purchase::class);

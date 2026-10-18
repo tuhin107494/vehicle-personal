@@ -75,8 +75,15 @@ export type CallRow = {
   customer: { id: number; name: string; phone: string; alt_phone: string | null; address: string | null };
   vehicle: { id: number; chassis_no: string; brand: string | null; model: string | null };
 };
+/** What a half-finished form saves: its field values plus the page state needed to reopen it. */
+export type DraftData = {
+  values?: Record<string, unknown>;
+  source?: "supplier" | "customer"; // purchase: bought from a supplier or back from a customer
+  picked?: string; // purchase: the chosen seller
+  typeFilter?: string; // sale: the vehicle type filter
+};
 export type DraftT = {
-  id: number; type: "purchase" | "sale"; label: string | null; data: Record<string, any>;
+  id: number; type: "purchase" | "sale"; label: string | null; data: DraftData;
   saved_by: string | null; updated_at: string;
 };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { BN } from "@/lib/bn";
 import { startDomTranslate, stopDomTranslate } from "@/lib/domTranslate";
 
@@ -13,15 +13,29 @@ const I18n = createContext<Ctx>({ lang: "en", setLang: () => {}, t: (s) => s });
 /** Bangla digits for numbers shown in text. */
 const BN_DIGITS = "০১২৩৪৫৬৭৮৯";
 
-export function LangProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Lang>("en");
+// The chosen language lives in localStorage (kept in memory too, for browsers that block storage).
+const langListeners = new Set<() => void>();
+let memoryLang: Lang | null = null;
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(KEY);
-      if (saved === "bn" || saved === "en") setLangState(saved);
-    } catch {}
-  }, []);
+function readLang(): Lang {
+  if (memoryLang) return memoryLang;
+  try {
+    if (localStorage.getItem(KEY) === "bn") return "bn";
+  } catch {}
+  return "en";
+}
+
+function subscribeLang(onChange: () => void) {
+  langListeners.add(onChange);
+  window.addEventListener("storage", onChange); // another tab switched language
+  return () => {
+    langListeners.delete(onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
+export function LangProvider({ children }: { children: ReactNode }) {
+  const lang = useSyncExternalStore(subscribeLang, readLang, () => "en" as Lang); // the server always renders English
 
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -35,10 +49,11 @@ export function LangProvider({ children }: { children: ReactNode }) {
   }, [lang]);
 
   const setLang = useCallback((l: Lang) => {
-    setLangState(l);
+    memoryLang = l;
     try {
       localStorage.setItem(KEY, l);
     } catch {}
+    langListeners.forEach((notify) => notify());
   }, []);
 
   /** English text in, the chosen language out; anything without a translation stays as written. */

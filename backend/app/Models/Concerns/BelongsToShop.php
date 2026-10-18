@@ -23,6 +23,7 @@ trait BelongsToShop
         });
     }
 
+    /** @return BelongsTo<Shop, $this> */
     public function shop(): BelongsTo
     {
         return $this->belongsTo(Shop::class);

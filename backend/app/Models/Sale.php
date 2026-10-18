@@ -7,7 +7,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property Carbon $sale_date
+ * @property Carbon|null $cancelled_at
+ */
 class Sale extends Model
 {
     use BelongsToShop;
@@ -54,46 +59,55 @@ class Sale extends Model
         ];
     }
 
+    /** @return BelongsTo<Vehicle, $this> */
     public function vehicle(): BelongsTo
     {
         return $this->belongsTo(Vehicle::class);
     }
 
+    /** @return BelongsTo<Purchase, $this> */
     public function purchase(): BelongsTo
     {
         return $this->belongsTo(Purchase::class);
     }
 
+    /** @return BelongsTo<Customer, $this> */
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
     }
 
+    /** @return BelongsTo<Investor, $this> */
     public function investor(): BelongsTo
     {
         return $this->belongsTo(Investor::class);
     }
 
+    /** @return BelongsTo<User, $this> */
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    /** @return HasOne<InstallmentPlan, $this> */
     public function plan(): HasOne
     {
         return $this->hasOne(InstallmentPlan::class);
     }
 
+    /** @return HasMany<Payment, $this> */
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
     }
 
+    /** @return HasMany<DuePromise, $this> */
     public function promises(): HasMany
     {
         return $this->hasMany(DuePromise::class);
     }
 
+    /** @return HasMany<RegistrationLog, $this> */
     public function registrationLogs(): HasMany
     {
         return $this->hasMany(RegistrationLog::class);

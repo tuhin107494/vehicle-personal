@@ -95,20 +95,23 @@ class PurchaseService
 
     public function delete(Purchase $purchase): void
     {
-        if ($purchase->adjusted_sale_id) {
-            throw new BusinessRuleException('This purchase settled part of a customer\'s due and cannot be deleted.');
-        }
-
-        if ($purchase->payments()->exists()) {
-            throw new BusinessRuleException('Payments were recorded against this purchase, so it cannot be deleted.');
-        }
-
-        if ($purchase->sales()->exists()) {
-            throw new BusinessRuleException('This purchase has sales recorded against it and cannot be deleted.');
-        }
-
         DB::transaction(function () use ($purchase) {
-            $vehicle = $purchase->vehicle;
+            // the same locks a supplier payment (purchase) and a sale (vehicle) take, so neither can slip in between these checks and the delete
+            $purchase = Purchase::lockForUpdate()->findOrFail($purchase->id);
+            $vehicle = Vehicle::lockForUpdate()->findOrFail($purchase->vehicle_id);
+
+            if ($purchase->adjusted_sale_id) {
+                throw new BusinessRuleException('This purchase settled part of a customer\'s due and cannot be deleted.');
+            }
+
+            if ($purchase->payments()->exists()) {
+                throw new BusinessRuleException('Payments were recorded against this purchase, so it cannot be deleted.');
+            }
+
+            if ($purchase->sales()->exists()) {
+                throw new BusinessRuleException('This purchase has sales recorded against it and cannot be deleted.');
+            }
+
             $purchase->delete();
 
             $previous = $vehicle->purchases()->latest('purchase_date')->latest('id')->first();

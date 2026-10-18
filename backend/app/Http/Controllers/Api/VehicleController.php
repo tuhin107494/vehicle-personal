@@ -130,7 +130,7 @@ class VehicleController extends Controller implements HasMiddleware
         foreach ($purchases as $p) {
             $events->push([
                 'type' => 'purchase', 'date' => $p->purchase_date->toDateString(), 'sort' => $p->purchase_date->copy()->addSeconds($p->id),
-                'title' => ($p->source === 'customer' ? 'Returned by ' : 'Purchased from ').($p->source === 'customer' ? $p->customer : $p->supplier)->name, 'amount' => $p->price, 'ref_id' => $p->id, 'data' => $p,
+                'title' => ($p->source === 'customer' ? 'Returned by ' : 'Purchased from ').$p->seller()?->name, 'amount' => $p->price, 'ref_id' => $p->id, 'data' => $p,
                 'how' => collect([
                     (float) $p->paid_amount > 0 ? ucfirst($p->payment_method ?: 'cash').' '.number_format((float) $p->paid_amount) : null,
                     (float) $p->due_adjustment > 0 ? 'Adjustment '.number_format((float) $p->due_adjustment) : null,

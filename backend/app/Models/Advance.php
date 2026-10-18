@@ -5,7 +5,11 @@ namespace App\Models;
 use App\Models\Concerns\BelongsToShop;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property Carbon $paid_at
+ */
 class Advance extends Model
 {
     use BelongsToShop;
@@ -34,6 +38,7 @@ class Advance extends Model
         return round($this->amount - $this->used, 2);
     }
 
+    /** @return BelongsTo<Supplier, $this> */
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
