@@ -19,6 +19,7 @@ export function DataTable<T>({
   pageSize = 15,
   serverPaged,
   pager = true,
+  compact,
 }: {
   columns: Col<T>[];
   data: T[];
@@ -30,6 +31,8 @@ export function DataTable<T>({
   serverPaged?: boolean;
   /** false: no page controls, for a short fixed list such as a dashboard card */
   pager?: boolean;
+  /** tighter rows, for a small table inside a card */
+  compact?: boolean;
 }) {
   const { t } = useT();
   const table = useReactTable({ data, columns, getCoreRowModel: getCoreRowModel() });
@@ -83,7 +86,7 @@ export function DataTable<T>({
           {table.getHeaderGroups().map((hg) => (
             <TableRow key={hg.id} className="border-emerald-300 hover:bg-transparent">
               {hg.headers.map((h) => (
-                <TableHead key={h.id} className={`${h.column.columnDef.header === "Action" ? "text-center " : ""}${(h.column.columnDef.meta as { className?: string } | undefined)?.className ?? ""} h-10 whitespace-nowrap border-r border-emerald-200 text-xs font-semibold uppercase tracking-wide text-emerald-700 last:border-r-0`}>
+                <TableHead key={h.id} className={`${h.column.columnDef.header === "Action" ? "text-center " : ""}${(h.column.columnDef.meta as { className?: string } | undefined)?.className ?? ""} ${compact ? "h-8" : "h-10"} whitespace-nowrap border-r border-emerald-200 text-xs font-semibold uppercase tracking-wide text-emerald-700 last:border-r-0`}>
                   {typeof h.column.columnDef.header === "string" ? t(h.column.columnDef.header) : flexRender(h.column.columnDef.header, h.getContext())}
                 </TableHead>
               ))}
@@ -98,7 +101,7 @@ export function DataTable<T>({
               className={`border-emerald-200 hover:bg-emerald-50/60 ${onRowClick ? "cursor-pointer" : ""}`}
             >
               {row.getVisibleCells().map((cell) => (
-                <TableCell key={cell.id} className={`${(cell.column.columnDef.meta as { className?: string } | undefined)?.className ?? ""} whitespace-nowrap border-r border-emerald-100 py-2.5 text-slate-800 last:border-r-0`}>
+                <TableCell key={cell.id} className={`${(cell.column.columnDef.meta as { className?: string } | undefined)?.className ?? ""} whitespace-nowrap border-r border-emerald-100 ${compact ? "py-1.5" : "py-2.5"} text-slate-800 last:border-r-0`}>
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </TableCell>
               ))}

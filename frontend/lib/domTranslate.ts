@@ -32,6 +32,8 @@ const RULES: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^Next (\d+) days · (\d+)$/, (m) => `পরবর্তী ${bnNum(m[1])} দিন · ${bnNum(m[2])}`],
   [/^(\d+) of (\d+)$/, (m) => `${bnNum(m[1])} / ${bnNum(m[2])}`],
   [/^Per (customer|supplier)$/i, (m) => `প্রতি ${BN[m[1][0].toUpperCase() + m[1].slice(1)] ?? m[1]}`],
+  [/^(\d+) vehicles bought$/, (m) => `${bnNum(m[1])}টি গাড়ি কেনা হয়েছে`],
+  [/^(\d+) vehicles sold$/, (m) => `${bnNum(m[1])}টি গাড়ি বিক্রি হয়েছে`],
   [/^Installment #(\d+)$/, (m) => `কিস্তি #${bnNum(m[1])}`],
   [/^New (customer|supplier|investor|shop|user|category|permission)$/i, (m) => `নতুন ${BN[m[1][0].toUpperCase() + m[1].slice(1)] ?? m[1]}`],
   [/^Edit (customer|supplier|investor|shop|user|category|permission|vehicle)$/i, (m) => `${BN[m[1][0].toUpperCase() + m[1].slice(1)] ?? m[1]} এডিট`],

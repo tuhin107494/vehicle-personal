@@ -170,16 +170,16 @@ const STAT_COLORS = {
   "green-soft": "from-emerald-400 to-emerald-500",
 };
 
-export function Stat({ label: text, value, tone, color = "green", icon: Icon, href }: { label: string; value: ReactNode; tone?: "red"; color?: keyof typeof STAT_COLORS; icon?: LucideIcon; href?: string }) {
+export function Stat({ label: text, value, tone, color = "green", icon: Icon, href, compact }: { label: string; value: ReactNode; tone?: "red"; color?: keyof typeof STAT_COLORS; icon?: LucideIcon; href?: string; compact?: boolean }) {
   const { t } = useT();
   const gradient = STAT_COLORS[tone === "red" ? "red" : color];
   const card = (
-    <div className={`h-full min-w-0 rounded-xl bg-gradient-to-br ${gradient} px-2 py-1.5 text-white shadow sm:p-4 sm:shadow-md ${href ? "transition hover:shadow-lg hover:brightness-105" : ""}`}>
+    <div className={`h-full min-w-0 rounded-xl bg-gradient-to-br ${gradient} px-2 py-1.5 text-white shadow ${compact ? "sm:px-4 sm:py-2.5" : "sm:p-4"} sm:shadow-md ${href ? "transition hover:shadow-lg hover:brightness-105" : ""}`}>
       <div className="flex items-center justify-between">
         <p className="text-[10px] text-white/85 sm:text-sm">{t(text)}</p>
-        {Icon && <span className="flex size-8 items-center justify-center rounded-lg bg-white/25"><Icon className="size-4" /></span>}
+        {Icon && <span className={`flex items-center justify-center rounded-lg bg-white/25 ${compact ? "size-7" : "size-8"}`}><Icon className="size-4" /></span>}
       </div>
-      <p className="break-words text-sm font-bold sm:mt-1 sm:text-2xl">{value}</p>
+      <p className={`break-words text-sm font-bold sm:mt-1 ${compact ? "sm:text-xl" : "sm:text-2xl"}`}>{value}</p>
     </div>
   );
   return href ? <Link href={href} className="block h-full min-w-0">{card}</Link> : card;

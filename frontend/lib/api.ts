@@ -29,10 +29,20 @@ export const tokenStore = {
   clear: () => localStorage.removeItem(TOKEN_KEY),
 };
 
-export async function api<T = unknown>(
-  path: string,
-  options: { method?: string; body?: unknown } = {},
-): Promise<ApiEnvelope<T>> {
+// A GET that is still on its way is shared, so two parts of the page (or React's double render in development) asking for the same thing send one request.
+const inFlight = new Map<string, Promise<ApiEnvelope<unknown>>>();
+
+export function api<T = unknown>(path: string, options: { method?: string; body?: unknown } = {}): Promise<ApiEnvelope<T>> {
+  if ((options.method ?? "GET") !== "GET") return send<T>(path, options);
+  const key = `${tokenStore.get() ?? ""}${path}`;
+  const pending = inFlight.get(key) as Promise<ApiEnvelope<T>> | undefined;
+  if (pending) return pending;
+  const request = send<T>(path, options).finally(() => inFlight.delete(key));
+  inFlight.set(key, request);
+  return request;
+}
+
+async function send<T>(path: string, options: { method?: string; body?: unknown }): Promise<ApiEnvelope<T>> {
   const token = tokenStore.get();
   const res = await fetch(`${API_URL}${path}`, {
     method: options.method ?? "GET",
