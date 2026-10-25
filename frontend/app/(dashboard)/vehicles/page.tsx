@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { usePagedList } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
-import { label, money } from "@/lib/format";
+import { label } from "@/lib/format";
 import { useCategories } from "@/lib/categories";
 import { typeColor } from "@/lib/typeColors";
 import type { Vehicle } from "@/lib/types";

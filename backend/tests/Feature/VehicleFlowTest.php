@@ -2,13 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Models\Customer;
 use App\Models\Installment;
 use App\Models\Investor;
-use App\Models\Customer;
-use App\Models\Supplier;
 use App\Models\Permission;
 use App\Models\Sale;
 use App\Models\Shop;
+use App\Models\Supplier;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\ShopService;
@@ -70,6 +70,26 @@ class VehicleFlowTest extends TestCase
         $this->postJson('/api/purchases', [
             'vehicle_id' => $v->id, 'supplier_id' => $seller->id, 'purchase_date' => today()->toDateString(), 'price' => 1,
         ])->assertStatus(409);
+    }
+
+    public function test_deleting_a_purchase_removes_the_vehicle_or_restores_its_last_sale(): void
+    {
+        // the only purchase: the vehicle goes with it
+        $v = $this->stockVehicle('CH-DEL');
+        $this->deleteJson("/api/purchases/{$v->current_purchase_id}")->assertOk();
+        $this->assertSoftDeleted('vehicles', ['id' => $v->id]);
+
+        // a buy-back: the vehicle goes back to sold, under the sale before it
+        $v = $this->stockVehicle('CH-BACK');
+        $firstPurchase = $v->current_purchase_id;
+        $saleId = $this->postJson('/api/sales', $this->saleData($v))->assertCreated()->json('data.id');
+        $buyBack = $this->postJson('/api/purchases', [
+            'vehicle_id' => $v->id, 'source' => 'customer', 'customer_id' => Sale::findOrFail($saleId)->customer_id,
+            'purchase_date' => today()->toDateString(), 'price' => 700000,
+        ])->assertCreated()->json('data.id');
+
+        $this->deleteJson("/api/purchases/{$buyBack}")->assertOk();
+        $this->assertDatabaseHas('vehicles', ['id' => $v->id, 'status' => 'sold', 'current_purchase_id' => $firstPurchase, 'current_sale_id' => $saleId]);
     }
 
     public function test_cash_sale_is_paid_and_vehicle_becomes_sold(): void

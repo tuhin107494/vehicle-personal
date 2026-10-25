@@ -29,6 +29,6 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(120)->by($request->user()?->id ?: $request->ip()));
 
         // the reset link in the email opens the web app's reset page, not the API
-        ResetPassword::createUrlUsing(fn ($user, string $token) => rtrim(config('app.frontend_url', env('FRONTEND_URL', 'http://localhost:3000')), '/').'/reset-password?token='.$token.'&email='.urlencode($user->getEmailForPasswordReset()));
+        ResetPassword::createUrlUsing(fn ($user, string $token) => rtrim(config('app.frontend_url'), '/').'/reset-password?token='.$token.'&email='.urlencode($user->getEmailForPasswordReset()));
     }
 }

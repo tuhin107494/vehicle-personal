@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
@@ -68,8 +68,10 @@ export default function SettingsPage() {
   const [rows, setRows] = useState<string[]>([]);
   const [typeCols, setTypeCols] = useState<Record<string, FieldKey[]>>({}); // fields shown on each type's card
 
-  useEffect(() => {
-    if (!settings.data) return;
+  // start from what is saved each time the settings (re)load
+  const [loadedFrom, setLoadedFrom] = useState<Settings | null>(null);
+  if (settings.data && settings.data !== loadedFrom) {
+    setLoadedFrom(settings.data);
     const start = { purchase: settings.data.purchase.vehicle_type ?? "", sale: settings.data.sale.vehicle_type ?? "" };
     setPrimary(start);
     setSavedPrimary(JSON.stringify(start));
@@ -79,8 +81,7 @@ export default function SettingsPage() {
     setRows([...new Set(Object.values(loaded).flatMap((m) => Object.keys(m)))]);
     const types = new Set(Object.values(loaded).flatMap((m) => Object.keys(m)));
     setTypeCols(Object.fromEntries([...types].map((t) => [t, FIELDS.map((f) => f.key).filter((k) => loaded[k][t] !== undefined)])));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings.data]);
+  }
 
   if (settings.loading && !settings.data) return <Loading />;
   if (settings.error || !settings.data) return <ErrorText message={settings.error ?? "Failed to load"} />;

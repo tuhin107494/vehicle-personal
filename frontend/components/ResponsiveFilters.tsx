@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { SlidersHorizontal } from "lucide-react";
 import { Button, Modal } from "@/components/app-ui";
+import { useElementById } from "@/lib/hooks";
 
 /**
  * Report filters. On a desktop they sit in the page as given; on a phone or tablet they stay hidden behind one
@@ -12,8 +13,7 @@ import { Button, Modal } from "@/components/app-ui";
  */
 export function ResponsiveFilters({ children, desktopClass }: { children: ReactNode; desktopClass: string }) {
   const [open, setOpen] = useState(false);
-  const [slot, setSlot] = useState<HTMLElement | null>(null);
-  useEffect(() => setSlot(document.getElementById("report-filters-slot")), []);
+  const slot = useElementById("report-filters-slot");
 
   const button = <Button variant="outline" className="w-full px-2 lg:w-auto" onClick={() => setOpen(true)}><SlidersHorizontal className="size-4" /> Filters</Button>;
 

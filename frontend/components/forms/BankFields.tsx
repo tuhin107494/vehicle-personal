@@ -1,17 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import type { FieldErrors, UseFormRegister, UseFormSetValue } from "react-hook-form";
+import type { UseFormRegisterReturn } from "react-hook-form";
 import { Plus } from "lucide-react";
 import { Field, inputCls } from "@/components/app-ui";
 import { Input } from "@/components/ui/input";
 
 export const BANK_FIELDS = ["bank_name", "bank_branch", "bank_account_name", "bank_account_no", "bank_info"] as const;
 
-/** Optional bank details for a supplier or investor: hidden behind a button until they are needed. */
-export function BankFields({ register, errors, setValue, startOpen }: { register: UseFormRegister<any>; errors: FieldErrors<any>; setValue: UseFormSetValue<any>; startOpen: boolean }) {
+type BankField = (typeof BANK_FIELDS)[number];
+
+/** Optional bank details for a supplier or investor: hidden behind a button until they are needed. Takes any form that has the bank fields. */
+export function BankFields({ register, errors, setValue, startOpen }: {
+  register: (name: BankField) => UseFormRegisterReturn;
+  errors: Partial<Record<BankField, { message?: string }>>;
+  setValue: (name: BankField, value: string) => void;
+  startOpen: boolean;
+}) {
   const [open, setOpen] = useState(startOpen);
-  const err = (f: string) => errors[f]?.message as string | undefined;
+  const err = (f: BankField) => errors[f]?.message;
 
   if (!open) {
     return (

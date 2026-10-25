@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 
 const ACTION_IDS = ["actions", "view", "pay"]; // columns shown as buttons on a phone card, not as a labelled field
 
-export type Col<T> = ColumnDef<T, any>;
+export type Col<T> = ColumnDef<T, unknown>;
 
 export function DataTable<T>({
   columns,

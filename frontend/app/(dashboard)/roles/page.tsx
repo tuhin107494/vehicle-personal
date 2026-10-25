@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Save } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
@@ -17,9 +17,12 @@ export default function RolesPage() {
   const [selected, setSelected] = useState<Record<string, Set<string>>>({});
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (roles.data) setSelected(Object.fromEntries(roles.data.map((r) => [r.role, new Set(r.permissions)])));
-  }, [roles.data]);
+  // start from what is saved each time the roles (re)load
+  const [loadedFrom, setLoadedFrom] = useState<RoleRow[] | null>(null);
+  if (roles.data && roles.data !== loadedFrom) {
+    setLoadedFrom(roles.data);
+    setSelected(Object.fromEntries(roles.data.map((r) => [r.role, new Set(r.permissions)])));
+  }
 
   if ((roles.loading || perms.loading) && !roles.data) return <Loading />;
   if (roles.error || perms.error || !roles.data || !perms.data) return <ErrorText message={roles.error ?? perms.error ?? "Failed to load"} />;

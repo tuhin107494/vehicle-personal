@@ -23,6 +23,7 @@ class Draft extends Model
         return ['data' => 'array'];
     }
 
+    /** @return BelongsTo<User, $this> */
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

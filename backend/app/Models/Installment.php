@@ -5,7 +5,12 @@ namespace App\Models;
 use App\Models\Concerns\BelongsToShop;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property Carbon $due_date
+ * @property Carbon|null $paid_at
+ */
 class Installment extends Model
 {
     use BelongsToShop;
@@ -31,6 +36,7 @@ class Installment extends Model
         ];
     }
 
+    /** @return BelongsTo<InstallmentPlan, $this> */
     public function plan(): BelongsTo
     {
         return $this->belongsTo(InstallmentPlan::class, 'plan_id');

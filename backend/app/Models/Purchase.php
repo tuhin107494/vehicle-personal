@@ -6,7 +6,11 @@ use App\Models\Concerns\BelongsToShop;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property Carbon $purchase_date
+ */
 class Purchase extends Model
 {
     use BelongsToShop;
@@ -42,38 +46,47 @@ class Purchase extends Model
         ];
     }
 
+    /** @return BelongsTo<Vehicle, $this> */
     public function vehicle(): BelongsTo
     {
         return $this->belongsTo(Vehicle::class);
     }
 
+    /** @return BelongsTo<Supplier, $this> */
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
     }
 
-    /** Set when a second-hand vehicle was bought back from a customer. */
+    /**
+     * Set when a second-hand vehicle was bought back from a customer.
+     *
+     * @return BelongsTo<Customer, $this>
+     */
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
     }
 
     /** Whoever sold it to us: the supplier, or the customer for a buy-back. */
-    public function seller(): ?Model
+    public function seller(): Customer|Supplier|null
     {
         return $this->source === 'customer' ? $this->customer : $this->supplier;
     }
 
+    /** @return BelongsTo<User, $this> */
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    /** @return HasMany<PurchasePayment, $this> */
     public function payments(): HasMany
     {
         return $this->hasMany(PurchasePayment::class);
     }
 
+    /** @return HasMany<Sale, $this> */
     public function sales(): HasMany
     {
         return $this->hasMany(Sale::class);

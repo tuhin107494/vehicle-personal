@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useEffect, useState } from "react";
+import { useForm, type UseFormRegisterReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { ChevronDown, ChevronUp } from "lucide-react";
@@ -13,7 +13,6 @@ import { DEFAULT_FIELDS, useCategories, useTypeDefaults, VehicleCategory } from 
 import type { Vehicle } from "@/lib/types";
 import { Button, Field, inputCls, Modal } from "@/components/app-ui";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect } from "@/components/ui/native-select";
 
@@ -57,12 +56,13 @@ export function detailsFrom(v: Vehicle) {
  * Papers and condition. Collapsed until you click "Show", which reveals every field at once.
  * `autoOpen` opens it by itself, used when a known vehicle's saved record is being shown.
  */
-export function VehicleDetailFields({ register, errors, autoOpen }: { register: any; errors: any; autoOpen?: boolean }) {
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
+export function VehicleDetailFields({ register, errors, autoOpen }: VehicleFormParts & { autoOpen?: boolean }) {
+  const [open, setOpen] = useState(!!autoOpen);
+  const [wasAutoOpen, setWasAutoOpen] = useState(autoOpen);
+  if (autoOpen !== wasAutoOpen) {
+    setWasAutoOpen(autoOpen);
     if (autoOpen) setOpen(true);
-  }, [autoOpen]);
+  }
 
   return (
     <div className="space-y-3">
@@ -94,6 +94,13 @@ export function VehicleDetailFields({ register, errors, autoOpen }: { register: 
 
 const schema = z.object({ ...vehicleFields, ...detailFields });
 export type VehicleValues = z.infer<typeof schema>;
+type VehicleField = keyof VehicleValues;
+
+/** What the vehicle field blocks need from a form: any form that holds the vehicle fields fits. */
+type VehicleFormParts = {
+  register: (name: VehicleField, options?: { onChange?: (e: { target: { value: string } }) => void }) => UseFormRegisterReturn;
+  errors: Partial<Record<VehicleField, { message?: string }>>;
+};
 
 export const blankVehicle: Pick<VehicleValues, keyof typeof vehicleFields> = {
   chassis_no: "", engine_no: "", registration_no: "", vehicle_type: "", brand: "", model: "", year: String(new Date().getFullYear()), color: "", cc: "", fuel_type: "",
@@ -182,18 +189,23 @@ const YEAR_FROM = 2017;
 const YEAR_TO = 2030;
 const YEARS = Array.from({ length: YEAR_TO - YEAR_FROM + 1 }, (_, i) => String(YEAR_TO - i));
 
+const BLANK_TYPE = { name: "", default_brand: "", default_model: "", default_color: "", default_cc: "", purchase_price: "" };
+
 /** Adds a vehicle type (like CNG or Car) for this shop, right from the vehicle type dropdown. */
 function AddTypeDialog({ open, onClose, onAdded }: { open: boolean; onClose: () => void; onAdded: (c: VehicleCategory & { purchase_price: number | null }) => void }) {
-  const [form, setForm] = useState({ name: "", default_brand: "", default_model: "", default_color: "", default_cc: "", purchase_price: "" });
+  const [form, setForm] = useState(BLANK_TYPE);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  // every time it opens, it opens empty
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
     if (open) {
-      setForm({ name: "", default_brand: "", default_model: "", default_color: "", default_cc: "", purchase_price: "" });
+      setForm(BLANK_TYPE);
       setError("");
     }
-  }, [open]);
+  }
 
   const save = async () => {
     if (!form.name.trim()) return setError("Type name is required.");
@@ -241,14 +253,16 @@ function AddTypeDialog({ open, onClose, onAdded }: { open: boolean; onClose: () 
   );
 }
 
-export function VehicleFields({ register, errors, lockIds, setValue, getValues, watch, onTypeAdded }: { register: any; errors: any; lockIds?: boolean; setValue: (name: any, value: any) => void; getValues: (name: any) => any; watch: (name: any) => any; onTypeAdded?: (c: VehicleCategory & { purchase_price: number | null }) => void }) {
+export function VehicleFields({ register, errors, lockIds, setValue, getValues, watch, onTypeAdded }: VehicleFormParts & {
+  lockIds?: boolean;
+  setValue: (name: VehicleField, value: string) => void;
+  getValues: (name: VehicleField) => unknown;
+  watch: (name: "vehicle_type" | "color") => string | undefined;
+  onTypeAdded?: (c: VehicleCategory & { purchase_price: number | null }) => void;
+}) {
   const { categories, reload } = useCategories();
   const [addingType, setAddingType] = useState(false);
-  const currentType = watch("vehicle_type") as string;
-  const previousType = useRef("");
-  useEffect(() => {
-    if (currentType !== "__new") previousType.current = currentType;
-  }, [currentType]);
+  const currentType = watch("vehicle_type") ?? ""; // read in the change handler below: the choice before this change
 
   const { defaultsFor, isAuto } = useTypeDefaults();
 
@@ -265,7 +279,7 @@ export function VehicleFields({ register, errors, lockIds, setValue, getValues, 
   // Choosing a type fills in that category's default brand, colour and CC, unless a custom value was already typed or picked.
   const onTypeChange = (e: { target: { value: string } }) => {
     if (e.target.value === "__new") {
-      setValue("vehicle_type", previousType.current); // keep the old choice until the new type is saved
+      setValue("vehicle_type", currentType); // keep the old choice until the new type is saved
       setAddingType(true);
       return;
     }
@@ -318,7 +332,7 @@ export function VehicleForm({ open, vehicle, onClose, onSaved }: { open: boolean
 
   useEffect(() => {
     if (!open) return;
-    reset({ ...Object.fromEntries(Object.keys(blankVehicle).map((k) => [k, String((vehicle as any)?.[k] ?? "")])), ...(vehicle ? detailsFrom(vehicle) : blankDetails) } as VehicleValues);
+    reset({ ...Object.fromEntries((Object.keys(blankVehicle) as (keyof typeof blankVehicle)[]).map((k) => [k, String(vehicle?.[k] ?? "")])), ...(vehicle ? detailsFrom(vehicle) : blankDetails) } as VehicleValues);
   }, [open, vehicle, reset]);
 
   const onSubmit = async (v: VehicleValues) => {

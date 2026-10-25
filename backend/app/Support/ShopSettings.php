@@ -29,7 +29,7 @@ class ShopSettings
 
     private const TYPE_NUMERIC = ['cc', 'year', 'mileage'];
 
-    /** @return array<string,array<string,string|int>> vehicle type key => [field => value] */
+    /** @return array<string,\stdClass> vehicle type key => {field: value}, an object so it stays a JSON object */
     private static function typeDefaults(): array
     {
         $out = [];

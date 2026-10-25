@@ -4,7 +4,7 @@ import { useState } from "react";
 import { fmtDate, label, money } from "@/lib/format";
 import { useFetch } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
-import { Button, ErrorText, Field, inputCls, Stat } from "@/components/app-ui";
+import { ErrorText, Field, inputCls, Stat } from "@/components/app-ui";
 import { PrintButton } from "@/components/PrintButton";
 import { ResponsiveFilters } from "@/components/ResponsiveFilters";
 import { Col, DataTable } from "@/components/DataTable";

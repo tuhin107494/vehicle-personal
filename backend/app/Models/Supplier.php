@@ -28,11 +28,13 @@ class Supplier extends Model
         'bank_info',
     ];
 
+    /** @return HasMany<Purchase, $this> */
     public function purchases(): HasMany
     {
         return $this->hasMany(Purchase::class);
     }
 
+    /** @return HasMany<Advance, $this> */
     public function advances(): HasMany
     {
         return $this->hasMany(Advance::class);

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { BN } from "@/lib/bn";
 import { startDomTranslate, stopDomTranslate } from "@/lib/domTranslate";
 
@@ -14,17 +14,39 @@ const I18n = createContext<Ctx>({ lang: "en", setLang: () => {}, t: (s) => s, sh
 /** Bangla digits for numbers shown in text. */
 const BN_DIGITS = "০১২৩৪৫৬৭৮৯";
 
-export function LangProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Lang>("en");
-  const [showSwitch, setShowSwitchState] = useState(true); // whether the EN / বাং switch is shown in the menu
+// The chosen language lives in localStorage (kept in memory too, for browsers that block storage).
+const langListeners = new Set<() => void>();
+let memoryLang: Lang | null = null;
+let memorySwitch: boolean | null = null; // whether the EN / বাং switch is shown in the menu
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(KEY);
-      if (saved === "bn" || saved === "en") setLangState(saved);
-      if (localStorage.getItem(SWITCH_KEY) === "0") setShowSwitchState(false);
-    } catch {}
-  }, []);
+function readLang(): Lang {
+  if (memoryLang) return memoryLang;
+  try {
+    if (localStorage.getItem(KEY) === "bn") return "bn";
+  } catch {}
+  return "en";
+}
+
+function readSwitch(): boolean {
+  if (memorySwitch !== null) return memorySwitch;
+  try {
+    if (localStorage.getItem(SWITCH_KEY) === "0") return false;
+  } catch {}
+  return true;
+}
+
+function subscribeLang(onChange: () => void) {
+  langListeners.add(onChange);
+  window.addEventListener("storage", onChange); // another tab switched language
+  return () => {
+    langListeners.delete(onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
+export function LangProvider({ children }: { children: ReactNode }) {
+  const lang = useSyncExternalStore(subscribeLang, readLang, () => "en" as Lang); // the server always renders English
+  const showSwitch = useSyncExternalStore(subscribeLang, readSwitch, () => true);
 
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -38,17 +60,19 @@ export function LangProvider({ children }: { children: ReactNode }) {
   }, [lang]);
 
   const setLang = useCallback((l: Lang) => {
-    setLangState(l);
+    memoryLang = l;
     try {
       localStorage.setItem(KEY, l);
     } catch {}
+    langListeners.forEach((notify) => notify());
   }, []);
 
   const setShowSwitch = useCallback((v: boolean) => {
-    setShowSwitchState(v);
+    memorySwitch = v;
     try {
       localStorage.setItem(SWITCH_KEY, v ? "1" : "0");
     } catch {}
+    langListeners.forEach((notify) => notify());
   }, []);
 
   /** English text in, the chosen language out; anything without a translation stays as written. */

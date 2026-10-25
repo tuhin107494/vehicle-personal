@@ -9,9 +9,8 @@ import { printVoucher } from "@/components/TransactionVoucher";
 import { purchaseVoucher } from "@/lib/purchaseVoucher";
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { fmtDate, label, money } from "@/lib/format";
+import { fmtDate, money } from "@/lib/format";
 import { useCategories } from "@/lib/categories";
-import { typeColor } from "@/lib/typeColors";
 import { useFetch } from "@/lib/hooks";
 import type { Investor, Purchase, Sale, Summary, Vehicle } from "@/lib/types";
 import { Button, ErrorText, Field, inputCls, Loading, Modal, PageHeader, Stat, StatusBadge } from "@/components/app-ui";
@@ -109,27 +108,6 @@ function Filters({ from, to, type, setFrom, setTo, setType, children }: { from: 
       </Field>
       {children}
     </ResponsiveFilters>
-  );
-}
-
-/** One card per vehicle type with its count and amount, in that type's colour. */
-function ByType({ rows, withProfit }: { rows: TypeRow[]; withProfit?: boolean }) {
-  const { categories } = useCategories();
-  if (!rows.length) return null;
-  return (
-    <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      {rows.map((r) => {
-        const cat = categories.find((c) => c.key === r.type);
-        return (
-          <div key={r.type} className={`rounded-xl bg-white p-4 shadow-sm ring-2 ${typeColor(cat?.id ?? 0).ring}`}>
-            <p className={`text-lg font-extrabold ${typeColor(cat?.id ?? 0).title}`}>{cat?.name ?? label(r.type)}</p>
-            <p className="text-sm text-slate-600">{r.count} vehicle{r.count === 1 ? "" : "s"}</p>
-            <p className="mt-1 text-xl font-bold text-slate-900">{money(r.amount)}</p>
-            {withProfit && <p className="text-sm text-emerald-700">Profit {money(r.profit)}</p>}
-          </div>
-        );
-      })}
-    </div>
   );
 }
 

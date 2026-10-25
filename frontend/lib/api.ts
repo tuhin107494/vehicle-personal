@@ -1,3 +1,5 @@
+import type { FieldValues, Path, UseFormSetError } from "react-hook-form";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
 const TOKEN_KEY = "vm_token";
 
@@ -57,15 +59,15 @@ export async function api<T = unknown>(
   return json;
 }
 
-/** Map Laravel 422 errors onto react-hook-form fields. */
-export function applyServerErrors(
+/** Map Laravel 422 errors onto react-hook-form fields (the API names its fields the same as the forms do). */
+export function applyServerErrors<T extends FieldValues>(
   error: unknown,
-  setError: (field: any, error: { message: string }) => void,
+  setError: UseFormSetError<T>,
 ): string {
   if (error instanceof ApiError) {
     if (error.errors) {
       for (const [field, messages] of Object.entries(error.errors)) {
-        setError(field, { message: messages[0] });
+        setError(field as Path<T>, { message: messages[0] });
       }
     }
     return error.message;

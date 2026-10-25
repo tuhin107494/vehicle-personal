@@ -6,7 +6,11 @@ use App\Models\Concerns\BelongsToShop;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property Carbon $start_date
+ */
 class InstallmentPlan extends Model
 {
     use BelongsToShop;
@@ -37,16 +41,19 @@ class InstallmentPlan extends Model
         ];
     }
 
+    /** @return BelongsTo<Sale, $this> */
     public function sale(): BelongsTo
     {
         return $this->belongsTo(Sale::class);
     }
 
+    /** @return BelongsTo<Investor, $this> */
     public function investor(): BelongsTo
     {
         return $this->belongsTo(Investor::class);
     }
 
+    /** @return HasMany<Installment, $this> */
     public function installments(): HasMany
     {
         return $this->hasMany(Installment::class, 'plan_id');

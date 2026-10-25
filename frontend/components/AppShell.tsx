@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useT } from "@/lib/i18n";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { BadgeDollarSign, CalendarDays, HandCoins, Menu, X, Building2, Car, ChartColumn, KeyRound, LayoutDashboard, Landmark, LogOut, Settings, ShieldCheck, ShoppingCart, Tags, Truck, UserCog, Users, Wallet } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Avatar } from "@/components/Avatar";
@@ -42,7 +42,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const [menuOpen, setMenuOpen] = useState(false); // phone only: the menu folds away so the page gets the full screen
 
-  useEffect(() => setMenuOpen(false), [pathname]);
+  // going to another page folds the phone menu away again
+  const [menuPath, setMenuPath] = useState(pathname);
+  if (menuPath !== pathname) {
+    setMenuPath(pathname);
+    setMenuOpen(false);
+  }
 
   const { t, lang, setLang, showSwitch } = useT();
   const { hidden } = useHiddenMenu();

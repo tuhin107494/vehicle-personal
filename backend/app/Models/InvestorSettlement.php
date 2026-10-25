@@ -5,7 +5,11 @@ namespace App\Models;
 use App\Models\Concerns\BelongsToShop;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property Carbon $date
+ */
 class InvestorSettlement extends Model
 {
     use BelongsToShop;
@@ -29,11 +33,13 @@ class InvestorSettlement extends Model
         ];
     }
 
+    /** @return BelongsTo<Investor, $this> */
     public function investor(): BelongsTo
     {
         return $this->belongsTo(Investor::class);
     }
 
+    /** @return BelongsTo<InstallmentPlan, $this> */
     public function plan(): BelongsTo
     {
         return $this->belongsTo(InstallmentPlan::class, 'plan_id');
