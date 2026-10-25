@@ -7,6 +7,7 @@ use App\Http\Requests\ProfileRequest;
 use App\Models\User;
 use App\Support\GoogleOAuth;
 use App\Support\PlatformSettings;
+use App\Support\SignupConfirmation;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -68,7 +69,11 @@ class AuthController extends Controller
     /** Hands out a token once the account and its shop are both active. */
     private function signIn(User $user): JsonResponse
     {
-        // a signed-up shop is off until approved: say why, instead of "disabled"
+        // a signed-up shop is off until its owner confirms their email (or the super admin approves it): say why, instead of "disabled"
+        if (SignupConfirmation::awaiting($user)) {
+            throw ValidationException::withMessages(['email' => ['Confirm your email first: open the link we sent to '.$user->email.'.']]);
+        }
+
         if ($user->shop?->isPending()) {
             throw ValidationException::withMessages(['email' => ['Your shop is waiting for approval. You can sign in once it is approved.']]);
         }

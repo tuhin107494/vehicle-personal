@@ -100,7 +100,10 @@ export default function PlatformSettingsPage() {
         <Card title="Sign-up" className="lg:col-span-2">
           <div className="space-y-2">
             <Toggle label="Let new shops create an account from the sign-in page" {...register("signup.enabled")} />
-            <p className="text-sm text-slate-500">A shop that signs up with email and password waits as Pending in Shops until you edit it and tick &quot;Shop is active&quot;. A shop that signs up with Google (its email is proven) opens at once; you can still switch it off in Shops. Super admins get an email for each new sign-up when email is set up.</p>
+            <p className="text-sm text-slate-500">With email and password, we email a confirmation link; the shop shows as Pending in Shops until the owner opens it, which opens the shop and signs them in. Sign-ups never confirmed are deleted after 7 days. With Google (the email is already proven) the shop opens at once. You can switch any shop off in Shops, and super admins get an email for each new shop.</p>
+            {saved.signup.enabled && !saved.smtp.enabled && (
+              <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-800">Email (SMTP) below is off, so confirmation links go through the server&apos;s .env mail settings and may never arrive. Set up SMTP so email sign-ups can confirm.</p>
+            )}
           </div>
         </Card>
 

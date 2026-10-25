@@ -66,7 +66,7 @@ function ShopForm({ open, shop, onClose, onSaved }: { open: boolean; shop: Shop 
         <Field required label="Owner name" error={errors.owner_name?.message}><Input className={inputCls} {...register("owner_name")} /></Field>
         <Field required label="Owner email" error={errors.owner_email?.message}><Input type="email" className={inputCls} {...register("owner_email")} /></Field>
         <Field required={!shop} label={shop ? "New password (leave blank to keep)" : "Password"} error={errors.owner_password?.message}><Input type="password" className={inputCls} {...register("owner_password")} /></Field>
-        {shop && !shop.approved_at && <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-800">This shop signed up and is waiting for approval. Tick &quot;Shop is active&quot; and save to approve it.</p>}
+        {shop && !shop.approved_at && <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-800">This shop signed up and its owner has not confirmed their email yet. It opens on its own when they do; to open it now anyway, tick &quot;Shop is active&quot; and save.</p>}
         <label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" className="accent-emerald-600" {...register("is_active")} /> Shop is active (owner and staff can sign in)</label>
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={onClose}>Cancel</Button>

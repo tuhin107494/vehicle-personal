@@ -7,7 +7,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { CircleCheck } from "lucide-react";
+import { MailCheck } from "lucide-react";
+import { ResendLink } from "@/components/ResendLink";
 import { api, applyServerErrors } from "@/lib/api";
 import { type Session, useAuth } from "@/lib/auth";
 import { AuthShell } from "@/components/AuthShell";
@@ -69,8 +70,10 @@ export default function SignupPage() {
 
   if (done) {
     return (
-      <AuthShell title="Account created" subtitle="One more step">
-        <div className="flex gap-2 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800"><CircleCheck className="size-5 shrink-0" /> {done}</div>
+      <AuthShell title="Check your inbox" subtitle="One more step: confirm your email">
+        <div className="flex gap-2 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800"><MailCheck className="size-5 shrink-0" /> {done}</div>
+        <p className="text-sm text-slate-600">Open the link in that email to open your shop and sign in. It works once, for 24 hours. Check your spam folder if you cannot find it.</p>
+        <ResendLink email={getValues("email")} />
         <p className="text-center text-sm"><Link className="font-medium text-emerald-700 underline" href="/login">Back to sign in</Link></p>
       </AuthShell>
     );
@@ -105,7 +108,7 @@ export default function SignupPage() {
         <Field required label="Password" error={errors.password?.message}><Input type="password" className="w-full" autoComplete="new-password" {...register("password")} /></Field>
         <Field required label="Confirm password" error={errors.password_confirmation?.message}><Input type="password" className="w-full" autoComplete="new-password" {...register("password_confirmation")} /></Field>
         <Button type="submit" disabled={isSubmitting} className="w-full">{isSubmitting ? "Creating..." : "Create account"}</Button>
-        <p className="text-center text-xs text-slate-500">{google.ready ? "With Google you start right away. With email, your shop can sign in once it is approved." : "Your shop can sign in once it is approved."}</p>
+        <p className="text-center text-xs text-slate-500">{google.ready ? "With Google you start right away. With email, we send you a link to confirm it first." : "We will email you a link to confirm your email and sign in."}</p>
       </form>
       <p className="text-center text-sm text-slate-600">Already have an account? <Link className="font-medium text-emerald-700 underline" href="/login">Sign in</Link></p>
     </AuthShell>
