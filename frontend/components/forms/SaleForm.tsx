@@ -2,7 +2,7 @@
 
 import { Calculator, Printer } from "lucide-react";
 import Link from "next/link";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -195,7 +195,7 @@ export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
       return { n: i + 1, date: d.toLocaleDateString("en-CA"), amount: i === n - 1 ? r2(total - each * (n - 1)) : each };
     });
     return { principal, interest, total, rows, profit: investorMode ? interest : w.investor_share_mode === "amount" ? r2(Number(w.investor_share_amount || 0)) : r2((interest * Number(w.investor_share_percent || 0)) / 100) };
-  }, [type, w.sale_price, w.down_payment, w.installment_count, w.first_due_date, w.frequency, w.interest_rate, w.interest_mode, w.interest_amount, w.investor_share_percent, w.investor_share_mode, w.investor_share_amount, w.investor_rate, w.investor_share_mode, w.investor_share_amount, investorMode]);
+  }, [type, w.sale_price, w.down_payment, w.installment_count, w.first_due_date, w.frequency, w.interest_rate, w.interest_mode, w.interest_amount, w.investor_share_percent, w.investor_share_mode, w.investor_share_amount, w.investor_rate, investorMode]);
 
   // the owner's profit is the interest less the investor's part; the investor's part shows under it
   const investorProfit = investorMode ? (plan?.profit ?? 0) : 0;

@@ -10,7 +10,6 @@ import { NativeSelect } from "@/components/ui/native-select";
 
 const num = (v: string) => (v.trim() === "" || Number.isNaN(Number(v)) ? 0 : Number(v));
 const pct = (n: number) => `${Math.round(n * 100) / 100}%`;
-const exact = (n: number) => `${Math.round(n * 10000) / 10000}%`; // for the worked lines, so the arithmetic checks out
 
 /** Flat (simple) profit: no compounding, the same amount for every month. */
 export type SavedFormula = { formula_invested?: number | null; formula_profit?: number | null; formula_months?: number | null; formula_rate_month?: number | null; formula_rate_year?: number | null };

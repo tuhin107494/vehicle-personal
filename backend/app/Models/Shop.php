@@ -20,11 +20,13 @@ class Shop extends Model
         return ['is_active' => 'boolean'];
     }
 
+    /** @return HasMany<User, $this> */
     public function users(): HasMany
     {
         return $this->hasMany(User::class);
     }
 
+    /** @return HasOne<User, $this> */
     public function owner(): HasOne
     {
         return $this->hasOne(User::class)->where('role', 'shop_owner');

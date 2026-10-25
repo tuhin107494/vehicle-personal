@@ -8,14 +8,14 @@ use App\Http\Resources\PurchaseResource;
 use App\Http\Resources\SaleResource;
 use App\Http\Resources\VehicleResource;
 use App\Models\Advance;
+use App\Models\Customer;
 use App\Models\Investor;
 use App\Models\InvestorSettlement;
-use App\Models\Customer;
-use App\Models\Supplier;
 use App\Models\Payment;
 use App\Models\Purchase;
 use App\Models\PurchasePayment;
 use App\Models\Sale;
+use App\Models\Supplier;
 use App\Models\Vehicle;
 use App\Services\InvestorPortfolioService;
 use Illuminate\Http\JsonResponse;
@@ -312,7 +312,7 @@ class ReportController extends Controller implements HasMiddleware
 
         $purchases = Purchase::with(['vehicle:id,chassis_no,brand,model', 'supplier:id,name,phone', 'customer:id,name,phone', 'payments'])->whereDate('purchase_date', $date)->orderBy('id')->get()
             ->map(fn (Purchase $p) => [
-                'id' => $p->id, 'vehicle' => $p->vehicle->chassis_no, 'vehicle_name' => $name($p->vehicle), 'name' => ($p->supplier ?? $p->customer)->name, 'phone' => ($p->supplier ?? $p->customer)->phone, 'memo_no' => $p->memo_no,
+                'id' => $p->id, 'vehicle' => $p->vehicle->chassis_no, 'vehicle_name' => $name($p->vehicle), 'name' => $p->seller()?->name, 'phone' => $p->seller()?->phone, 'memo_no' => $p->memo_no,
                 'total' => (float) $p->price, 'paid' => round($p->paid_amount - $p->payments->sum('amount'), 2), 'due' => round($p->price - $p->paid_amount - $p->due_adjustment, 2),
             ]);
 
@@ -328,7 +328,7 @@ class ReportController extends Controller implements HasMiddleware
 
         $supplierPayments = collect()
             ->concat(PurchasePayment::with(['purchase.supplier:id,name,phone', 'purchase.customer:id,name,phone', 'purchase.vehicle:id,chassis_no'])->whereDate('paid_at', $date)->where('method', '!=', 'advance')->orderBy('id')->get()
-                ->map(fn ($p) => ['name' => ($p->purchase->supplier ?? $p->purchase->customer)->name, 'phone' => ($p->purchase->supplier ?? $p->purchase->customer)->phone, 'vehicle' => $p->purchase->vehicle->chassis_no, 'kind' => 'Due paid', 'method' => $p->method, 'amount' => (float) $p->amount, 'reference' => $p->reference]))
+                ->map(fn (PurchasePayment $p) => ['name' => $p->purchase->seller()?->name, 'phone' => $p->purchase->seller()?->phone, 'vehicle' => $p->purchase->vehicle->chassis_no, 'kind' => 'Due paid', 'method' => $p->method, 'amount' => (float) $p->amount, 'reference' => $p->reference]))
             ->concat(Advance::with('supplier:id,name,phone')->whereDate('paid_at', $date)->orderBy('id')->get()
                 ->map(fn ($a) => ['name' => $a->supplier->name, 'phone' => $a->supplier->phone, 'vehicle' => null, 'kind' => 'Advance paid', 'method' => $a->method, 'amount' => (float) $a->amount, 'reference' => $a->reference]))
             ->values();

@@ -27,14 +27,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!tokenStore.get()) {
-      setLoading(false);
-      return;
-    }
-    api<User>("/me")
-      .then((res) => setUser(res.data))
-      .catch(() => tokenStore.clear())
-      .finally(() => setLoading(false));
+    // signed in on an earlier visit: fetch who it is; otherwise there is nobody to load
+    const restore = tokenStore.get()
+      ? api<User>("/me").then((res) => setUser(res.data)).catch(() => tokenStore.clear())
+      : Promise.resolve();
+    restore.finally(() => setLoading(false));
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {

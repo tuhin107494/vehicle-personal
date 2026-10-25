@@ -7,7 +7,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property Carbon|null $registration_date
+ * @property Carbon|null $tax_token_expiry
+ * @property Carbon|null $fitness_expiry
+ * @property Carbon|null $insurance_expiry
+ */
 class Vehicle extends Model
 {
     use BelongsToShop, SoftDeletes;
@@ -47,21 +54,25 @@ class Vehicle extends Model
         ];
     }
 
+    /** @return HasMany<Purchase, $this> */
     public function purchases(): HasMany
     {
         return $this->hasMany(Purchase::class);
     }
 
+    /** @return HasMany<Sale, $this> */
     public function sales(): HasMany
     {
         return $this->hasMany(Sale::class);
     }
 
+    /** @return BelongsTo<Purchase, $this> */
     public function currentPurchase(): BelongsTo
     {
         return $this->belongsTo(Purchase::class, 'current_purchase_id');
     }
 
+    /** @return BelongsTo<Sale, $this> */
     public function currentSale(): BelongsTo
     {
         return $this->belongsTo(Sale::class, 'current_sale_id');

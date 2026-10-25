@@ -117,7 +117,7 @@ class InvestorController extends Controller implements HasMiddleware
             // only investors who are owed something now
             $all = $query->get();
             $this->attachDue($all);
-            $due = $all->filter(fn ($i) => $i->current_due > 0)->values();
+            $due = $all->filter(fn (Investor $i) => $i->getAttribute('current_due') > 0)->values();
             $per = $request->integer('per_page', 15);
             $page = max($request->integer('page', 1), 1);
             $investors = new LengthAwarePaginator($due->forPage($page, $per)->values(), $due->count(), $per, $page);

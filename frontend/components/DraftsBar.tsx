@@ -13,10 +13,11 @@ import { usePaging } from "@/lib/paging";
  * A saved draft comes back from the server with empty fields as null, which the form cannot show.
  * Turn them back into what the form expects, using the form's current values as the shape.
  */
-export function draftValues<T extends Record<string, any>>(saved: Record<string, any>, shape: T): T {
-  const out: Record<string, any> = { ...shape };
+export function draftValues<T extends object>(saved: Record<string, unknown> | undefined, shape: T): T {
+  const fields: Record<string, unknown> = Object.fromEntries(Object.entries(shape));
+  const out: Record<string, unknown> = { ...fields };
   for (const [key, value] of Object.entries(saved ?? {})) {
-    out[key] = typeof shape[key] === "boolean" ? Boolean(value) : value ?? "";
+    out[key] = typeof fields[key] === "boolean" ? Boolean(value) : value ?? "";
   }
   return out as T;
 }

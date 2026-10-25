@@ -2,9 +2,11 @@
 
 namespace App\Http\Resources;
 
+use App\Models\Installment;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/** @mixin Installment */
 class InstallmentResource extends JsonResource
 {
     public function toArray(Request $request): array

@@ -3,7 +3,7 @@
 namespace App\Http\Traits;
 
 use Illuminate\Http\JsonResponse;
-use Illuminate\Pagination\AbstractPaginator;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 trait ApiResponse
 {
@@ -18,7 +18,7 @@ trait ApiResponse
         return response()->json($body, $status);
     }
 
-    protected function paginated(AbstractPaginator $paginator, string $resource, string $message = 'OK'): JsonResponse
+    protected function paginated(LengthAwarePaginator $paginator, string $resource, string $message = 'OK'): JsonResponse
     {
         return $this->success($resource::collection($paginator->getCollection()), $message, 200, [
             'current_page' => $paginator->currentPage(),

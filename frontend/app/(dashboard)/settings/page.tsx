@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
@@ -59,8 +59,10 @@ export default function SettingsPage() {
   const [rows, setRows] = useState<string[]>([]);
   const [typeCols, setTypeCols] = useState<Record<string, FieldKey[]>>({}); // fields shown on each type's card
 
-  useEffect(() => {
-    if (!settings.data) return;
+  // start from what is saved each time the settings (re)load
+  const [loadedFrom, setLoadedFrom] = useState<Settings | null>(null);
+  if (settings.data && settings.data !== loadedFrom) {
+    setLoadedFrom(settings.data);
     const start = { purchase: settings.data.purchase.vehicle_type ?? "", sale: settings.data.sale.vehicle_type ?? "" };
     setPrimary(start);
     setSavedPrimary(JSON.stringify(start));
@@ -70,8 +72,7 @@ export default function SettingsPage() {
     setRows([...new Set(Object.values(loaded).flatMap((m) => Object.keys(m)))]);
     const types = new Set(Object.values(loaded).flatMap((m) => Object.keys(m)));
     setTypeCols(Object.fromEntries([...types].map((t) => [t, FIELDS.map((f) => f.key).filter((k) => loaded[k][t] !== undefined)])));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings.data]);
+  }
 
   if (settings.loading && !settings.data) return <Loading />;
   if (settings.error || !settings.data) return <ErrorText message={settings.error ?? "Failed to load"} />;
@@ -129,7 +130,7 @@ export default function SettingsPage() {
   return (
     <form onSubmit={(e) => { e.preventDefault(); onSubmit(); }}>
       <PageHeader title="Settings" actions={<Button type="submit" disabled={saving || !tableDirty}><Save className="size-4" /> {saving ? "Saving..." : "Save settings"}</Button>} />
-      <p className="mb-4 text-sm text-slate-600">Presets for your shop. Choose the primary vehicle type for each form, then set each type's defaults.</p>
+      <p className="mb-4 text-sm text-slate-600">Presets for your shop. Choose the primary vehicle type for each form, then set each type&apos;s defaults.</p>
       <Card title="Primary vehicle type" className="mb-4">
         <div className="grid gap-3 md:grid-cols-2">
           <Field label="Purchase form (Buy vehicle)">
@@ -148,7 +149,7 @@ export default function SettingsPage() {
         <p className="mt-2 text-xs text-slate-500">The Buy vehicle form opens with the primary type selected, and its presets below are filled in. The New sale form opens showing only that type&apos;s in-stock vehicles, and you can switch to all types.</p>
       </Card>
       <Card title="Defaults by vehicle type">
-        <p className="mb-3 text-sm text-slate-600">Add the vehicle types you want presets for, then add the fields to preset inside each type's card. Choosing that type on a form then fills them in, overriding the type&apos;s own default.</p>
+        <p className="mb-3 text-sm text-slate-600">Add the vehicle types you want presets for, then add the fields to preset inside each type&apos;s card. Choosing that type on a form then fills them in, overriding the type&apos;s own default.</p>
         <div className="mb-3 flex flex-wrap gap-2">
           <div className="w-full sm:w-56">
             <NativeSelect className={inputCls} value="" disabled={!availableTypes.length} onChange={(e) => e.target.value && addType(e.target.value)}>
