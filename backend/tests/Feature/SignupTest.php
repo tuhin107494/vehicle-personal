@@ -48,6 +48,67 @@ class SignupTest extends TestCase
         $this->postJson('/api/login', ['email' => 'rahim@example.com', 'password' => 'password1'])->assertOk();
     }
 
+    /** Approves the shop as the super admin would, then signs out so the next request is a visitor again. */
+    private function approve(Shop $shop): void
+    {
+        $admin = User::firstOrCreate(['email' => 'admin@example.com'], ['name' => 'Admin', 'password' => 'password', 'role' => 'super_admin']);
+        $this->actingAs($admin)->putJson("/api/shops/{$shop->id}", ['name' => $shop->name, 'is_active' => true])->assertOk();
+        $this->app['auth']->forgetGuards();
+    }
+
+    /** Signed in with the token from a login answer, the user works as the owner of their own shop and nothing more. */
+    private function assertWorksAsOwnerOf(Shop $shop, string $token): void
+    {
+        $this->withToken($token)->getJson('/api/me')
+            ->assertJsonPath('data.role', 'shop_owner')
+            ->assertJsonPath('data.shop.id', $shop->id);
+        $this->withToken($token)->getJson('/api/users')->assertOk()->assertJsonPath('data.0.email', $shop->owner->email); // shop-owner only
+        $this->withToken($token)->getJson('/api/roles')->assertOk(); // shop-owner only
+        $this->withToken($token)->getJson('/api/shops')->assertForbidden(); // super admin only
+        $this->withToken($token)->getJson('/api/platform-settings')->assertForbidden(); // super admin only
+    }
+
+    public function test_a_password_sign_up_is_always_the_owner_of_a_new_shop_whatever_the_request_says(): void
+    {
+        $other = Shop::create(['name' => 'Someone else', 'is_active' => true, 'approved_at' => now()]);
+
+        $this->postJson('/api/signup', $this->form + ['role' => 'super_admin', 'shop_id' => $other->id, 'is_active' => true])->assertCreated();
+
+        $owner = User::where('email', 'rahim@example.com')->firstOrFail();
+        $this->assertSame('shop_owner', $owner->role);
+        $this->assertNotSame($other->id, $owner->shop_id);
+        $this->assertSame('Rahim Motors', $owner->shop->name);
+        $this->assertFalse($owner->is_active); // off until approved
+        $this->assertSame(1, User::where('shop_id', $owner->shop_id)->count()); // the only user of the new shop
+
+        $this->approve($owner->shop);
+        $this->assertTrue($owner->fresh()->is_active);
+
+        $token = $this->postJson('/api/login', ['email' => 'rahim@example.com', 'password' => 'password1'])->assertOk()->json('data.token');
+        $this->assertWorksAsOwnerOf($owner->shop, $token);
+    }
+
+    public function test_a_google_sign_up_is_always_the_owner_of_a_new_shop_and_signs_in_with_google_once_approved(): void
+    {
+        $other = Shop::create(['name' => 'Someone else', 'is_active' => true, 'approved_at' => now()]);
+        PlatformSettings::save(['google' => ['enabled' => true, 'client_id' => 'client-123', 'client_secret' => 'shh']]);
+        Http::fake(['oauth2.googleapis.com/*' => Http::response(['id_token' => $this->idToken(['iss' => 'accounts.google.com', 'aud' => 'client-123', 'email' => 'karim@gmail.com', 'email_verified' => true, 'name' => 'Karim'])])]);
+
+        $this->postJson('/api/signup/google', ['code' => 'abc', 'shop_name' => 'Karim Bikes', 'phone' => '01800000000', 'role' => 'super_admin', 'shop_id' => $other->id])->assertCreated();
+
+        $owner = User::where('email', 'karim@gmail.com')->firstOrFail();
+        $this->assertSame('shop_owner', $owner->role);
+        $this->assertSame('Karim Bikes', $owner->shop->name);
+
+        // before approval Google sign-in is refused with the reason
+        $this->postJson('/api/auth/google', ['code' => 'abc'])->assertStatus(422)->assertJsonPath('errors.email.0', 'Your shop is waiting for approval. You can sign in once it is approved.');
+
+        $this->approve($owner->shop);
+
+        $token = $this->postJson('/api/auth/google', ['code' => 'abc'])->assertOk()->json('data.token');
+        $this->assertWorksAsOwnerOf($owner->shop, $token);
+    }
+
     public function test_sign_up_rejects_a_used_email_and_can_be_closed(): void
     {
         User::create(['name' => 'Taken', 'email' => 'rahim@example.com', 'password' => 'password', 'role' => 'super_admin']);
