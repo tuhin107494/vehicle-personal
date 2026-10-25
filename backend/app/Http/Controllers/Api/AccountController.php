@@ -12,6 +12,7 @@ use App\Models\Sale;
 use App\Models\Vehicle;
 use App\Services\PayableService;
 use App\Services\PaymentService;
+use App\Support\Money;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 
@@ -35,7 +36,7 @@ class AccountController extends Controller
         $this->authorizeSide($request);
         $side = $request->input('side');
         $party = $this->person($request);
-        $amount = round((float) $request->input('amount'), 2);
+        $amount = Money::paisa($request->input('amount')); // all of this is worked out in paisa
         $data = $request->safe()->only(['method', 'paid_at', 'reference', 'note']);
 
         $vouchers = []; // numbers of the ledger entries this payment created, as the reports print them
@@ -48,8 +49,10 @@ class AccountController extends Controller
                     ->when($request->filled('sale_id'), fn ($q) => $q->where('id', $request->input('sale_id')))
                     ->orderBy('sale_date')->orderBy('id')->get();
 
-                if ($amount > round($sales->sum('due_amount'), 2)) {
-                    throw new BusinessRuleException(($request->filled('sale_id') ? 'This vehicle has' : 'This customer owes').' '.number_format($sales->sum('due_amount'), 2).' due, which is less than '.number_format($amount, 2).'.');
+                $owed = Money::paisa(Money::sum($sales, 'due_amount'));
+
+                if ($amount > $owed) {
+                    throw new BusinessRuleException(($request->filled('sale_id') ? 'This vehicle has' : 'This customer owes').' '.Money::format($owed).' due, which is less than '.Money::format($amount).'.');
                 }
 
                 foreach ($sales as $sale) {
@@ -57,11 +60,11 @@ class AccountController extends Controller
                         break;
                     }
 
-                    $take = min($left, $sale->due_amount);
-                    foreach ($this->payments->collect($sale, ['amount' => $take] + $data, $request->user()) as $payment) {
+                    $take = min($left, Money::paisa($sale->due_amount));
+                    foreach ($this->payments->collect($sale, ['amount' => Money::taka($take)] + $data, $request->user()) as $payment) {
                         $vouchers[] = 'CP-'.$payment->id;
                     }
-                    $left = round($left - $take, 2);
+                    $left -= $take;
                 }
 
                 return;
@@ -74,14 +77,14 @@ class AccountController extends Controller
                     break;
                 }
 
-                $take = min($left, $this->payables->balance($purchase));
-                $vouchers[] = 'SP-'.$this->payables->pay($purchase, ['amount' => $take] + $data, $request->user())->id;
-                $left = round($left - $take, 2);
+                $take = min($left, Money::paisa($this->payables->balance($purchase)));
+                $vouchers[] = 'SP-'.$this->payables->pay($purchase, ['amount' => Money::taka($take)] + $data, $request->user())->id;
+                $left -= $take;
             }
 
             if ($left > 0) {
                 // nothing (more) is owed to them, so the rest is paid ahead of the next purchase
-                $vouchers[] = 'SP-'.$this->payables->addAdvance(['supplier_id' => $party->id, 'amount' => $left, 'method' => $data['method']] + $data, $request->user())->id;
+                $vouchers[] = 'SP-'.$this->payables->addAdvance(['supplier_id' => $party->id, 'amount' => Money::taka($left), 'method' => $data['method']] + $data, $request->user())->id;
             }
         });
 
@@ -120,7 +123,7 @@ class AccountController extends Controller
                 ] + $this->lateness($s));
 
             return [
-                'person' => $party, 'total_due' => round($items->sum('due'), 2), 'current_due' => round($items->sum('current_due'), 2),
+                'person' => $party, 'total_due' => Money::sum($items, 'due'), 'current_due' => Money::sum($items, 'current_due'),
                 'days_late' => (int) $items->max('days_late'), 'advance_available' => 0, 'items' => $items->values(),
             ];
         }
@@ -131,7 +134,7 @@ class AccountController extends Controller
 
         return [
             'person' => $party,
-            'total_due' => round($items->sum('due'), 2),
+            'total_due' => Money::sum($items, 'due'),
             'advance_available' => $this->payables->advanceBalance($party['id']),
             'items' => $items->values(),
         ];
@@ -153,7 +156,7 @@ class AccountController extends Controller
         $next = $dates->filter(fn ($d) => $d[0]->copy()->startOfDay()->gt(today()))->sortBy(fn ($d) => $d[0])->first();
 
         return [
-            'current_due' => round(min($now->sum(fn ($d) => $d[1]), $sale->due_amount), 2),
+            'current_due' => min(Money::sum($now, fn ($d) => $d[1]), $sale->due_amount),
             'days_late' => $now->isEmpty() ? 0 : (int) $now->min(fn ($d) => $d[0])->copy()->startOfDay()->diffInDays(today()),
             'next_date' => $next ? $next[0]->toDateString() : null,
         ];

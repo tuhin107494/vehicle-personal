@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToShop;
+use App\Support\Money;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -116,7 +117,7 @@ class Sale extends Model
     public function grandTotal(): float
     {
         if ($this->payment_type === 'installment' && $this->plan) {
-            return round($this->down_payment + $this->plan->total_payable, 2);
+            return Money::add($this->down_payment, $this->plan->total_payable);
         }
 
         return (float) $this->sale_price;

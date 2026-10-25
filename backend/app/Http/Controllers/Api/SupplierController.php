@@ -38,7 +38,7 @@ class SupplierController extends Controller implements HasMiddleware
         $owed = Purchase::whereIn('supplier_id', $suppliers->getCollection()->pluck('id'))
             ->selectRaw('supplier_id, SUM(CASE WHEN price - paid_amount - due_adjustment > 0 THEN price - paid_amount - due_adjustment ELSE 0 END) as total')
             ->groupBy('supplier_id')->pluck('total', 'supplier_id');
-        $suppliers->getCollection()->each(fn (Supplier $s) => $s->setAttribute('payable_due', round((float) ($owed[$s->id] ?? 0), 2)));
+        $suppliers->getCollection()->each(fn (Supplier $s) => $s->setAttribute('payable_due', (float) ($owed[$s->id] ?? 0)));
 
         return $this->paginated($suppliers, SupplierResource::class);
     }

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DuePromise;
 use App\Models\Installment;
 use App\Models\Sale;
+use App\Support\Money;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -40,7 +41,7 @@ class CollectionController extends Controller implements HasMiddleware
 
         $stats = fn (Collection $in) => [
             'count' => $in->count(),
-            'amount' => round($in->sum('amount'), 2),
+            'amount' => Money::sum($in, 'amount'),
             'customers' => $in->pluck('customer.id')->unique()->count(),
         ];
 
@@ -55,7 +56,7 @@ class CollectionController extends Controller implements HasMiddleware
         return $this->success([
             'buckets' => $buckets,
             // What should be collected right now: everything overdue plus what falls due today.
-            'current_due' => round($rows->where('days_left', '<=', 0)->sum('amount'), 2),
+            'current_due' => Money::sum($rows->where('days_left', '<=', 0), 'amount'),
         ]);
     }
 
@@ -72,7 +73,7 @@ class CollectionController extends Controller implements HasMiddleware
             ->when($kind, fn ($c) => $c->where('type', $kind))
             ->values();
 
-        return $this->success($rows, 'OK', 200, ['total' => $rows->count(), 'total_amount' => round($rows->sum('amount'), 2)]);
+        return $this->success($rows, 'OK', 200, ['total' => $rows->count(), 'total_amount' => Money::sum($rows, 'amount')]);
     }
 
     private function inBucket(int $daysLeft, string $key): bool
@@ -116,7 +117,7 @@ class CollectionController extends Controller implements HasMiddleware
      */
     private function withCustomerTotal(array $row, Collection $totals): array
     {
-        return $row + ['customer_total_due' => round((float) ($totals[$row['customer']['id']] ?? 0), 2)];
+        return $row + ['customer_total_due' => (float) ($totals[$row['customer']['id']] ?? 0)];
     }
 
     /** @return array<string,mixed> */
@@ -130,7 +131,7 @@ class CollectionController extends Controller implements HasMiddleware
             'due_date' => $due->toDateString(),
             'days_left' => $daysLeft,
             'overdue_by' => $daysLeft < 0 ? $this->overdueBy($due) : null,
-            'amount' => round($amount, 2),
+            'amount' => $amount,
             'sale_due' => $sale->due_amount,
             'customer' => $sale->customer->only(['id', 'name', 'phone', 'alt_phone', 'address']),
             'vehicle' => $sale->vehicle->only(['id', 'chassis_no', 'brand', 'model']),

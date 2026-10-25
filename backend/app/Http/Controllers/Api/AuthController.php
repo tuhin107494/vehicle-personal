@@ -28,7 +28,10 @@ class AuthController extends Controller
 
         $user = User::with('shop')->where('email', $credentials['email'])->first();
 
-        if (! $user || ! Hash::check($credentials['password'], $user->password)) {
+        // hash the password even when there is no such user, so the answer takes as long and cannot reveal which emails have accounts
+        $valid = Hash::check($credentials['password'], $user->password ?? self::dummyHash());
+
+        if (! $user || ! $valid) {
             throw ValidationException::withMessages(['email' => ['The provided credentials are incorrect.']]);
         }
 
@@ -106,6 +109,14 @@ class AuthController extends Controller
         $user->save();
 
         return $this->success($this->userData($user->load('shop')), 'Profile updated');
+    }
+
+    /** A hash made with the app's current hashing cost, to compare against when the email is unknown. */
+    private static function dummyHash(): string
+    {
+        static $hash;
+
+        return $hash ??= Hash::make(Str::random(32));
     }
 
     private function userData(User $user): array

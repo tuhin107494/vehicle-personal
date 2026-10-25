@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToShop;
+use App\Support\Money;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -35,7 +36,7 @@ class Advance extends Model
 
     public function getRemainingAttribute(): float
     {
-        return round($this->amount - $this->used, 2);
+        return Money::add($this->amount, -$this->used);
     }
 
     /** @return BelongsTo<Supplier, $this> */

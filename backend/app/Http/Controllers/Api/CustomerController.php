@@ -38,7 +38,7 @@ class CustomerController extends Controller implements HasMiddleware
         // what each customer still owes us, for the "Due collection" shortcut
         $owed = Sale::where('status', 'active')->whereIn('customer_id', $customers->getCollection()->pluck('id'))
             ->selectRaw('customer_id, SUM(due_amount) as total')->groupBy('customer_id')->pluck('total', 'customer_id');
-        $customers->getCollection()->each(fn (Customer $c) => $c->setAttribute('receivable_due', round((float) ($owed[$c->id] ?? 0), 2)));
+        $customers->getCollection()->each(fn (Customer $c) => $c->setAttribute('receivable_due', (float) ($owed[$c->id] ?? 0)));
 
         return $this->paginated($customers, CustomerResource::class);
     }

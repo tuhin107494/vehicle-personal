@@ -12,6 +12,7 @@ use App\Http\Resources\SaleResource;
 use App\Models\Investor;
 use App\Models\InvestorSettlement;
 use App\Services\InvestorPortfolioService;
+use App\Support\Money;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -33,8 +34,8 @@ class InvestorController extends Controller implements HasMiddleware
     /** Keeps the formula behind an investor's profit: the three figures entered, with the monthly and yearly rate worked out here. */
     public function saveProfitFormula(InvestorProfitFormulaRequest $request, Investor $investor): JsonResponse
     {
-        $invested = round((float) $request->invested, 2);
-        $profit = round((float) $request->profit, 2);
+        $invested = Money::taka(Money::paisa($request->invested));
+        $profit = Money::taka(Money::paisa($request->profit));
         $months = (int) $request->months;
         $month = round($profit / $invested * 100 / $months, 4);
 
@@ -55,34 +56,36 @@ class InvestorController extends Controller implements HasMiddleware
             ->selectRaw('plan_id, type, SUM(amount) as total')->groupBy('plan_id', 'type')->get()->groupBy('plan_id');
 
         $rows = $plans->map(function ($plan) use ($paid) {
+            // worked out in paisa, given back in taka
             $by = ($paid[$plan->id] ?? collect())->pluck('total', 'type');
-            $profit = round((float) $plan->interest_amount * $plan->investor_share_percent / 100, 2);
-            $returned = round((float) ($by['principal_return'] ?? 0), 2);
-            $profitPaid = round((float) ($by['profit_share'] ?? 0), 2);
+            $principal = Money::paisa($plan->principal);
+            $profit = Money::percent(Money::paisa($plan->interest_amount), $plan->investor_share_percent);
+            $returned = Money::paisa($by['principal_return'] ?? 0);
+            $profitPaid = Money::paisa($by['profit_share'] ?? 0);
             $vehicle = $plan->sale->vehicle;
-            $monthly = $plan->number_of_installments > 0 ? round(($plan->principal + $profit) / $plan->number_of_installments, 2) : 0.0;
+            $monthly = $plan->number_of_installments > 0 ? (int) round(($principal + $profit) / $plan->number_of_installments) : 0;
             $dueCount = $plan->installments->filter(fn ($i) => $i->due_date->lte(today()))->count();
 
             return [
                 'plan_id' => $plan->id, 'sale_id' => $plan->sale_id, 'vehicle' => $vehicle->chassis_no,
                 'vehicle_name' => trim("{$vehicle->brand} {$vehicle->model}"), 'buyer' => $plan->sale->customer->name,
-                'principal' => (float) $plan->principal, 'principal_paid' => $returned, 'principal_due' => max(round($plan->principal - $returned, 2), 0),
-                'profit' => $profit, 'profit_paid' => $profitPaid, 'profit_due' => max(round($profit - $profitPaid, 2), 0),
+                'principal' => Money::taka($principal), 'principal_paid' => Money::taka($returned), 'principal_due' => Money::taka(max($principal - $returned, 0)),
+                'profit' => Money::taka($profit), 'profit_paid' => Money::taka($profitPaid), 'profit_due' => Money::taka(max($profit - $profitPaid, 0)),
                 // the investor's share is paid in step with the plan: principal + profit spread over the installments
                 'installments' => (int) $plan->number_of_installments,
                 'next_date' => $plan->installments->whereNotIn('status', ['paid', 'cancelled'])->sortBy('due_date')->first()?->due_date?->toDateString(),
                 'installments_due' => $plan->installments->whereNotIn('status', ['paid', 'cancelled'])->filter(fn ($i) => $i->due_date->lte(today()))->count(),
                 'installments_left' => $plan->installments->whereNotIn('status', ['paid', 'cancelled'])->count(),
-                'monthly' => $monthly,
+                'monthly' => Money::taka($monthly),
                 // owed so far = the installments whose date has come, less what was paid; total due = everything still unpaid
-                'current_due' => max(round(min($monthly * $dueCount, $plan->principal + $profit) - $returned - $profitPaid, 2), 0),
-                'total_due' => max(round($plan->principal + $profit - $returned - $profitPaid, 2), 0),
+                'current_due' => Money::taka(max(min($monthly * $dueCount, $principal + $profit) - $returned - $profitPaid, 0)),
+                'total_due' => Money::taka(max($principal + $profit - $returned - $profitPaid, 0)),
             ];
         })->values();
 
         return $this->success([
             'rows' => $rows,
-            'totals' => ['principal_due' => round($rows->sum('principal_due'), 2), 'profit_due' => round($rows->sum('profit_due'), 2), 'paid' => round($rows->sum('principal_paid') + $rows->sum('profit_paid'), 2), 'monthly' => round($rows->sum('monthly'), 2), 'current_due' => round($rows->sum('current_due'), 2), 'total_due' => round($rows->sum('total_due'), 2), 'installments_due' => (int) $rows->sum('installments_due')],
+            'totals' => ['principal_due' => Money::sum($rows, 'principal_due'), 'profit_due' => Money::sum($rows, 'profit_due'), 'paid' => Money::add(Money::sum($rows, 'principal_paid'), Money::sum($rows, 'profit_paid')), 'monthly' => Money::sum($rows, 'monthly'), 'current_due' => Money::sum($rows, 'current_due'), 'total_due' => Money::sum($rows, 'total_due'), 'installments_due' => (int) $rows->sum('installments_due')],
         ]);
     }
 
@@ -92,16 +95,16 @@ class InvestorController extends Controller implements HasMiddleware
         $paid = InvestorSettlement::whereIn('investor_id', $investors->pluck('id'))->whereIn('type', ['principal_return', 'profit_share'])
             ->selectRaw('plan_id, SUM(amount) as total')->groupBy('plan_id')->pluck('total', 'plan_id');
         $investors->each(function (Investor $i) use ($paid) {
-            $due = 0.0;
+            $due = 0; // paisa
             $count = 0;
             foreach ($i->plans()->with('installments:id,plan_id,due_date,status')->whereHas('sale', fn ($q) => $q->where('status', 'active'))->get() as $plan) {
-                $profit = (float) $plan->interest_amount * $plan->investor_share_percent / 100;
-                $monthly = $plan->number_of_installments > 0 ? ($plan->principal + $profit) / $plan->number_of_installments : 0;
+                $owed = Money::paisa($plan->principal) + Money::percent(Money::paisa($plan->interest_amount), $plan->investor_share_percent);
+                $monthly = $plan->number_of_installments > 0 ? (int) round($owed / $plan->number_of_installments) : 0;
                 $come = $plan->installments->filter(fn ($x) => $x->due_date->lte(today()));
-                $due += max(min($monthly * $come->count(), $plan->principal + $profit) - (float) ($paid[$plan->id] ?? 0), 0);
+                $due += max(min($monthly * $come->count(), $owed) - Money::paisa($paid[$plan->id] ?? 0), 0);
                 $count += $come->whereNotIn('status', ['paid', 'cancelled'])->count();
             }
-            $i->setAttribute('current_due', round($due, 2));
+            $i->setAttribute('current_due', Money::taka($due));
             $i->setAttribute('installments_due', $count);
         });
     }
