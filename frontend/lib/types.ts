@@ -70,7 +70,7 @@ export type PermissionT = { id: number; key: string; name: string; group: string
 export type ShopUser = { id: number; name: string; email: string; role: string; role_label: string; is_active: boolean; photo_url?: string | null };
 export type CallRow = {
   type: "installment" | "promise"; id: number; label: string; sale_id: number; due_date: string; days_left: number;
-  amount: number; sale_due: number; customer_total_due: number;
+  amount: number; sale_due: number; customer_total_due: number; guarantor_phone: string | null;
   overdue_by: { months: number; days: number; total_days: number } | null;
   customer: { id: number; name: string; phone: string; alt_phone: string | null; address: string | null };
   vehicle: { id: number; chassis_no: string; brand: string | null; model: string | null };

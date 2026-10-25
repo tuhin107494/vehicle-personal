@@ -16,7 +16,7 @@ import { VehicleForm } from "@/components/forms/VehicleForm";
 import { RegistrationModal } from "@/components/forms/RegistrationModal";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
-import { Eye, HandCoins, History, Pencil, Plus } from "lucide-react";
+import { BadgeDollarSign, Eye, HandCoins, History, Pencil, Plus } from "lucide-react";
 
 function Vehicles() {
   const wanted = useSearchParams().get("status"); // e.g. /vehicles?status=in_stock
@@ -30,10 +30,10 @@ function Vehicles() {
   const [reg, setReg] = useState<Vehicle | null>(null);
 
   const columns: Col<Vehicle>[] = [
-    { header: "Chassis", cell: ({ row }) => <span className="font-medium">{row.original.chassis_no}</span> },
-    { header: "Engine", accessorKey: "engine_no" },
-    { header: "Type", meta: { className: "hidden min-[1250px]:table-cell" }, cell: ({ row }) => <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${typeColor(categories.find((c) => c.key === row.original.vehicle_type)?.id ?? 0).badge}`}>{nameOf(row.original.vehicle_type)}</span> },
+    { header: "Type", cell: ({ row }) => <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${typeColor(categories.find((c) => c.key === row.original.vehicle_type)?.id ?? 0).badge}`}>{nameOf(row.original.vehicle_type)}</span> },
     { header: "Vehicle", cell: ({ row }) => <span className="inline-block max-w-[8.5rem] whitespace-normal leading-tight">{[row.original.brand, row.original.model, row.original.year].filter(Boolean).join(" ") || "-"}</span> },
+    { header: "Engine", accessorKey: "engine_no" },
+    { header: "Chassis", cell: ({ row }) => <span className="font-medium">{row.original.chassis_no}</span> },
     { header: "Reg. no", meta: { className: "hidden min-[1600px]:table-cell" }, cell: ({ row }) => row.original.registration_no ?? "-" },
     {
       header: "Registration",
@@ -51,6 +51,9 @@ function Vehicles() {
       id: "actions",
       cell: ({ row }) => (
         <div className="flex w-full items-center justify-end gap-1.5 whitespace-nowrap md:w-auto">
+          {row.original.status === "in_stock" && can("sales.create") && (
+            <Link className="inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-1.5 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 md:flex-none md:gap-1.5 md:px-2.5 md:py-1.5 md:text-xs" href={`/sales/new?vehicle=${row.original.id}`} title="Sell"><BadgeDollarSign className="size-3 shrink-0 md:size-4" /> <span>Sell</span></Link>
+          )}
           {row.original.status === "sold" && (row.original.sale_due ?? 0) > 0 && can("payments.collect") && (
             <Link className="inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-sky-200 px-1.5 py-1 text-[11px] md:py-1.5 md:text-xs md:flex-none md:gap-1.5 md:px-2.5 font-medium text-sky-700 hover:bg-sky-50" href={`/due-collection?vehicle_id=${row.original.id}`} title="Due collection"><HandCoins className="size-3 shrink-0 md:size-4" /> <span>Due</span></Link>
           )}
