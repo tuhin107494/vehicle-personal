@@ -88,25 +88,28 @@ class SignupTest extends TestCase
         $this->assertWorksAsOwnerOf($owner->shop, $token);
     }
 
-    public function test_a_google_sign_up_is_always_the_owner_of_a_new_shop_and_signs_in_with_google_once_approved(): void
+    public function test_a_google_sign_up_is_always_the_owner_of_a_new_shop_and_is_signed_in_at_once(): void
     {
         $other = Shop::create(['name' => 'Someone else', 'is_active' => true, 'approved_at' => now()]);
         PlatformSettings::save(['google' => ['enabled' => true, 'client_id' => 'client-123', 'client_secret' => 'shh']]);
         Http::fake(['oauth2.googleapis.com/*' => Http::response(['id_token' => $this->idToken(['iss' => 'accounts.google.com', 'aud' => 'client-123', 'email' => 'karim@gmail.com', 'email_verified' => true, 'name' => 'Karim'])])]);
 
-        $this->postJson('/api/signup/google', ['code' => 'abc', 'shop_name' => 'Karim Bikes', 'phone' => '01800000000', 'role' => 'super_admin', 'shop_id' => $other->id])->assertCreated();
+        $token = $this->postJson('/api/signup/google', ['code' => 'abc', 'shop_name' => 'Karim Bikes', 'phone' => '01800000000', 'role' => 'super_admin', 'shop_id' => $other->id])
+            ->assertCreated()
+            ->assertJsonPath('data.user.role', 'shop_owner')
+            ->json('data.token');
 
         $owner = User::where('email', 'karim@gmail.com')->firstOrFail();
         $this->assertSame('shop_owner', $owner->role);
         $this->assertSame('Karim Bikes', $owner->shop->name);
+        $this->assertTrue($owner->is_active);
+        $this->assertTrue($owner->shop->is_active);
+        $this->assertFalse($owner->shop->isPending()); // no approval needed: Google proved the email
 
-        // before approval Google sign-in is refused with the reason
-        $this->postJson('/api/auth/google', ['code' => 'abc'])->assertStatus(422)->assertJsonPath('errors.email.0', 'Your shop is waiting for approval. You can sign in once it is approved.');
-
-        $this->approve($owner->shop);
-
-        $token = $this->postJson('/api/auth/google', ['code' => 'abc'])->assertOk()->json('data.token');
+        // signed in straight from sign-up, and Google sign-in works on later visits too
         $this->assertWorksAsOwnerOf($owner->shop, $token);
+        $this->app['auth']->forgetGuards();
+        $this->postJson('/api/auth/google', ['code' => 'abc'])->assertOk()->assertJsonPath('data.user.email', 'karim@gmail.com');
     }
 
     public function test_sign_up_rejects_a_used_email_and_can_be_closed(): void
@@ -129,7 +132,7 @@ class SignupTest extends TestCase
         $owner = User::where('email', 'karim@gmail.com')->firstOrFail();
         $this->assertSame('Karim', $owner->name);
         $this->assertNotNull($owner->email_verified_at);
-        $this->assertTrue($owner->shop->isPending());
+        $this->assertFalse($owner->shop->isPending());
 
         // the same Google account cannot make a second shop
         $this->postJson('/api/signup/google', ['code' => 'abc', 'shop_name' => 'Again', 'phone' => '01800000000'])->assertStatus(422);

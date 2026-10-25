@@ -100,7 +100,7 @@ export default function PlatformSettingsPage() {
         <Card title="Sign-up" className="lg:col-span-2">
           <div className="space-y-2">
             <Toggle label="Let new shops create an account from the sign-in page" {...register("signup.enabled")} />
-            <p className="text-sm text-slate-500">A new shop waits as Pending in Shops until you edit it and tick &quot;Shop is active&quot;. Super admins get an email for each new sign-up when email is set up.</p>
+            <p className="text-sm text-slate-500">A shop that signs up with email and password waits as Pending in Shops until you edit it and tick &quot;Shop is active&quot;. A shop that signs up with Google (its email is proven) opens at once; you can still switch it off in Shops. Super admins get an email for each new sign-up when email is set up.</p>
           </div>
         </Card>
 

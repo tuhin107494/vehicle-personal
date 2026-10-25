@@ -15,8 +15,9 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Public sign-up: a new shop with its owner. The shop starts switched off and waits until the super admin approves it
- * (switches it on in Shops), so nobody gets in just by signing up.
+ * Public sign-up: a new shop with its owner. With email and password the shop starts switched off and waits until the
+ * super admin approves it (switches it on in Shops). With Google, whose email is proven, the shop opens at once and the
+ * owner is signed in.
  */
 class SignupController extends Controller
 {
@@ -49,7 +50,14 @@ class SignupController extends Controller
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ], self::MESSAGES);
 
-        return $this->createShop($data, ['name' => $data['name'], 'email' => $data['email'], 'password' => $data['password']]);
+        $shop = $this->shops->create(
+            ['name' => $data['shop_name'], 'phone' => $data['phone'], 'is_active' => false, 'approved_at' => null],
+            ['name' => $data['name'], 'email' => $data['email'], 'password' => $data['password'], 'is_active' => false],
+        );
+
+        $this->tellSuperAdmins($shop);
+
+        return $this->success(null, 'Account created. Your shop is waiting for approval; you can sign in once it is approved.', 201);
     }
 
     /** Sign-up with Google in place of a password: the name and email come from the Google account. */
@@ -64,8 +72,18 @@ class SignupController extends Controller
             throw ValidationException::withMessages(['email' => [$person['email'].' already has an account. Sign in instead.']]);
         }
 
-        // the account signs in with Google; the random password only fills the column (a reset link can set a real one)
-        return $this->createShop($data, ['name' => $person['name'], 'email' => $person['email'], 'password' => Str::random(40)], verified: true);
+        // Google has proved the email is theirs, so the shop opens at once and they are signed in.
+        // The account signs in with Google; the random password only fills the column (a reset link can set a real one).
+        $shop = $this->shops->create(
+            ['name' => $data['shop_name'], 'phone' => $data['phone'], 'is_active' => true, 'approved_at' => now()],
+            ['name' => $person['name'], 'email' => $person['email'], 'password' => Str::random(40), 'is_active' => true],
+        );
+        $owner = $shop->owner;
+        $owner->forceFill(['email_verified_at' => now()])->save();
+
+        $this->tellSuperAdmins($shop, waiting: false);
+
+        return $this->success($owner->load('shop')->newSession(), 'Welcome! Your shop is ready.', 201);
     }
 
     private function ensureOpen(): void
@@ -75,24 +93,8 @@ class SignupController extends Controller
         }
     }
 
-    private function createShop(array $data, array $owner, bool $verified = false): JsonResponse
-    {
-        $shop = $this->shops->create(
-            ['name' => $data['shop_name'], 'phone' => $data['phone'], 'is_active' => false, 'approved_at' => null],
-            $owner + ['is_active' => false],
-        );
-
-        if ($verified) {
-            $shop->owner->forceFill(['email_verified_at' => now()])->save();
-        }
-
-        $this->tellSuperAdmins($shop);
-
-        return $this->success(null, 'Account created. Your shop is waiting for approval; you can sign in once it is approved.', 201);
-    }
-
-    /** Emails the super admins that a shop is waiting. A mail failure must not lose the sign-up, so it is only logged. */
-    private function tellSuperAdmins(Shop $shop): void
+    /** Emails the super admins about a new shop: one waiting for approval, or (Google sign-up) one already open. A mail failure must not lose the sign-up, so it is only logged. */
+    private function tellSuperAdmins(Shop $shop, bool $waiting = true): void
     {
         $to = User::where('role', 'super_admin')->where('is_active', true)->pluck('email')->all();
         if (! $to) {
@@ -100,9 +102,12 @@ class SignupController extends Controller
         }
 
         $owner = $shop->owner;
-        $body = "A new shop signed up and is waiting for approval.\n\nShop: {$shop->name}\nPhone: {$shop->phone}\nOwner: {$owner->name} <{$owner->email}>\n\n"
-            ."Approve it in Shops: edit the shop and tick \"Shop is active\".\n".rtrim(config('app.frontend_url'), '/').'/shops';
+        $details = "Shop: {$shop->name}\nPhone: {$shop->phone}\nOwner: {$owner->name} <{$owner->email}>\n\n";
+        $url = rtrim(config('app.frontend_url'), '/').'/shops';
+        [$subject, $body] = $waiting
+            ? ['New shop waiting for approval: ', "A new shop signed up and is waiting for approval.\n\n{$details}Approve it in Shops: edit the shop and tick \"Shop is active\".\n$url"]
+            : ['New shop signed up with Google: ', "A new shop signed up with Google and is open already.\n\n{$details}To stop it, edit the shop in Shops and untick \"Shop is active\".\n$url"];
 
-        rescue(fn () => Mail::raw($body, fn ($m) => $m->to($to)->subject('New shop waiting for approval: '.$shop->name)));
+        rescue(fn () => Mail::raw($body, fn ($m) => $m->to($to)->subject($subject.$shop->name)));
     }
 }

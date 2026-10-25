@@ -9,7 +9,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { CircleCheck } from "lucide-react";
 import { api, applyServerErrors } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
+import { type Session, useAuth } from "@/lib/auth";
 import { AuthShell } from "@/components/AuthShell";
 import { authError, GoogleButton, OrDivider, useAuthConfig, useGoogleCode } from "@/components/GoogleSignIn";
 import { Button, Field, Loading } from "@/components/app-ui";
@@ -28,7 +28,7 @@ type Values = z.infer<typeof schema>;
 /** Sign-up: a new shop with its owner. The shop waits until the super admin approves it. */
 export default function SignupPage() {
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, loading, startSession } = useAuth();
   const config = useAuthConfig();
   const [done, setDone] = useState("");
   const { register, handleSubmit, setError, clearErrors, getValues, formState: { errors, isSubmitting } } = useForm<Values>({ resolver: zodResolver(schema) });
@@ -46,11 +46,13 @@ export default function SignupPage() {
     }
   };
 
-  // Google gives the name and email; the shop's name and phone still come from the form
+  // Google gives the name and email; the shop's name and phone still come from the form.
+  // Google has proved the email, so the shop opens at once: sign in, and the effect above opens the dashboard.
   const google = useGoogleCode(config?.google.client_id, async (code) => {
     try {
-      const res = await api("/signup/google", { method: "POST", body: { code, shop_name: getValues("shop_name"), phone: getValues("phone") } });
-      setDone(res.message);
+      const res = await api<Session>("/signup/google", { method: "POST", body: { code, shop_name: getValues("shop_name"), phone: getValues("phone") } });
+      startSession(res.data);
+      toast.success(res.message);
     } catch (e) {
       applyServerErrors(e, setError);
       toast.error(authError(e));
@@ -103,7 +105,7 @@ export default function SignupPage() {
         <Field required label="Password" error={errors.password?.message}><Input type="password" className="w-full" autoComplete="new-password" {...register("password")} /></Field>
         <Field required label="Confirm password" error={errors.password_confirmation?.message}><Input type="password" className="w-full" autoComplete="new-password" {...register("password_confirmation")} /></Field>
         <Button type="submit" disabled={isSubmitting} className="w-full">{isSubmitting ? "Creating..." : "Create account"}</Button>
-        <p className="text-center text-xs text-slate-500">Your shop can sign in once it is approved.</p>
+        <p className="text-center text-xs text-slate-500">{google.ready ? "With Google you start right away. With email, your shop can sign in once it is approved." : "Your shop can sign in once it is approved."}</p>
       </form>
       <p className="text-center text-sm text-slate-600">Already have an account? <Link className="font-medium text-emerald-700 underline" href="/login">Sign in</Link></p>
     </AuthShell>

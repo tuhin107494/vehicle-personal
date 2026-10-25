@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\ProfileRequest;
 use App\Models\User;
 use App\Support\GoogleOAuth;
-use App\Support\PermissionCatalog;
 use App\Support\PlatformSettings;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
@@ -82,10 +81,7 @@ class AuthController extends Controller
             throw ValidationException::withMessages(['email' => ['This shop is currently disabled. Contact support.']]);
         }
 
-        return $this->success([
-            'token' => $user->createToken('api')->plainTextToken,
-            'user' => $this->userData($user),
-        ], 'Logged in');
+        return $this->success($user->newSession(), 'Logged in');
     }
 
     /** Emails a reset link. The answer is the same whether or not the address has an account, so it cannot be used to find accounts. */
@@ -131,7 +127,7 @@ class AuthController extends Controller
 
     public function me(Request $request): JsonResponse
     {
-        return $this->success($this->userData($request->user()->load('shop')));
+        return $this->success($request->user()->load('shop')->authData());
     }
 
     /** Lets any signed-in user change their own name, email and (with the current password) password. */
@@ -147,7 +143,7 @@ class AuthController extends Controller
 
         $user->save();
 
-        return $this->success($this->userData($user->load('shop')), 'Profile updated');
+        return $this->success($user->load('shop')->authData(), 'Profile updated');
     }
 
     /** A hash made with the app's current hashing cost, to compare against when the email is unknown. */
@@ -156,14 +152,5 @@ class AuthController extends Controller
         static $hash;
 
         return $hash ??= Hash::make(Str::random(32));
-    }
-
-    private function userData(User $user): array
-    {
-        return $user->only(['id', 'name', 'email', 'role', 'photo_url']) + [
-            'role_label' => PermissionCatalog::ROLES[$user->role] ?? $user->role,
-            'shop' => $user->shop?->only(['id', 'name']),
-            'permissions' => $user->permissionKeys(),
-        ];
     }
 }
