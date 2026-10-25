@@ -18,6 +18,7 @@ use App\Models\Sale;
 use App\Models\Supplier;
 use App\Models\Vehicle;
 use App\Services\InvestorPortfolioService;
+use App\Support\Money;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -38,7 +39,7 @@ class ReportController extends Controller implements HasMiddleware
 
         return $this->success([
             'total_count' => $vehicles->count(),
-            'total_cost' => round($vehicles->sum(fn ($v) => ($v->currentPurchase->price ?? 0) + ($v->currentPurchase->cost_extra ?? 0)), 2),
+            'total_cost' => Money::sum($vehicles, fn ($v) => Money::add($v->currentPurchase->price ?? 0, $v->currentPurchase->cost_extra ?? 0)),
             'vehicles' => $vehicles->map(fn ($v) => [
                 ...VehicleResource::make($v)->resolve(),
                 'days_in_stock' => $v->currentPurchase ? (int) $v->currentPurchase->purchase_date->diffInDays(today()) : null,
@@ -52,7 +53,7 @@ class ReportController extends Controller implements HasMiddleware
             ->where('status', 'active')->where('due_amount', '>', 0)->orderByDesc('due_amount')->limit(1000)->get(); // a safety cap
 
         return $this->success([
-            'total_due' => round($sales->sum('due_amount'), 2),
+            'total_due' => Money::sum($sales, 'due_amount'),
             'sales' => $sales->map(fn ($s) => [
                 ...SaleResource::make($s)->resolve(),
                 'next_due_date' => $s->payment_type === 'installment'
@@ -86,21 +87,21 @@ class ReportController extends Controller implements HasMiddleware
 
         $rows = $purchases->map(fn ($p) => [
             ...PurchaseResource::make($p)->resolve(),
-            'total_cost' => round($p->price + $p->cost_extra, 2),
-            'unpaid' => round(max($p->price - $p->paid_amount, 0), 2),
+            'total_cost' => Money::add($p->price, $p->cost_extra),
+            'unpaid' => max(Money::add($p->price, -$p->paid_amount), 0),
         ]);
 
         return $this->success([
             'totals' => [
                 'count' => $purchases->count(),
-                'price' => round($purchases->sum('price'), 2),
-                'extra_cost' => round($purchases->sum('cost_extra'), 2),
-                'total_cost' => round($purchases->sum(fn ($p) => $p->price + $p->cost_extra), 2),
-                'paid' => round($purchases->sum('paid_amount'), 2),
-                'unpaid' => round($rows->sum('unpaid'), 2),
+                'price' => Money::sum($purchases, 'price'),
+                'extra_cost' => Money::sum($purchases, 'cost_extra'),
+                'total_cost' => Money::sum($rows, 'total_cost'),
+                'paid' => Money::sum($purchases, 'paid_amount'),
+                'unpaid' => Money::sum($rows, 'unpaid'),
             ],
             'by_type' => $purchases->groupBy(fn ($p) => $p->vehicle->vehicle_type)->map(fn ($g, $type) => [
-                'type' => $type, 'count' => $g->count(), 'amount' => round($g->sum(fn ($p) => $p->price + $p->cost_extra), 2),
+                'type' => $type, 'count' => $g->count(), 'amount' => Money::sum($g, fn ($p) => Money::add($p->price, $p->cost_extra)),
             ])->values(),
             'purchases' => $rows->values(),
         ]);
@@ -120,12 +121,13 @@ class ReportController extends Controller implements HasMiddleware
             ->when($request->status, fn ($q, $st) => $q->where('status', $st))
             ->orderByDesc('sale_date')->orderByDesc('id')->get();
 
-        $cost = fn ($s) => round(($s->purchase->price ?? 0) + ($s->purchase->cost_extra ?? 0), 2);
+        $cost = fn ($s) => Money::add($s->purchase->price ?? 0, $s->purchase->cost_extra ?? 0);
+        $profit = fn ($s) => Money::add($s->sale_price, -$cost($s));
 
         $rows = $sales->map(fn ($s) => [
             ...SaleResource::make($s)->resolve(),
             'cost' => $cost($s),
-            'profit' => $s->status === 'active' ? round($s->sale_price - $cost($s), 2) : 0,
+            'profit' => $s->status === 'active' ? $profit($s) : 0,
         ]);
 
         $active = $sales->where('status', 'active');
@@ -134,15 +136,15 @@ class ReportController extends Controller implements HasMiddleware
             'totals' => [
                 'count' => $active->count(),
                 'cancelled' => $sales->where('status', 'cancelled')->count(),
-                'sales_amount' => round($active->sum('sale_price'), 2),
-                'paid' => round($active->sum('total_paid'), 2),
-                'due' => round($active->sum('due_amount'), 2),
-                'cost' => round($active->sum($cost), 2),
-                'profit' => round($active->sum(fn ($s) => $s->sale_price - $cost($s)), 2),
+                'sales_amount' => Money::sum($active, 'sale_price'),
+                'paid' => Money::sum($active, 'total_paid'),
+                'due' => Money::sum($active, 'due_amount'),
+                'cost' => Money::sum($active, $cost),
+                'profit' => Money::sum($active, $profit),
             ],
             'by_type' => $active->groupBy(fn ($s) => $s->vehicle->vehicle_type)->map(fn ($g, $type) => [
-                'type' => $type, 'count' => $g->count(), 'amount' => round($g->sum('sale_price'), 2),
-                'profit' => round($g->sum(fn ($s) => $s->sale_price - $cost($s)), 2),
+                'type' => $type, 'count' => $g->count(), 'amount' => Money::sum($g, 'sale_price'),
+                'profit' => Money::sum($g, $profit),
             ])->values(),
             'sales' => $rows->values(),
         ]);
@@ -169,12 +171,12 @@ class ReportController extends Controller implements HasMiddleware
         $from = $request->from;
         $to = $request->to;
 
-        $opening = $from ? round($sorted->filter(fn ($e) => $e['date'] < $from)->sum(fn ($e) => $e['charge'] - $e['paid']), 2) : 0.0;
+        $opening = $from ? $this->net($sorted->filter(fn ($e) => $e['date'] < $from)) : 0.0;
         $inRange = $sorted->filter(fn ($e) => (! $from || $e['date'] >= $from) && (! $to || $e['date'] <= $to))->values();
 
         $balance = $opening;
         $rows = $inRange->map(function ($e) use (&$balance) {
-            $balance = round($balance + $e['charge'] - $e['paid'], 2);
+            $balance = Money::add($balance, $e['charge'], -$e['paid']);
 
             return ['date' => $e['date'], 'kind' => $e['kind'], 'description' => $e['description'], 'vehicle' => $e['vehicle'], 'reference' => $e['reference'], 'charge' => $e['charge'], 'paid' => $e['paid'], 'balance' => $balance, 'no' => $e['no'], 'details' => array_values(array_filter($e['details'], fn ($d) => $d[1] !== null && $d[1] !== ''))];
         });
@@ -186,10 +188,16 @@ class ReportController extends Controller implements HasMiddleware
             'to' => $to,
             'opening_balance' => $opening,
             'rows' => $rows,
-            'total_charge' => round($rows->sum('charge'), 2),
-            'total_paid' => round($rows->sum('paid'), 2),
+            'total_charge' => Money::sum($rows, 'charge'),
+            'total_paid' => Money::sum($rows, 'paid'),
             'closing_balance' => $balance,
         ]);
+    }
+
+    /** What a run of statement entries adds to the balance: charges less payments. */
+    private function net(iterable $entries): float
+    {
+        return Money::sum($entries, fn ($e) => Money::add($e['charge'], -$e['paid']));
     }
 
     /** @param array<int,array{0:string,1:?string}> $details label/value pairs shown on the transaction's voucher */
@@ -222,8 +230,7 @@ class ReportController extends Controller implements HasMiddleware
             }
 
             if ($sale->status === 'cancelled') {
-                $net = round($sale->payments->sum('amount'), 2);
-                $out[] = $this->entry($sale->customer_id, ($sale->cancelled_at ?? now())->toDateString(), 2, $sale->id, 'cancel', 'Sale cancelled', $vehicle, 0, round($total - $net, 2), null, "CXL-{$sale->id}", [['Chassis', $vehicle], ['Reason', $sale->cancel_reason]]);
+                $out[] = $this->entry($sale->customer_id, ($sale->cancelled_at ?? now())->toDateString(), 2, $sale->id, 'cancel', 'Sale cancelled', $vehicle, 0, Money::add($total, -Money::sum($sale->payments, 'amount')), null, "CXL-{$sale->id}", [['Chassis', $vehicle], ['Reason', $sale->cancel_reason]]);
             }
         }
 
@@ -242,7 +249,7 @@ class ReportController extends Controller implements HasMiddleware
             $out[] = $this->entry($p->supplier_id, $p->purchase_date->toDateString(), 0, $p->id, 'purchase', ($p->source === 'customer' ? 'Bought back' : 'Purchase').($p->memo_no ? " · memo {$p->memo_no}" : ''), $vehicle, (float) $p->price, 0, null, "PUR-{$p->id}", [...$car, ['Memo no', $p->memo_no], ['Price', number_format($p->price, 2)]]);
 
             // paid when the purchase was recorded = everything paid minus the later payments
-            $initial = round($p->paid_amount - $p->payments->sum('amount'), 2);
+            $initial = Money::add($p->paid_amount, -Money::sum($p->payments, 'amount'));
             if ($initial > 0) {
                 $out[] = $this->entry($p->supplier_id, $p->purchase_date->toDateString(), 1, $p->id, 'payment', 'Paid at purchase'.($p->payment_method ? " ({$p->payment_method})" : ''), $vehicle, 0, $initial, $p->payment_reference, "PAY-P{$p->id}", [...$car, ['Method', $p->payment_method ? ucfirst($p->payment_method) : null], ['Purchase', "#{$p->id}"]]);
             }
@@ -277,23 +284,23 @@ class ReportController extends Controller implements HasMiddleware
         $people = $model::whereIn('id', $entries->pluck('person_id')->unique())->get(['id', 'name', 'phone', 'alt_phone'])->keyBy('id');
 
         $rows = $entries->groupBy('person_id')->map(function ($list, $personId) use ($from, $to, $people) {
-            $opening = $from ? round($list->filter(fn ($e) => $e['date'] < $from)->sum(fn ($e) => $e['charge'] - $e['paid']), 2) : 0.0;
+            $opening = $from ? $this->net($list->filter(fn ($e) => $e['date'] < $from)) : 0.0;
             $range = $list->filter(fn ($e) => (! $from || $e['date'] >= $from) && (! $to || $e['date'] <= $to));
-            $charge = round($range->sum('charge'), 2);
-            $paid = round($range->sum('paid'), 2);
+            $charge = Money::sum($range, 'charge');
+            $paid = Money::sum($range, 'paid');
             $last = $range->max('date');
 
             return [
                 'person' => $people[$personId]->only(['id', 'name', 'phone', 'alt_phone']),
                 'opening_balance' => $opening, 'charge' => $charge, 'paid' => $paid,
-                'closing_balance' => round($opening + $charge - $paid, 2), 'transactions' => $range->count(), 'last_date' => $last,
+                'closing_balance' => Money::add($opening, $charge, -$paid), 'transactions' => $range->count(), 'last_date' => $last,
             ];
         })->filter(fn ($r) => $r['transactions'] > 0 || $r['opening_balance'] != 0)->sortByDesc('closing_balance')->values();
 
         return $this->success([
             'side' => $request->side, 'from' => $from, 'to' => $to, 'rows' => $rows,
-            'total_opening' => round($rows->sum('opening_balance'), 2), 'total_charge' => round($rows->sum('charge'), 2),
-            'total_paid' => round($rows->sum('paid'), 2), 'total_closing' => round($rows->sum('closing_balance'), 2),
+            'total_opening' => Money::sum($rows, 'opening_balance'), 'total_charge' => Money::sum($rows, 'charge'),
+            'total_paid' => Money::sum($rows, 'paid'), 'total_closing' => Money::sum($rows, 'closing_balance'),
         ]);
     }
 
@@ -307,13 +314,13 @@ class ReportController extends Controller implements HasMiddleware
         $sales = Sale::with(['vehicle:id,chassis_no,brand,model', 'customer:id,name,phone', 'plan', 'payments'])->whereDate('sale_date', $date)->where('status', 'active')->orderBy('id')->get()
             ->map(fn (Sale $s) => [
                 'id' => $s->id, 'vehicle' => $s->vehicle->chassis_no, 'vehicle_name' => $name($s->vehicle), 'name' => $s->customer->name, 'phone' => $s->customer->phone,
-                'payment_type' => $s->payment_type, 'total' => $s->grandTotal(), 'received' => round((float) $s->down_payment, 2), 'due' => round($s->grandTotal() - $s->down_payment, 2),
+                'payment_type' => $s->payment_type, 'total' => $s->grandTotal(), 'received' => (float) $s->down_payment, 'due' => Money::add($s->grandTotal(), -$s->down_payment),
             ]);
 
         $purchases = Purchase::with(['vehicle:id,chassis_no,brand,model', 'supplier:id,name,phone', 'customer:id,name,phone', 'payments'])->whereDate('purchase_date', $date)->orderBy('id')->get()
             ->map(fn (Purchase $p) => [
                 'id' => $p->id, 'vehicle' => $p->vehicle->chassis_no, 'vehicle_name' => $name($p->vehicle), 'name' => $p->seller()?->name, 'phone' => $p->seller()?->phone, 'memo_no' => $p->memo_no,
-                'total' => (float) $p->price, 'paid' => round($p->paid_amount - $p->payments->sum('amount'), 2), 'due' => round($p->price - $p->paid_amount - $p->due_adjustment, 2),
+                'total' => (float) $p->price, 'paid' => Money::add($p->paid_amount, -Money::sum($p->payments, 'amount')), 'due' => Money::add($p->price, -$p->paid_amount, -$p->due_adjustment),
             ]);
 
         $collections = Payment::with(['sale.customer:id,name,phone', 'sale.vehicle:id,chassis_no'])->whereDate('paid_at', $date)
@@ -340,26 +347,26 @@ class ReportController extends Controller implements HasMiddleware
                 'id' => $i->id, 'investor' => $i->investor->name, 'phone' => $i->investor->phone, 'type' => $i->type, 'amount' => (float) $i->amount,
                 'direction' => $i->type === 'investment' ? 'in' : 'out', 'note' => $i->note,
             ]);
-        $investedIn = round($investorRows->where('direction', 'in')->sum('amount'), 2);
-        $paidInvestors = round($investorRows->where('direction', 'out')->sum('amount'), 2);
+        $investedIn = Money::sum($investorRows->where('direction', 'in'), 'amount');
+        $paidInvestors = Money::sum($investorRows->where('direction', 'out'), 'amount');
 
-        $receivedAtSale = round($sales->sum('received'), 2);
-        $collected = round($collections->sum('amount'), 2);
-        $paidAtPurchase = round($purchases->sum('paid'), 2);
-        $paidSuppliers = round($supplierPayments->sum('amount'), 2);
+        $receivedAtSale = Money::sum($sales, 'received');
+        $collected = Money::sum($collections, 'amount');
+        $paidAtPurchase = Money::sum($purchases, 'paid');
+        $paidSuppliers = Money::sum($supplierPayments, 'amount');
 
         return $this->success([
             'date' => $date,
-            'sales' => ['rows' => $sales, 'count' => $sales->count(), 'total' => round($sales->sum('total'), 2), 'received' => $receivedAtSale, 'due' => round($sales->sum('due'), 2)],
-            'purchases' => ['rows' => $purchases, 'count' => $purchases->count(), 'total' => round($purchases->sum('total'), 2), 'paid' => $paidAtPurchase, 'due' => round($purchases->sum('due'), 2)],
+            'sales' => ['rows' => $sales, 'count' => $sales->count(), 'total' => Money::sum($sales, 'total'), 'received' => $receivedAtSale, 'due' => Money::sum($sales, 'due')],
+            'purchases' => ['rows' => $purchases, 'count' => $purchases->count(), 'total' => Money::sum($purchases, 'total'), 'paid' => $paidAtPurchase, 'due' => Money::sum($purchases, 'due')],
             'collections' => ['rows' => $collections, 'count' => $collections->count(), 'total' => $collected],
             'supplier_payments' => ['rows' => $supplierPayments, 'count' => $supplierPayments->count(), 'total' => $paidSuppliers],
             'investor_received' => ['rows' => $investorRows->where('direction', 'in')->values(), 'count' => $investorRows->where('direction', 'in')->count(), 'total' => $investedIn],
             'investor_paid' => ['rows' => $investorRows->where('direction', 'out')->values(), 'count' => $investorRows->where('direction', 'out')->count(), 'total' => $paidInvestors],
             'cash' => [
-                'in' => round($receivedAtSale + $collected + $investedIn, 2),
-                'out' => round($paidAtPurchase + $paidSuppliers + $paidInvestors, 2),
-                'net' => round($receivedAtSale + $collected + $investedIn - $paidAtPurchase - $paidSuppliers - $paidInvestors, 2),
+                'in' => Money::add($receivedAtSale, $collected, $investedIn),
+                'out' => Money::add($paidAtPurchase, $paidSuppliers, $paidInvestors),
+                'net' => Money::add($receivedAtSale, $collected, $investedIn, -$paidAtPurchase, -$paidSuppliers, -$paidInvestors),
             ],
         ]);
     }
@@ -385,7 +392,7 @@ class ReportController extends Controller implements HasMiddleware
 
         return $this->success([
             'side' => $request->side, 'from' => $from, 'to' => $to, 'rows' => $rows,
-            'total_charge' => round($rows->sum('charge'), 2), 'total_paid' => round($rows->sum('paid'), 2),
+            'total_charge' => Money::sum($rows, 'charge'), 'total_paid' => Money::sum($rows, 'paid'),
         ]);
     }
 
@@ -408,7 +415,7 @@ class ReportController extends Controller implements HasMiddleware
                 'type' => $i->type, 'amount' => (float) $i->amount, 'note' => $i->note, 'auto' => str_starts_with((string) $i->note, 'Auto:'),
             ]);
 
-        $sum = fn (string $type) => round($rows->where('type', $type)->sum('amount'), 2);
+        $sum = fn (string $type) => Money::sum($rows->where('type', $type), 'amount');
 
         return $this->success([
             'rows' => $rows,

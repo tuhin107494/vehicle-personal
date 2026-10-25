@@ -16,7 +16,8 @@ class ShopService
         return DB::transaction(function () use ($shop, $owner) {
             $shop = Shop::create($shop);
 
-            User::create($owner + ['shop_id' => $shop->id, 'role' => 'shop_owner']);
+            // listed first so they win: whatever $owner holds, this user owns this shop
+            User::create(['shop_id' => $shop->id, 'role' => 'shop_owner'] + $owner);
             $this->seedDefaultPermissions($shop);
 
             return $shop;

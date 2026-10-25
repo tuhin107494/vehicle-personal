@@ -13,11 +13,18 @@ class Shop extends Model
         'phone',
         'address',
         'is_active',
+        'approved_at',
     ];
 
     protected function casts(): array
     {
-        return ['is_active' => 'boolean'];
+        return ['is_active' => 'boolean', 'approved_at' => 'datetime'];
+    }
+
+    /** Signed itself up and the super admin has not switched it on yet. */
+    public function isPending(): bool
+    {
+        return $this->approved_at === null;
     }
 
     /** @return HasMany<User, $this> */

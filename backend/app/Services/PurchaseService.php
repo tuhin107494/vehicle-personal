@@ -7,6 +7,7 @@ use App\Models\Purchase;
 use App\Models\Sale;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Support\Money;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 
@@ -38,7 +39,10 @@ class PurchaseService
                 $vehicle = Vehicle::create(Arr::only($data, self::VEHICLE_FIELDS) + ['status' => 'in_stock']);
             }
 
-            $sale = $this->checkedAdjustment($data, $vehicle, $adjustment = round((float) ($data['due_adjustment'] ?? 0), 2));
+            $price = Money::paisa($data['price']);
+            $paid = Money::paisa($data['paid_amount'] ?? 0);
+            $adjustment = Money::paisa($data['due_adjustment'] ?? 0);
+            $sale = $this->checkedAdjustment($data, $vehicle, $price, $paid, $adjustment);
 
             $purchase = Purchase::create([
                 'vehicle_id' => $vehicle->id,
@@ -47,12 +51,12 @@ class PurchaseService
                 'source' => $data['source'] ?? 'supplier',
                 'memo_no' => $data['memo_no'] ?? null,
                 'purchase_date' => $data['purchase_date'],
-                'price' => $data['price'],
-                'paid_amount' => $data['paid_amount'] ?? 0,
-                'due_adjustment' => $adjustment,
+                'price' => Money::taka($price),
+                'paid_amount' => Money::taka($paid),
+                'due_adjustment' => Money::taka($adjustment),
                 'adjusted_sale_id' => $sale?->id,
-                'cost_extra' => $data['cost_extra'] ?? 0,
-                'payment_status' => $this->paymentStatus($data['price'], ($data['paid_amount'] ?? 0) + $adjustment),
+                'cost_extra' => Money::taka(Money::paisa($data['cost_extra'] ?? 0)),
+                'payment_status' => $this->paymentStatus($price, $paid + $adjustment),
                 'payment_method' => $data['payment_method'] ?? null,
                 'payment_reference' => $data['payment_reference'] ?? null,
                 'notes' => $data['notes'] ?? null,
@@ -68,7 +72,7 @@ class PurchaseService
             if ($sale) {
                 // Set the amount off against what the customer owes: a payment on their sale, allocated like any other.
                 $this->payments->collect($sale, [
-                    'amount' => $adjustment,
+                    'amount' => Money::taka($adjustment),
                     'method' => 'adjustment',
                     'paid_at' => $data['purchase_date'],
                     'note' => "Set off against buy-back purchase #{$purchase->id}",
@@ -81,16 +85,34 @@ class PurchaseService
 
     public function update(Purchase $purchase, array $data): Purchase
     {
-        $price = $data['price'] ?? $purchase->price;
-        $paid = $data['paid_amount'] ?? $purchase->paid_amount;
+        return DB::transaction(function () use ($purchase, $data) {
+            // the same lock a supplier payment takes, so a payment cannot land between these checks and the save
+            $purchase = Purchase::lockForUpdate()->findOrFail($purchase->id);
 
-        if ($paid + $purchase->due_adjustment > $price) {
-            throw new BusinessRuleException('Paid amount and the due adjustment cannot be more than the purchase price.');
-        }
+            // amounts are kept to the paisa, the same as every calculation on them
+            foreach (['price', 'paid_amount', 'cost_extra'] as $field) {
+                if (isset($data[$field])) {
+                    $data[$field] = Money::taka(Money::paisa($data[$field]));
+                }
+            }
 
-        $purchase->update($data + ['payment_status' => $this->paymentStatus($price, $paid + $purchase->due_adjustment)]);
+            // once payments are recorded, paid_amount is their running total: only new payments may change it
+            if (isset($data['paid_amount']) && Money::paisa($data['paid_amount']) !== Money::paisa($purchase->paid_amount)
+                && $purchase->payments()->exists()) {
+                throw new BusinessRuleException('Payments were recorded against this purchase, so the paid amount can only change through payments.');
+            }
 
-        return $purchase;
+            $price = Money::paisa($data['price'] ?? $purchase->price);
+            $settled = Money::paisa($data['paid_amount'] ?? $purchase->paid_amount) + Money::paisa($purchase->due_adjustment);
+
+            if ($settled > $price) {
+                throw new BusinessRuleException('Paid amount and the due adjustment cannot be more than the purchase price.');
+            }
+
+            $purchase->update($data + ['payment_status' => $this->paymentStatus($price, $settled)]);
+
+            return $purchase;
+        });
     }
 
     public function delete(Purchase $purchase): void
@@ -130,7 +152,11 @@ class PurchaseService
         });
     }
 
-    private function paymentStatus(float|string $price, float|string $paid): string
+    /**
+     * @param  int  $price  in paisa
+     * @param  int  $paid  in paisa: paid plus any due set off
+     */
+    private function paymentStatus(int $price, int $paid): string
     {
         if ($paid >= $price) {
             return 'paid';
@@ -139,8 +165,8 @@ class PurchaseService
         return $paid > 0 ? 'partial' : 'unpaid';
     }
 
-    /** Validates a due adjustment and returns the sale of this vehicle it applies to (null when there is none). */
-    private function checkedAdjustment(array $data, Vehicle $vehicle, float $adjustment): ?Sale
+    /** Validates a due adjustment (amounts in paisa) and returns the sale of this vehicle it applies to (null when there is none). */
+    private function checkedAdjustment(array $data, Vehicle $vehicle, int $price, int $paid, int $adjustment): ?Sale
     {
         if ($adjustment <= 0) {
             return null;
@@ -161,11 +187,11 @@ class PurchaseService
             throw new BusinessRuleException('The due can only be adjusted against the sale of the vehicle being bought back.');
         }
 
-        if ($adjustment > $sale->due_amount) {
+        if ($adjustment > Money::paisa($sale->due_amount)) {
             throw new BusinessRuleException('The adjustment is more than this customer owes on that sale ('.number_format($sale->due_amount, 2).').');
         }
 
-        if ($adjustment + (float) ($data['paid_amount'] ?? 0) > (float) $data['price']) {
+        if ($adjustment + $paid > $price) {
             throw new BusinessRuleException('The adjustment and the amount paid are more than the purchase price.');
         }
 

@@ -15,6 +15,7 @@ export const NAV: Item[] = [
   { href: "/shops", text: "Shops", icon: Building2, color: "text-emerald-600", roles: ["super_admin"] },
   { href: "/categories", text: "Categories", icon: Tags, color: "text-sky-600", roles: ["super_admin"] },
   { href: "/permissions", text: "Permissions", icon: KeyRound, color: "text-amber-500", roles: ["super_admin"] },
+  { href: "/platform-settings", text: "System settings", icon: Settings, color: "text-slate-600", roles: ["super_admin"] },
   { href: "/", text: "Dashboard", icon: LayoutDashboard, color: "text-emerald-600", permission: "dashboard.view" },
   { href: "/sales/new", text: "Sales", icon: BadgeDollarSign, color: "text-green-600", permission: "sales.create" },
   { href: "/purchases/new", text: "Purchases", icon: ShoppingCart, color: "text-orange-500", permission: "purchases.create" },

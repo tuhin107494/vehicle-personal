@@ -10,10 +10,14 @@ export type User = {
   shop: { id: number; name: string } | null; permissions: string[];
 };
 
+export type Session = { token: string; user: User };
+
 type AuthContextValue = {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: (code: string) => Promise<void>;
+  startSession: (session: Session) => void;
   logout: () => Promise<void>;
   setUser: (user: User) => void;
   can: (permission: string) => boolean;
@@ -34,14 +38,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     restore.finally(() => setLoading(false));
   }, []);
 
+  // keeps the token from a sign-in (or a Google sign-up) and who it belongs to
+  const startSession = useCallback((session: Session) => {
+    tokenStore.set(session.token);
+    setUser(session.user);
+  }, []);
+
   const login = useCallback(async (email: string, password: string) => {
-    const res = await api<{ token: string; user: User }>("/login", {
+    const res = await api<Session>("/login", {
       method: "POST",
       body: { email, password },
     });
-    tokenStore.set(res.data.token);
-    setUser(res.data.user);
-  }, []);
+    startSession(res.data);
+  }, [startSession]);
+
+  // the one-time code from Google's popup; the server trades it for the account's email
+  const loginWithGoogle = useCallback(async (code: string) => {
+    const res = await api<Session>("/auth/google", { method: "POST", body: { code } });
+    startSession(res.data);
+  }, [startSession]);
 
   const logout = useCallback(async () => {
     await api("/logout", { method: "POST" }).catch(() => {});
@@ -53,7 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const can = useCallback((permission: string) => !!user?.permissions.includes(permission), [user]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, setUser, can }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, loading, login, loginWithGoogle, startSession, logout, setUser, can }}>{children}</AuthContext.Provider>
   );
 }
 

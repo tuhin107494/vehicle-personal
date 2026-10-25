@@ -67,7 +67,7 @@ class SaleController extends Controller implements HasMiddleware
 
     public function cancel(CancelSaleRequest $request, Sale $sale): JsonResponse
     {
-        $sale = $this->sales->cancel($sale, $request->reason, (float) $request->input('refund_amount', 0), $request->user());
+        $sale = $this->sales->cancel($sale, $request->reason, $request->input('refund_amount') ?? 0, $request->user());
 
         return $this->success(SaleResource::make($sale->load(self::DETAIL)), 'Sale cancelled');
     }

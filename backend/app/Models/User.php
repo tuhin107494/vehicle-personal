@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Models\Concerns\HasPhoto;
+use App\Support\PermissionCatalog;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -65,5 +66,21 @@ class User extends Authenticatable
     public function hasPermission(string $key): bool
     {
         return in_array($key, $this->permissionKeys(), true);
+    }
+
+    /** Who is signed in, as the web app keeps it: role, shop and what they may do. */
+    public function authData(): array
+    {
+        return $this->only(['id', 'name', 'email', 'role', 'photo_url']) + [
+            'role_label' => PermissionCatalog::ROLES[$this->role] ?? $this->role,
+            'shop' => $this->shop?->only(['id', 'name']),
+            'permissions' => $this->permissionKeys(),
+        ];
+    }
+
+    /** Signs this user in: a new API token plus who they are. Callers check the account and shop are active first. */
+    public function newSession(): array
+    {
+        return ['token' => $this->createToken('api')->plainTextToken, 'user' => $this->authData()];
     }
 }
