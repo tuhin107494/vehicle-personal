@@ -8,6 +8,7 @@ import { fmtDate, label, money } from "@/lib/format";
 import { useFetch } from "@/lib/hooks";
 import type { Investor, Sale, Settlement, Summary } from "@/lib/types";
 import { Button, Card, ErrorText, KV, Loading, PageHeader, Stat, StatusBadge } from "@/components/app-ui";
+import { Avatar } from "@/components/Avatar";
 import { Col, DataTable } from "@/components/DataTable";
 import { InvestorVehiclePay } from "@/components/forms/InvestorVehiclePay";
 import { ProfitCalculator } from "@/components/forms/ProfitCalculator";
@@ -63,7 +64,7 @@ export default function InvestorPortfolioPage() {
         <Stat color="slate" label="Installments due" value={due.data?.totals.installments_due ?? "-"} />
         <Stat color="amber" label="Due amount" value={due.data ? money(due.data.totals.current_due) : "-"} />
       </div>
-      <Card className="mb-4"><KV items={[["Phone", investor.phone], ["Alt. phone", investor.alt_phone], ["NID", investor.nid], ["Opening balance", money(investor.opening_balance)], ["Bank", investor.bank_name], ["Branch", investor.bank_branch], ["Account name", investor.bank_account_name], ["Account no", investor.bank_account_no], ["Other bank details", investor.bank_info], ["Address", investor.address]]} /></Card>
+      <Card className="mb-4"><div className="mb-3"><Avatar name={investor.name} url={investor.photo_url} size="lg" /></div><KV items={[["Phone", investor.phone], ["Alt. phone", investor.alt_phone], ["NID", investor.nid], ["Opening balance", money(investor.opening_balance)], ["Bank", investor.bank_name], ["Branch", investor.bank_branch], ["Account name", investor.bank_account_name], ["Account no", investor.bank_account_no], ["Other bank details", investor.bank_info], ["Address", investor.address]]} /></Card>
       <h2 className="mb-2 font-semibold">Assigned sales</h2>
       <DataTable columns={saleCols} data={sales} empty="No sales assigned." />
       <div className="mb-2 mt-6 flex items-center justify-between gap-2">

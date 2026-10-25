@@ -110,7 +110,7 @@ class AuthController extends Controller
 
     private function userData(User $user): array
     {
-        return $user->only(['id', 'name', 'email', 'role']) + [
+        return $user->only(['id', 'name', 'email', 'role', 'photo_url']) + [
             'role_label' => PermissionCatalog::ROLES[$user->role] ?? $user->role,
             'shop' => $user->shop?->only(['id', 'name']),
             'permissions' => $user->permissionKeys(),

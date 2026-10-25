@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth";
 import { money } from "@/lib/format";
 import type { Supplier } from "@/lib/types";
 import { Button, inputCls, PageHeader, Pagination } from "@/components/app-ui";
+import { Avatar } from "@/components/Avatar";
 import { Col, DataTable } from "@/components/DataTable";
 import { SupplierForm } from "@/components/forms/SupplierForm";
 import { Input } from "@/components/ui/input";
@@ -20,7 +21,7 @@ export function SupplierList() {
   const [open, setOpen] = useState(false);
 
   const columns: Col<Supplier>[] = [
-    { header: "Name", cell: ({ row }) => <span className="font-medium">{row.original.name}</span> },
+    { header: "Name", cell: ({ row }) => <span className="flex items-center gap-2 font-medium"><Avatar name={row.original.name} url={row.original.photo_url} /> {row.original.name}</span> },
     { header: "Phone", cell: ({ row }) => [row.original.phone, row.original.alt_phone].filter(Boolean).join(" / ") },
     { header: "NID", cell: ({ row }) => row.original.nid ?? "-" },
     { header: "Address", cell: ({ row }) => row.original.address ?? "-" },

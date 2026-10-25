@@ -30,6 +30,7 @@ return new class extends Migration
             $table->unsignedSmallInteger('formula_months')->nullable();
             $table->decimal('formula_rate_month', 10, 4)->nullable();
             $table->decimal('formula_rate_year', 10, 4)->nullable();
+            $table->string('photo')->nullable(); // path on the public disk
             $table->timestamps();
             $table->softDeletes();
         });

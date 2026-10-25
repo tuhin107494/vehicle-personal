@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -9,6 +9,8 @@ import { api, applyServerErrors } from "@/lib/api";
 import { toPayload, MOBILE_MSG, MOBILE_RX, savedMsg } from "@/lib/format";
 import type { Customer } from "@/lib/types";
 import { Button, Field, inputCls, Modal } from "@/components/app-ui";
+import { PhotoField } from "@/components/PhotoField";
+import { savePhoto, type PhotoChange } from "@/lib/photo";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -27,12 +29,15 @@ const blank: Values = { name: "", father_name: "", phone: "", alt_phone: "", nid
 
 /** Add or edit a customer. `initialText` pre-fills the name (or the mobile number, if it looks like one) from a search box. */
 export function CustomerForm({ open, customer, onClose, onSaved, initialText = "" }: { open: boolean; customer?: Customer | null; onClose: () => void; onSaved: (c: Customer) => void; initialText?: string }) {
-  const { register, handleSubmit, reset, setError, formState: { errors, isSubmitting } } = useForm<Values>({
+  const { register, handleSubmit, reset, setError, watch, formState: { errors, isSubmitting } } = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: blank,
   });
 
+  const [photo, setPhoto] = useState<PhotoChange>(null);
+
   useEffect(() => {
+    if (open) setPhoto(null);
     if (open) reset(customer ? { ...blank, ...Object.fromEntries(Object.entries(customer).filter(([k]) => k in blank).map(([k, v]) => [k, v ?? ""])) } : (/^[+\d][\d\s-]{4,}$/.test(initialText) ? { ...blank, phone: initialText } : { ...blank, name: initialText }));
   }, [open, customer, reset, initialText]);
 
@@ -42,8 +47,15 @@ export function CustomerForm({ open, customer, onClose, onSaved, initialText = "
         method: customer ? "PUT" : "POST",
         body: { ...toPayload(values), father_name: values.father_name || null, alt_phone: values.alt_phone || null, nid: values.nid || null, address: values.address || null, notes: values.notes || null },
       });
+      let saved = res.data;
+      try {
+        const url = await savePhoto(`/customers/${res.data.id}`, photo);
+        if (url !== undefined) saved = { ...saved, photo_url: url };
+      } catch {
+        toast.error("The customer was saved, but the photo could not be uploaded.");
+      }
       toast.success(savedMsg("Customer", !!customer));
-      onSaved(res.data);
+      onSaved(saved);
       onClose();
     } catch (e) {
       toast.error(applyServerErrors(e, setError));
@@ -54,6 +66,7 @@ export function CustomerForm({ open, customer, onClose, onSaved, initialText = "
     <Modal open={open} onClose={onClose} title={`${customer ? "Edit" : "New"} customer`}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-3" noValidate>
         <p className="text-xs text-slate-500"><span className="text-red-600">*</span> Required</p>
+        <PhotoField name={watch("name")} url={customer?.photo_url} change={photo} onChange={setPhoto} />
         <Field required label="Name" error={errors.name?.message}><Input className={inputCls} {...register("name")} /></Field>
         <Field label="Father's name" error={errors.father_name?.message}><Input className={inputCls} {...register("father_name")} /></Field>
         <div className="grid grid-cols-2 gap-3">

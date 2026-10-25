@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, BadgeDollarSign, Car, Wallet } from "lucide-react";
+import { BadgeDollarSign, ShoppingCart, Wallet } from "lucide-react";
 import { fmtDate, money } from "@/lib/format";
 import { useFetch } from "@/lib/hooks";
 import type { Installment, Promise_ } from "@/lib/types";
@@ -10,8 +10,8 @@ import { Col, DataTable } from "@/components/DataTable";
 import { DashboardCharts, type Stats } from "@/components/DashboardCharts";
 
 type Dashboard = Stats & {
-  stock_count: number; sales_this_month: number; sales_amount_this_month: number; total_due: number; overdue_count: number;
-  overdue_installments: Installment[]; promises_due_today: Promise_[];
+  stock_count: number; sales_this_month: number; sales_amount_this_month: number; purchases_this_month: number; purchases_amount_this_month: number; total_sales: number; total_sales_amount: number; total_purchases: number; total_purchases_amount: number; total_due: number; overdue_count: number;
+  installments_due_today: Installment[]; installments_due_today_count: number; promises_due_today: Promise_[];
 };
 
 export default function DashboardPage() {
@@ -24,7 +24,6 @@ export default function DashboardPage() {
     { header: "Buyer", cell: ({ row }) => row.original.plan?.sale?.customer?.name },
     { header: "Vehicle", cell: ({ row }) => row.original.plan?.sale?.vehicle?.chassis_no },
     { header: "Installment", cell: ({ row }) => `#${row.original.seq_no}` },
-    { header: "Due date", cell: ({ row }) => <span className="font-medium text-red-600">{fmtDate(row.original.due_date)}</span> },
     { header: "Remaining", cell: ({ row }) => money(row.original.amount - row.original.paid_amount) },
   ];
   const promiseCols: Col<Promise_>[] = [
@@ -37,15 +36,14 @@ export default function DashboardPage() {
   return (
     <>
       <PageHeader title="Dashboard" />
-      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat icon={Car} color="blue" label="Vehicles in stock" value={data.stock_count} />
-        <Stat icon={BadgeDollarSign} label="Sales this month" value={`${data.sales_this_month} · ${money(data.sales_amount_this_month)}`} />
-        <Stat icon={Wallet} color="amber" label="Total due" value={money(data.total_due)} />
-        <Stat icon={AlertTriangle} label="Overdue installments" value={data.overdue_count} tone={data.overdue_count > 0 ? "red" : undefined} />
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Stat href="/reports?tab=purchases" icon={ShoppingCart} color="blue" label="Total purchase" value={<>{money(data.total_purchases_amount)}<span className="block text-[10px] font-medium text-white/85 sm:text-xs">{data.total_purchases} vehicles bought</span><span className="block text-[10px] font-medium text-white/85 sm:text-xs">This month: {money(data.purchases_amount_this_month)} ({data.purchases_this_month})</span></>} />
+        <Stat href="/reports?tab=sales" icon={BadgeDollarSign} label="Total sales" value={<>{money(data.total_sales_amount)}<span className="block text-[10px] font-medium text-white/85 sm:text-xs">{data.total_sales} vehicles sold</span><span className="block text-[10px] font-medium text-white/85 sm:text-xs">This month: {money(data.sales_amount_this_month)} ({data.sales_this_month})</span></>} />
+        <Stat href="/collections" icon={Wallet} color="amber" label="Total due" value={money(data.total_due)} />
       </div>
       <DashboardCharts stats={data} />
-      <Card title="Overdue installments" className="mb-4"><DataTable columns={overdueCols} data={data.overdue_installments} empty="Nothing overdue." /></Card>
-      <Card title="Promises due today"><DataTable columns={promiseCols} data={data.promises_due_today} empty="No promises due today." /></Card>
+      <Card title="Installments due today" className="mb-4" actions={<Link className="text-sm font-medium text-emerald-700 underline" href="/collections">View all</Link>}><DataTable columns={overdueCols} data={data.installments_due_today.slice(0, 5)} pageSize={5} pager={false} empty="No installments due today." /></Card>
+      <Card title="Promises due today" actions={<Link className="text-sm font-medium text-emerald-700 underline" href="/collections">View all</Link>}><DataTable columns={promiseCols} data={data.promises_due_today.slice(0, 5)} pageSize={5} pager={false} empty="No promises due today." /></Card>
     </>
   );
 }

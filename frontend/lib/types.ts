@@ -1,17 +1,17 @@
 export type Customer = {
   id: number; name: string; father_name: string | null; phone: string; alt_phone: string | null; nid: string | null;
-  address: string | null; notes: string | null; receivable_due?: number;
+  address: string | null; notes: string | null; receivable_due?: number; photo_url?: string | null;
 };
 export type Supplier = {
-  id: number; name: string; phone: string; alt_phone: string | null; nid: string | null; address: string | null; notes: string | null;
+  id: number; name: string; phone: string; alt_phone: string | null; nid: string | null; address: string | null; notes: string | null; photo_url?: string | null;
   bank_name?: string | null; bank_branch?: string | null; bank_account_name?: string | null; bank_account_no?: string | null; bank_info?: string | null; payable_due?: number;
 };
 /** Whoever sold a purchase to us: the supplier, or the customer for a second-hand buy-back. */
-export type Seller = { id: number; name: string; phone: string; alt_phone: string | null; nid?: string | null };
+export type Seller = { id: number; name: string; phone: string; alt_phone: string | null; nid?: string | null; photo_url?: string | null };
 export type Investor = {
   id: number; name: string; phone: string | null; alt_phone: string | null; nid: string | null; address: string | null;
   bank_name?: string | null; bank_branch?: string | null; bank_account_name?: string | null; bank_account_no?: string | null; bank_info: string | null; opening_balance: number;
-  current_due?: number; installments_due?: number;
+  current_due?: number; installments_due?: number; photo_url?: string | null;
   formula_invested?: number | null; formula_profit?: number | null; formula_months?: number | null; formula_rate_month?: number | null; formula_rate_year?: number | null; notes: string | null; is_active: boolean;
 };
 export type Purchase = {
@@ -67,7 +67,7 @@ export type Shop = {
   owner?: { id: number; name: string; email: string; is_active: boolean } | null; users_count?: number;
 };
 export type PermissionT = { id: number; key: string; name: string; group: string; description: string | null };
-export type ShopUser = { id: number; name: string; email: string; role: string; role_label: string; is_active: boolean };
+export type ShopUser = { id: number; name: string; email: string; role: string; role_label: string; is_active: boolean; photo_url?: string | null };
 export type CallRow = {
   type: "installment" | "promise"; id: number; label: string; sale_id: number; due_date: string; days_left: number;
   amount: number; sale_due: number; customer_total_due: number;

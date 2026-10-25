@@ -6,20 +6,23 @@ import { startDomTranslate, stopDomTranslate } from "@/lib/domTranslate";
 
 export type Lang = "en" | "bn";
 const KEY = "vm_lang";
+const SWITCH_KEY = "vm_lang_switch";
 
-type Ctx = { lang: Lang; setLang: (l: Lang) => void; t: (text: string) => string };
-const I18n = createContext<Ctx>({ lang: "en", setLang: () => {}, t: (s) => s });
+type Ctx = { lang: Lang; setLang: (l: Lang) => void; t: (text: string) => string; showSwitch: boolean; setShowSwitch: (v: boolean) => void };
+const I18n = createContext<Ctx>({ lang: "en", setLang: () => {}, t: (s) => s, showSwitch: true, setShowSwitch: () => {} });
 
 /** Bangla digits for numbers shown in text. */
 const BN_DIGITS = "০১২৩৪৫৬৭৮৯";
 
 export function LangProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>("en");
+  const [showSwitch, setShowSwitchState] = useState(true); // whether the EN / বাং switch is shown in the menu
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem(KEY);
       if (saved === "bn" || saved === "en") setLangState(saved);
+      if (localStorage.getItem(SWITCH_KEY) === "0") setShowSwitchState(false);
     } catch {}
   }, []);
 
@@ -41,6 +44,13 @@ export function LangProvider({ children }: { children: ReactNode }) {
     } catch {}
   }, []);
 
+  const setShowSwitch = useCallback((v: boolean) => {
+    setShowSwitchState(v);
+    try {
+      localStorage.setItem(SWITCH_KEY, v ? "1" : "0");
+    } catch {}
+  }, []);
+
   /** English text in, the chosen language out; anything without a translation stays as written. */
   const t = useCallback((text: string) => {
     if (lang === "en" || !text) return text;
@@ -50,7 +60,7 @@ export function LangProvider({ children }: { children: ReactNode }) {
     return text.replace(key, hit);
   }, [lang]);
 
-  return <I18n.Provider value={{ lang, setLang, t }}>{children}</I18n.Provider>;
+  return <I18n.Provider value={{ lang, setLang, t, showSwitch, setShowSwitch }}>{children}</I18n.Provider>;
 }
 
 export const useT = () => useContext(I18n);

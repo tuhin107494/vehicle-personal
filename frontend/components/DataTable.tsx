@@ -18,6 +18,7 @@ export function DataTable<T>({
   empty = "No records found.",
   pageSize = 15,
   serverPaged,
+  pager = true,
 }: {
   columns: Col<T>[];
   data: T[];
@@ -27,6 +28,8 @@ export function DataTable<T>({
   pageSize?: number;
   /** the page already pages on the server and shows its own pager */
   serverPaged?: boolean;
+  /** false: no page controls, for a short fixed list such as a dashboard card */
+  pager?: boolean;
 }) {
   const { t } = useT();
   const table = useReactTable({ data, columns, getCoreRowModel: getCoreRowModel() });
@@ -111,7 +114,7 @@ export function DataTable<T>({
         </TableBody>
       </Table>
     </div>
-    {!serverPaged && <div className="print:hidden"><Pagination meta={{ current_page: current, last_page: last, per_page: pageSize, total: all.length }} onPage={setPage} /></div>}
+    {!serverPaged && pager && <div className="print:hidden"><Pagination meta={{ current_page: current, last_page: last, per_page: pageSize, total: all.length }} onPage={setPage} /></div>}
     </>
   );
 }

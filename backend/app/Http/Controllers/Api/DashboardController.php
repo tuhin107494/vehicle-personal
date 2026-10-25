@@ -34,8 +34,13 @@ class DashboardController extends Controller implements HasMiddleware
             ->where('status', 'overdue')
             ->orWhere(fn ($q) => $q->whereIn('status', ['pending', 'partial'])->whereDate('due_date', '<', today())));
 
+        // installments falling due today that are not fully paid
+        $dueToday = fn () => Installment::whereIn('status', ['pending', 'partial', 'overdue'])->whereDate('due_date', today());
+
         $monthSales = Sale::where('status', 'active')
             ->whereBetween('sale_date', [now()->startOfMonth()->toDateString(), now()->endOfMonth()->toDateString()]);
+
+        $monthPurchases = Purchase::whereBetween('purchase_date', [now()->startOfMonth()->toDateString(), now()->endOfMonth()->toDateString()]);
 
         // the last six months side by side: what was sold, bought and collected
         $months = collect(range(5, 0))->map(function ($ago) {
@@ -66,11 +71,18 @@ class DashboardController extends Controller implements HasMiddleware
             'stock_count' => Vehicle::where('status', 'in_stock')->count(),
             'sales_this_month' => (clone $monthSales)->count(),
             'sales_amount_this_month' => (float) (clone $monthSales)->sum('sale_price'),
+            'total_sales' => Sale::where('status', 'active')->count(),
+            'total_sales_amount' => (float) Sale::where('status', 'active')->sum('sale_price'),
+            'total_purchases' => Purchase::count(),
+            'total_purchases_amount' => (float) Purchase::sum('price'),
+            'purchases_this_month' => (clone $monthPurchases)->count(),
+            'purchases_amount_this_month' => (float) (clone $monthPurchases)->sum('price'),
             'total_due' => (float) Sale::where('status', 'active')->sum('due_amount'),
             'overdue_count' => $overdue()->count(),
-            'overdue_installments' => InstallmentResource::collection(
-                $overdue()->with(['plan.sale.vehicle', 'plan.sale.customer'])->orderBy('due_date')->limit(10)->get()
+            'installments_due_today' => InstallmentResource::collection(
+                $dueToday()->with(['plan.sale.vehicle', 'plan.sale.customer'])->orderBy('id')->limit(5)->get()
             ),
+            'installments_due_today_count' => $dueToday()->count(),
             'promises_due_today' => DuePromiseResource::collection(
                 DuePromise::with(['sale.vehicle', 'sale.customer'])->where('status', 'open')->whereDate('promised_date', today())->get()
             ),

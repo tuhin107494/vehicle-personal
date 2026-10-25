@@ -3,13 +3,14 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToShop;
+use App\Models\Concerns\HasPhoto;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Investor extends Model
 {
-    use BelongsToShop, SoftDeletes;
+    use BelongsToShop, HasPhoto, SoftDeletes;
 
     protected $fillable = [
         'shop_id',

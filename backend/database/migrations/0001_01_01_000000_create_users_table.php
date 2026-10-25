@@ -21,6 +21,7 @@ return new class extends Migration
             $table->string('role')->default('moderator');
             $table->boolean('is_active')->default(true);
             $table->rememberToken();
+            $table->string('photo')->nullable(); // path on the public disk
             $table->timestamps();
         });
 

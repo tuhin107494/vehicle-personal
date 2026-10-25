@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode } from "react";
+import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { PageMeta } from "@/lib/api";
 import { label } from "@/lib/format";
@@ -169,11 +170,11 @@ const STAT_COLORS = {
   "green-soft": "from-emerald-400 to-emerald-500",
 };
 
-export function Stat({ label: text, value, tone, color = "green", icon: Icon }: { label: string; value: ReactNode; tone?: "red"; color?: keyof typeof STAT_COLORS; icon?: LucideIcon }) {
+export function Stat({ label: text, value, tone, color = "green", icon: Icon, href }: { label: string; value: ReactNode; tone?: "red"; color?: keyof typeof STAT_COLORS; icon?: LucideIcon; href?: string }) {
   const { t } = useT();
   const gradient = STAT_COLORS[tone === "red" ? "red" : color];
-  return (
-    <div className={`min-w-0 rounded-xl bg-gradient-to-br ${gradient} px-2 py-1.5 text-white shadow sm:p-4 sm:shadow-md`}>
+  const card = (
+    <div className={`h-full min-w-0 rounded-xl bg-gradient-to-br ${gradient} px-2 py-1.5 text-white shadow sm:p-4 sm:shadow-md ${href ? "transition hover:shadow-lg hover:brightness-105" : ""}`}>
       <div className="flex items-center justify-between">
         <p className="text-[10px] text-white/85 sm:text-sm">{t(text)}</p>
         {Icon && <span className="flex size-8 items-center justify-center rounded-lg bg-white/25"><Icon className="size-4" /></span>}
@@ -181,6 +182,7 @@ export function Stat({ label: text, value, tone, color = "green", icon: Icon }: 
       <p className="break-words text-sm font-bold sm:mt-1 sm:text-2xl">{value}</p>
     </div>
   );
+  return href ? <Link href={href} className="block h-full min-w-0">{card}</Link> : card;
 }
 
 export function KV({ items }: { items: [string, ReactNode][] }) {

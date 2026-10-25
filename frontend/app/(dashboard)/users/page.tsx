@@ -12,6 +12,9 @@ import { useFetch } from "@/lib/hooks";
 import type { ShopUser } from "@/lib/types";
 import { Badge, Button, ErrorText, Field, inputCls, Loading, Modal, PageHeader } from "@/components/app-ui";
 import { Col, DataTable } from "@/components/DataTable";
+import { Avatar } from "@/components/Avatar";
+import { PhotoField } from "@/components/PhotoField";
+import { savePhoto, type PhotoChange } from "@/lib/photo";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 
@@ -26,9 +29,12 @@ type Values = z.infer<typeof schema>;
 const blank: Values = { name: "", email: "", password: "", role: "moderator", is_active: true };
 
 function UserForm({ open, user, onClose, onSaved }: { open: boolean; user: ShopUser | null; onClose: () => void; onSaved: () => void }) {
-  const { register, handleSubmit, reset, setError, formState: { errors, isSubmitting } } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: blank });
+  const { register, handleSubmit, reset, setError, watch, formState: { errors, isSubmitting } } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: blank });
+
+  const [photo, setPhoto] = useState<PhotoChange>(null);
 
   useEffect(() => {
+    if (open) setPhoto(null);
     if (open) reset(user ? { name: user.name, email: user.email, password: "", role: user.role as Values["role"], is_active: user.is_active } : blank);
   }, [open, user, reset]);
 
@@ -36,7 +42,12 @@ function UserForm({ open, user, onClose, onSaved }: { open: boolean; user: ShopU
     if (!user && v.password.length < 8) return setError("password", { message: "Password must be at least 8 characters." });
     if (user && v.password && v.password.length < 8) return setError("password", { message: "Password must be at least 8 characters." });
     try {
-      await api(user ? `/users/${user.id}` : "/users", { method: user ? "PUT" : "POST", body: { ...v, password: v.password || undefined } });
+      const res = await api<ShopUser>(user ? `/users/${user.id}` : "/users", { method: user ? "PUT" : "POST", body: { ...v, password: v.password || undefined } });
+      try {
+        await savePhoto(`/users/${res.data.id}`, photo);
+      } catch {
+        toast.error("The user was saved, but the photo could not be uploaded.");
+      }
       toast.success(savedMsg("User", !!user));
       onSaved();
       onClose();
@@ -48,6 +59,7 @@ function UserForm({ open, user, onClose, onSaved }: { open: boolean; user: ShopU
   return (
     <Modal open={open} onClose={onClose} title={user ? "Edit user" : "New user"}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+        <PhotoField name={watch("name")} url={user?.photo_url} change={photo} onChange={setPhoto} />
         <Field required label="Name" error={errors.name?.message}><Input className={inputCls} {...register("name")} /></Field>
         <Field required label="Email" error={errors.email?.message}><Input type="email" className={inputCls} {...register("email")} /></Field>
         <Field required={!user} label={user ? "New password (leave blank to keep)" : "Password"} error={errors.password?.message}><Input type="password" className={inputCls} {...register("password")} /></Field>
@@ -73,7 +85,7 @@ export default function UsersPage() {
   if (error || !data) return <ErrorText message={error ?? "Failed to load"} />;
 
   const columns: Col<ShopUser>[] = [
-    { header: "Name", cell: ({ row }) => <span className="font-medium">{row.original.name}</span> },
+    { header: "Name", cell: ({ row }) => <span className="flex items-center gap-2 font-medium"><Avatar name={row.original.name} url={row.original.photo_url} /> {row.original.name}</span> },
     { header: "Email", accessorKey: "email" },
     { header: "Role", cell: ({ row }) => <Badge tone={row.original.role === "shop_owner" ? "green" : "blue"}>{row.original.role_label}</Badge> },
     { header: "Status", cell: ({ row }) => <Badge tone={row.original.is_active ? "green" : "gray"}>{row.original.is_active ? "Active" : "Disabled"}</Badge> },

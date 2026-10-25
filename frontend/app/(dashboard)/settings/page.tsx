@@ -5,6 +5,11 @@ import { Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 import { useCategories } from "@/lib/categories";
+import { useT } from "@/lib/i18n";
+import { useAuth } from "@/lib/auth";
+import { useHiddenMenu } from "@/lib/menu";
+import { allowedNav } from "@/components/AppShell";
+import { ShopProfileCard } from "@/components/ShopProfileCard";
 import { typeColor } from "@/lib/typeColors";
 import { Settings, useSettings } from "@/lib/settings";
 import { Button, Card, ErrorText, Field, inputCls, Loading, PageHeader } from "@/components/app-ui";
@@ -48,6 +53,10 @@ function gridFrom(s: Settings): Grid {
 
 export default function SettingsPage() {
   const settings = useSettings();
+  const { lang, setLang, showSwitch, setShowSwitch, t } = useT();
+  const { user, can } = useAuth();
+  const { hidden, setHidden } = useHiddenMenu();
+  const menuItems = allowedNav(user?.role, can);
   const { categories } = useCategories();
   const [saving, setSaving] = useState(false);
   // The vehicle type each form starts on: the Buy vehicle form preselects it, the New sale form filters its vehicles by it.
@@ -129,7 +138,7 @@ export default function SettingsPage() {
   return (
     <form onSubmit={(e) => { e.preventDefault(); onSubmit(); }}>
       <PageHeader title="Settings" actions={<Button type="submit" disabled={saving || !tableDirty}><Save className="size-4" /> {saving ? "Saving..." : "Save settings"}</Button>} />
-      <p className="mb-4 text-sm text-slate-600">Presets for your shop. Choose the primary vehicle type for each form, then set each type's defaults.</p>
+      <p className="mb-4 text-sm text-slate-600">Starting values for the Buy and Sale forms.</p>
       <Card title="Primary vehicle type" className="mb-4">
         <div className="grid gap-3 md:grid-cols-2">
           <Field label="Purchase form (Buy vehicle)">
@@ -145,10 +154,10 @@ export default function SettingsPage() {
             </NativeSelect>
           </Field>
         </div>
-        <p className="mt-2 text-xs text-slate-500">The Buy vehicle form opens with the primary type selected, and its presets below are filled in. The New sale form opens showing only that type&apos;s in-stock vehicles, and you can switch to all types.</p>
+        <p className="mt-2 text-xs text-slate-500">The forms open with this type selected.</p>
       </Card>
-      <Card title="Defaults by vehicle type">
-        <p className="mb-3 text-sm text-slate-600">Add the vehicle types you want presets for, then add the fields to preset inside each type's card. Choosing that type on a form then fills them in, overriding the type&apos;s own default.</p>
+      <Card title="Defaults by vehicle type" className="mb-4">
+        <p className="mb-3 text-sm text-slate-600">Add a vehicle type, then the fields to fill in when it is chosen.</p>
         <div className="mb-3 flex flex-wrap gap-2">
           <div className="w-full sm:w-56">
             <NativeSelect className={inputCls} value="" disabled={!availableTypes.length} onChange={(e) => e.target.value && addType(e.target.value)}>
@@ -194,6 +203,33 @@ export default function SettingsPage() {
         ) : (
           <p className="rounded-lg bg-emerald-50 px-3 py-4 text-sm text-emerald-800">No vehicle types added yet.</p>
         )}
+      </Card>
+      <ShopProfileCard />
+      <Card title="Language" className="mb-4">
+        <div className="mb-3 flex items-center gap-3 text-sm text-slate-700">
+          <span>App language</span>
+          <div className="flex overflow-hidden rounded-lg ring-1 ring-emerald-300 text-sm font-semibold" role="group" aria-label="Language">
+            <button type="button" onClick={() => setLang("en")} className={`px-3 py-1.5 ${lang === "en" ? "bg-emerald-600 text-white" : "bg-white text-emerald-700 hover:bg-emerald-50"}`}>English</button>
+            <button type="button" onClick={() => setLang("bn")} className={`px-3 py-1.5 ${lang === "bn" ? "bg-emerald-600 text-white" : "bg-white text-emerald-700 hover:bg-emerald-50"}`}>বাংলা</button>
+          </div>
+        </div>
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" className="size-4 accent-emerald-600" checked={showSwitch} onChange={(e) => setShowSwitch(e.target.checked)} />
+          Show the language switch (EN / বাং) in the menu
+        </label>
+        <p className="mt-1 text-xs text-slate-500">Applies at once, on this device.</p>
+      </Card>
+      <Card title="Menu" className="mb-4">
+        <p className="mb-3 text-xs text-slate-500">Choose which items show in the side menu.</p>
+        <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+          {menuItems.map(({ href, text, icon: Icon, color }) => (
+            <label key={href} className={`flex items-center gap-2 text-sm text-slate-700 ${href === "/settings" ? "opacity-60" : "cursor-pointer"}`}>
+              <input type="checkbox" className="size-4 accent-emerald-600" disabled={href === "/settings"} checked={href === "/settings" || !hidden.includes(href)} onChange={(e) => setHidden(e.target.checked ? hidden.filter((h) => h !== href) : [...hidden, href])} />
+              <Icon className={`size-4 ${color}`} /> {t(text)}
+            </label>
+          ))}
+        </div>
+        {hidden.length > 0 && <Button variant="outline" className="mt-3" onClick={() => setHidden([])}>Show all</Button>}
       </Card>
     </form>
   );

@@ -22,6 +22,7 @@ return new class extends Migration
             $table->string('bank_account_name')->nullable();
             $table->string('bank_account_no', 50)->nullable();
             $table->text('bank_info')->nullable();
+            $table->string('photo')->nullable(); // path on the public disk
             $table->timestamps();
             $table->softDeletes();
             $table->unique(['shop_id', 'phone']);

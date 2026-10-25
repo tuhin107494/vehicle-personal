@@ -13,6 +13,7 @@ import type { Purchase, Supplier } from "@/lib/types";
 import { Button, Card, ErrorText, Field, inputCls, KV, Loading, Modal, PageHeader, StatusBadge } from "@/components/app-ui";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import { Avatar } from "@/components/Avatar";
 import { Col, DataTable } from "@/components/DataTable";
 import { SupplierForm } from "@/components/forms/SupplierForm";
 
@@ -97,6 +98,7 @@ export default function SupplierDetailPage() {
         </>}
       />
       <Card className="mb-4">
+        <div className="mb-3"><Avatar name={supplier.name} url={supplier.photo_url} size="lg" /></div>
         <KV items={[["Phone", supplier.phone], ["Alt. phone", supplier.alt_phone], ["NID", supplier.nid], ["Address", supplier.address], ["Bank", supplier.bank_name], ["Branch", supplier.bank_branch], ["Account name", supplier.bank_account_name], ["Account no", supplier.bank_account_no], ["Other bank details", supplier.bank_info], ["Notes", supplier.notes]]} />
       </Card>
       <h2 className="mb-2 font-semibold">Bought from this supplier ({purchases.length})</h2>

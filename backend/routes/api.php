@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\PayableController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PermissionController;
+use App\Http\Controllers\Api\PhotoController;
 use App\Http\Controllers\Api\PromiseController;
 use App\Http\Controllers\Api\PurchaseController;
 use App\Http\Controllers\Api\RegistrationController;
@@ -35,6 +36,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('logout', [AuthController::class, 'logout']);
     Route::get('me', [AuthController::class, 'me']);
     Route::put('profile', [AuthController::class, 'updateProfile']);
+    Route::post('profile/photo', [PhotoController::class, 'storeOwn']);
+    Route::delete('profile/photo', [PhotoController::class, 'destroyOwn']);
 
     // Platform: super admin only.
     Route::middleware('role:super_admin')->group(function () {
@@ -57,11 +60,19 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('users', [UserController::class, 'index']);
         Route::post('users', [UserController::class, 'store']);
         Route::put('users/{user}', [UserController::class, 'update']);
+        Route::post('users/{user}/photo', [PhotoController::class, 'storeUser']);
+        Route::delete('users/{user}/photo', [PhotoController::class, 'destroyUser']);
     });
 
     // Shop data: requires a shop user holding the matching permission (see each controller).
     Route::middleware('shop')->group(function () {
         Route::get('dashboard', DashboardController::class);
+
+        // photos of customers, suppliers and investors: whoever may edit them may change the photo
+        foreach (['customers' => 'parties.edit', 'suppliers' => 'parties.edit', 'investors' => 'investors.edit'] as $type => $permission) {
+            Route::post("$type/{id}/photo", [PhotoController::class, 'store'])->defaults('type', $type)->middleware("permission:$permission");
+            Route::delete("$type/{id}/photo", [PhotoController::class, 'destroy'])->defaults('type', $type)->middleware("permission:$permission");
+        }
         Route::get('reports/stock', [ReportController::class, 'stock']);
         Route::get('reports/dues', [ReportController::class, 'dues']);
         Route::get('reports/purchases', [ReportController::class, 'purchases']);
@@ -115,6 +126,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('drafts/{draft}', [DraftController::class, 'destroy']);
         Route::get('settings', [SettingsController::class, 'show']);
         Route::put('settings', [SettingsController::class, 'update']);
+        Route::get('shop', [SettingsController::class, 'shop']);
+        Route::put('shop', [SettingsController::class, 'updateShop']);
         Route::get('collections/summary', [CollectionController::class, 'summary']);
         Route::get('collections/upcoming', [CollectionController::class, 'upcoming']);
         Route::delete('customers/{customer}', [CustomerController::class, 'destroy']);

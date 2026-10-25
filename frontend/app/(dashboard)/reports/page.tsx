@@ -7,7 +7,8 @@ import { useAuth } from "@/lib/auth";
 import { openSaleMemo } from "@/components/SaleMemo";
 import { printVoucher } from "@/components/TransactionVoucher";
 import { purchaseVoucher } from "@/lib/purchaseVoucher";
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { fmtDate, label, money } from "@/lib/format";
 import { useCategories } from "@/lib/categories";
 import { typeColor } from "@/lib/typeColors";
@@ -257,8 +258,9 @@ const TABS = [
 
 const HAS_FILTERS: string[] = ["purchases", "sales", "customer", "supplier", "investor"];
 
-export default function ReportsPage() {
-  const [tab, setTab] = useState<(typeof TABS)[number][0]>("purchases");
+function Reports() {
+  const wanted = useSearchParams().get("tab"); // e.g. /reports?tab=sales opens that report
+  const [tab, setTab] = useState<(typeof TABS)[number][0]>(TABS.find(([k]) => k === wanted)?.[0] ?? "purchases");
   const [menu, setMenu] = useState(false);
   const current = TABS.find(([k]) => k === tab)?.[1];
   return (
@@ -290,4 +292,8 @@ export default function ReportsPage() {
       {tab === "investor" && <InvestorTransactions />}
     </>
   );
+}
+
+export default function ReportsPage() {
+  return <Suspense><Reports /></Suspense>;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -9,6 +9,8 @@ import { api, applyServerErrors } from "@/lib/api";
 import type { Investor } from "@/lib/types";
 import { MOBILE_MSG, MOBILE_RX, savedMsg } from "@/lib/format";
 import { Button, Field, inputCls, Modal } from "@/components/app-ui";
+import { PhotoField } from "@/components/PhotoField";
+import { savePhoto, type PhotoChange } from "@/lib/photo";
 import { BankFields, BANK_FIELDS } from "@/components/forms/BankFields";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,13 +35,16 @@ type Values = z.infer<typeof schema>;
 const blank: Values = { name: "", phone: "", alt_phone: "", nid: "", address: "", bank_name: "", bank_branch: "", bank_account_name: "", bank_account_no: "", bank_info: "", opening_balance: "0", notes: "", is_active: true };
 
 export function InvestorForm({ open, investor, onClose, onSaved }: { open: boolean; investor?: Investor | null; onClose: () => void; onSaved: () => void }) {
-  const { register, handleSubmit, reset, setValue, setError, formState: { errors, isSubmitting } } = useForm<Values>({
+  const { register, handleSubmit, reset, setValue, setError, watch, formState: { errors, isSubmitting } } = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: blank,
   });
 
+  const [photo, setPhoto] = useState<PhotoChange>(null);
+
   useEffect(() => {
     if (!open) return;
+    setPhoto(null);
     reset(investor ? {
       name: investor.name, phone: investor.phone ?? "", alt_phone: investor.alt_phone ?? "", nid: investor.nid ?? "", address: investor.address ?? "",
       bank_name: investor.bank_name ?? "", bank_branch: investor.bank_branch ?? "", bank_account_name: investor.bank_account_name ?? "", bank_account_no: investor.bank_account_no ?? "", bank_info: investor.bank_info ?? "", opening_balance: String(investor.opening_balance ?? 0),
@@ -49,13 +54,18 @@ export function InvestorForm({ open, investor, onClose, onSaved }: { open: boole
 
   const onSubmit = async (v: Values) => {
     try {
-      await api(investor ? `/investors/${investor.id}` : "/investors", {
+      const res = await api<Investor>(investor ? `/investors/${investor.id}` : "/investors", {
         method: investor ? "PUT" : "POST",
         body: {
           ...v, phone: v.phone || null, alt_phone: v.alt_phone || null, nid: v.nid || null, address: v.address || null, bank_name: v.bank_name || null, bank_branch: v.bank_branch || null, bank_account_name: v.bank_account_name || null, bank_account_no: v.bank_account_no || null, bank_info: v.bank_info || null,
           notes: v.notes || null, opening_balance: Number(v.opening_balance || 0),
         },
       });
+      try {
+        await savePhoto(`/investors/${res.data.id}`, photo);
+      } catch {
+        toast.error("The investor was saved, but the photo could not be uploaded.");
+      }
       toast.success(savedMsg("Investor", !!investor));
       onSaved();
       onClose();
@@ -68,6 +78,7 @@ export function InvestorForm({ open, investor, onClose, onSaved }: { open: boole
     <Modal open={open} onClose={onClose} title={investor ? "Edit investor" : "New investor"}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-3" noValidate>
         <p className="text-xs text-slate-500"><span className="text-red-600">*</span> Required</p>
+        <PhotoField name={watch("name")} url={investor?.photo_url} change={photo} onChange={setPhoto} />
         <Field required label="Name" error={errors.name?.message}><Input className={inputCls} {...register("name")} /></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field required label="Mobile number" error={errors.phone?.message}><Input className={inputCls} {...register("phone")} /></Field>

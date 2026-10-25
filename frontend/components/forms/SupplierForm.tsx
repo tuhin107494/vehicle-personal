@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -9,6 +9,8 @@ import { api, applyServerErrors } from "@/lib/api";
 import { toPayload, MOBILE_MSG, MOBILE_RX, savedMsg } from "@/lib/format";
 import type { Supplier } from "@/lib/types";
 import { Button, Field, inputCls, Modal } from "@/components/app-ui";
+import { PhotoField } from "@/components/PhotoField";
+import { savePhoto, type PhotoChange } from "@/lib/photo";
 import { BankFields, BANK_FIELDS } from "@/components/forms/BankFields";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,12 +34,15 @@ const blank: Values = { name: "", phone: "", alt_phone: "", nid: "", address: ""
 
 /** Add or edit a supplier, with optional bank details. `initialText` pre-fills the name (or the mobile number) from a search box. */
 export function SupplierForm({ open, supplier, onClose, onSaved, initialText = "" }: { open: boolean; supplier?: Supplier | null; onClose: () => void; onSaved: (s: Supplier) => void; initialText?: string }) {
-  const { register, handleSubmit, reset, setValue, setError, formState: { errors, isSubmitting } } = useForm<Values>({
+  const { register, handleSubmit, reset, setValue, setError, watch, formState: { errors, isSubmitting } } = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: blank,
   });
 
+  const [photo, setPhoto] = useState<PhotoChange>(null);
+
   useEffect(() => {
+    if (open) setPhoto(null);
     if (open) reset(supplier ? { ...blank, ...Object.fromEntries(Object.entries(supplier).filter(([k]) => k in blank).map(([k, v]) => [k, v ?? ""])) } : (/^[+\d][\d\s-]{4,}$/.test(initialText) ? { ...blank, phone: initialText } : { ...blank, name: initialText }));
   }, [open, supplier, reset, initialText]);
 
@@ -51,8 +56,15 @@ export function SupplierForm({ open, supplier, onClose, onSaved, initialText = "
           notes: values.notes || null,
         },
       });
+      let saved = res.data;
+      try {
+        const url = await savePhoto(`/suppliers/${res.data.id}`, photo);
+        if (url !== undefined) saved = { ...saved, photo_url: url };
+      } catch {
+        toast.error("The supplier was saved, but the photo could not be uploaded.");
+      }
       toast.success(savedMsg("Supplier", !!supplier));
-      onSaved(res.data);
+      onSaved(saved);
       onClose();
     } catch (e) {
       toast.error(applyServerErrors(e, setError));
@@ -63,6 +75,7 @@ export function SupplierForm({ open, supplier, onClose, onSaved, initialText = "
     <Modal open={open} onClose={onClose} title={`${supplier ? "Edit" : "New"} supplier`}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-3" noValidate>
         <p className="text-xs text-slate-500"><span className="text-red-600">*</span> Required</p>
+        <PhotoField name={watch("name")} url={supplier?.photo_url} change={photo} onChange={setPhoto} />
         <Field required label="Name" error={errors.name?.message}><Input className={inputCls} {...register("name")} /></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field required label="Mobile number" error={errors.phone?.message}><Input className={inputCls} {...register("phone")} /></Field>

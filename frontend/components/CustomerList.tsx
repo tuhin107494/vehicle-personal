@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth";
 import { money } from "@/lib/format";
 import type { Customer } from "@/lib/types";
 import { Button, inputCls, PageHeader, Pagination } from "@/components/app-ui";
+import { Avatar } from "@/components/Avatar";
 import { Col, DataTable } from "@/components/DataTable";
 import { CustomerForm } from "@/components/forms/CustomerForm";
 import { Input } from "@/components/ui/input";
@@ -20,7 +21,7 @@ export function CustomerList() {
   const [open, setOpen] = useState(false);
 
   const columns: Col<Customer>[] = [
-    { header: "Name", cell: ({ row }) => <span className="font-medium">{row.original.name}</span> },
+    { header: "Name", cell: ({ row }) => <span className="flex items-center gap-2 font-medium"><Avatar name={row.original.name} url={row.original.photo_url} /> {row.original.name}</span> },
     { header: "Father's name", cell: ({ row }) => row.original.father_name ?? "-" },
     { header: "Phone", cell: ({ row }) => [row.original.phone, row.original.alt_phone].filter(Boolean).join(" / ") },
     { header: "NID", cell: ({ row }) => row.original.nid ?? "-" },

@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('nid')->nullable();
             $table->text('address')->nullable();
             $table->text('notes')->nullable();
+            $table->string('photo')->nullable(); // path on the public disk
             $table->timestamps();
             $table->softDeletes();
             $table->unique(['shop_id', 'phone']);

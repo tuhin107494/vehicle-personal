@@ -9,6 +9,7 @@ import type { Investor } from "@/lib/types";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Badge, Button, inputCls, PageHeader, Pagination } from "@/components/app-ui";
+import { Avatar } from "@/components/Avatar";
 import { Col, DataTable } from "@/components/DataTable";
 import { InvestorForm } from "@/components/forms/InvestorForm";
 import { SettlementForm, type SettlementMode } from "@/components/forms/SettlementForm";
@@ -54,7 +55,7 @@ export default function InvestorsPage() {
   };
 
   const columns: Col<Investor>[] = [
-    { header: "Name", cell: ({ row }) => <span className="font-medium">{row.original.name}</span> },
+    { header: "Name", cell: ({ row }) => <span className="flex items-center gap-2 font-medium"><Avatar name={row.original.name} url={row.original.photo_url} /> {row.original.name}</span> },
     { header: "Phone", cell: ({ row }) => [row.original.phone, row.original.alt_phone].filter(Boolean).join(" / ") || "-" },
     { header: "Opening balance", cell: ({ row }) => money(row.original.opening_balance) },
     { header: "Due", cell: ({ row }) => (row.original.current_due ?? 0) > 0 ? <span className="inline-flex flex-wrap items-center gap-1.5"><Badge tone="red">{row.original.installments_due} due</Badge><b className="text-amber-700">{money(row.original.current_due ?? 0)}</b></span> : <span className="text-slate-400">-</span> },

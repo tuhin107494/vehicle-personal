@@ -10,6 +10,7 @@ import { fmtDate, money } from "@/lib/format";
 import { useFetch } from "@/lib/hooks";
 import type { Customer, Purchase, Sale } from "@/lib/types";
 import { Button, Card, ErrorText, KV, Loading, PageHeader, StatusBadge } from "@/components/app-ui";
+import { Avatar } from "@/components/Avatar";
 import { Col, DataTable } from "@/components/DataTable";
 import { CustomerForm } from "@/components/forms/CustomerForm";
 import { viewCol } from "@/components/ViewLink";
@@ -67,6 +68,7 @@ export default function CustomerDetailPage() {
         </>}
       />
       <Card className="mb-4">
+        <div className="mb-3"><Avatar name={customer.name} url={customer.photo_url} size="lg" /></div>
         <KV items={[["Father's name", customer.father_name], ["Phone", customer.phone], ["Alt. phone", customer.alt_phone], ["NID", customer.nid], ["Address", customer.address], ["Notes", customer.notes]]} />
       </Card>
       <h2 className="mb-2 font-semibold">Sold to this customer ({sales.length})</h2>

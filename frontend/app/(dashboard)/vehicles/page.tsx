@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { usePagedList } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
@@ -17,8 +18,9 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Eye, HandCoins, History, Pencil, Plus } from "lucide-react";
 
-export default function VehiclesPage() {
-  const [status, setStatus] = useState("");
+function Vehicles() {
+  const wanted = useSearchParams().get("status"); // e.g. /vehicles?status=in_stock
+  const [status, setStatus] = useState(wanted === "in_stock" || wanted === "sold" ? wanted : "");
   const [type, setType] = useState("");
   const { can } = useAuth();
   const { categories, nameOf } = useCategories();
@@ -106,4 +108,8 @@ export default function VehiclesPage() {
       <VehicleForm open={open} vehicle={editing} onClose={() => setOpen(false)} onSaved={() => (editing ? list.reload() : list.showFirst())} />
     </>
   );
+}
+
+export default function VehiclesPage() {
+  return <Suspense><Vehicles /></Suspense>;
 }
