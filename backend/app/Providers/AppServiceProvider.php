@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Support\PlatformSettings;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -29,6 +30,9 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(120)->by($request->user()?->id ?: $request->ip()));
 
         // the reset link in the email opens the web app's reset page, not the API
+        // mail goes through the super admin's SMTP server when one is switched on; checked only when something is about to send mail
+        $this->app->resolving('mail.manager', fn () => PlatformSettings::applyMail());
+
         ResetPassword::createUrlUsing(fn ($user, string $token) => rtrim(config('app.frontend_url'), '/').'/reset-password?token='.$token.'&email='.urlencode($user->getEmailForPasswordReset()));
     }
 }

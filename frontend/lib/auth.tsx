@@ -14,6 +14,7 @@ type AuthContextValue = {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: (code: string) => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: User) => void;
   can: (permission: string) => boolean;
@@ -43,6 +44,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(res.data.user);
   }, []);
 
+  // the one-time code from Google's popup; the server trades it for the account's email
+  const loginWithGoogle = useCallback(async (code: string) => {
+    const res = await api<{ token: string; user: User }>("/auth/google", { method: "POST", body: { code } });
+    tokenStore.set(res.data.token);
+    setUser(res.data.user);
+  }, []);
+
   const logout = useCallback(async () => {
     await api("/logout", { method: "POST" }).catch(() => {});
     tokenStore.clear();
@@ -53,7 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const can = useCallback((permission: string) => !!user?.permissions.includes(permission), [user]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, setUser, can }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, loading, login, loginWithGoogle, logout, setUser, can }}>{children}</AuthContext.Provider>
   );
 }
 

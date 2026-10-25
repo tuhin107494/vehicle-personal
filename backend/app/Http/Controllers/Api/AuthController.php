@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ProfileRequest;
 use App\Models\User;
+use App\Support\GoogleOAuth;
 use App\Support\PermissionCatalog;
+use App\Support\PlatformSettings;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -33,6 +35,43 @@ class AuthController extends Controller
 
         if (! $user || ! $valid) {
             throw ValidationException::withMessages(['email' => ['The provided credentials are incorrect.']]);
+        }
+
+        return $this->signIn($user);
+    }
+
+    /** What the sign-in and sign-up pages need: whether sign-up is open, and the Google button. The Google client ID is public; the secret never leaves the server. */
+    public function config(): JsonResponse
+    {
+        $google = PlatformSettings::googleEnabled();
+
+        return $this->success([
+            'signup_enabled' => (bool) PlatformSettings::get('signup.enabled'),
+            'google' => ['enabled' => $google, 'client_id' => $google ? PlatformSettings::get('google.client_id') : null],
+        ]);
+    }
+
+    /** Signs in with Google. Only existing accounts can sign in this way; new shops use the sign-up page. */
+    public function google(Request $request): JsonResponse
+    {
+        $request->validate(['code' => ['required', 'string']]);
+
+        $person = GoogleOAuth::person($request->input('code'));
+        $user = User::with('shop')->where('email', $person['email'])->first();
+
+        if (! $user) {
+            throw ValidationException::withMessages(['email' => ['No account uses '.$person['email'].'. Create an account, or ask your shop owner to add you.']]);
+        }
+
+        return $this->signIn($user);
+    }
+
+    /** Hands out a token once the account and its shop are both active. */
+    private function signIn(User $user): JsonResponse
+    {
+        // a signed-up shop is off until approved: say why, instead of "disabled"
+        if ($user->shop?->isPending()) {
+            throw ValidationException::withMessages(['email' => ['Your shop is waiting for approval. You can sign in once it is approved.']]);
         }
 
         if (! $user->is_active) {
