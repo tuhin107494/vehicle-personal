@@ -133,6 +133,7 @@ class CollectionController extends Controller implements HasMiddleware
             'overdue_by' => $daysLeft < 0 ? $this->overdueBy($due) : null,
             'amount' => $amount,
             'sale_due' => $sale->due_amount,
+            'guarantor_phone' => $sale->guarantor_phone,
             'customer' => $sale->customer->only(['id', 'name', 'phone', 'alt_phone', 'address']),
             'vehicle' => $sale->vehicle->only(['id', 'chassis_no', 'brand', 'model']),
         ];

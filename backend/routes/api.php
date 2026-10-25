@@ -3,16 +3,17 @@
 use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CollectionController;
+use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DraftController;
 use App\Http\Controllers\Api\InstallmentController;
 use App\Http\Controllers\Api\InvestorController;
 use App\Http\Controllers\Api\InvestorSettlementController;
-use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\PayableController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\PhotoController;
+use App\Http\Controllers\Api\PlatformSettingsController;
 use App\Http\Controllers\Api\PromiseController;
 use App\Http\Controllers\Api\PurchaseController;
 use App\Http\Controllers\Api\RegistrationController;
@@ -21,6 +22,7 @@ use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\ShopController;
+use App\Http\Controllers\Api\SignupController;
 use App\Http\Controllers\Api\SupplierController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\VehicleCategoryController;
@@ -31,6 +33,10 @@ use Illuminate\Support\Facades\Route;
 Route::post('login', [AuthController::class, 'login'])->middleware('throttle:login');
 Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:5,1');
 Route::post('reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:10,1');
+Route::get('auth/config', [AuthController::class, 'config']);
+Route::post('auth/google', [AuthController::class, 'google'])->middleware('throttle:10,1');
+Route::post('signup', [SignupController::class, 'store'])->middleware('throttle:5,1');
+Route::post('signup/google', [SignupController::class, 'google'])->middleware('throttle:5,1');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('logout', [AuthController::class, 'logout']);
@@ -45,6 +51,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('permissions', [PermissionController::class, 'store']);
         Route::put('permissions/{permission}', [PermissionController::class, 'update']);
         Route::delete('permissions/{permission}', [PermissionController::class, 'destroy']);
+        Route::get('platform-settings', [PlatformSettingsController::class, 'show']);
+        Route::put('platform-settings', [PlatformSettingsController::class, 'update']);
+        Route::post('platform-settings/test-mail', [PlatformSettingsController::class, 'testMail'])->middleware('throttle:5,1');
     });
 
     Route::get('vehicle-categories', [VehicleCategoryController::class, 'index']);

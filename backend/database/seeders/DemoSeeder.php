@@ -72,7 +72,7 @@ class DemoSeeder extends Seeder
 
         $due = $sales->create([
             'vehicle_id' => $vehicles[1]->id, 'customer_id' => $buyers[1]->id, 'sale_date' => today()->subDays(10)->toDateString(),
-            'sale_price' => 330000, 'payment_type' => 'due', 'down_payment' => 180000, 'promised_date' => today()->addDays(2)->toDateString(),
+            'sale_price' => 330000, 'payment_type' => 'due', 'down_payment' => 180000, 'promised_date' => today()->toDateString(),
         ], $admin);
 
         $installment = $sales->create([
@@ -84,5 +84,10 @@ class DemoSeeder extends Seeder
         $payments->collect($installment, ['amount' => 15000], $admin);
 
         $this->call(DemoCustomerSalesSeeder::class);
+
+        // a guarantor for every sale that is not paid in full at once
+        foreach (\App\Models\Sale::where('payment_type', '!=', 'cash')->whereNull('guarantor_phone')->get() as $sale) {
+            $sale->update(['guarantor_phone' => '01719'.str_pad((string) $sale->id, 6, '0', STR_PAD_LEFT)]);
+        }
     }
 }

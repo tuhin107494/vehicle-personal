@@ -67,6 +67,12 @@ export default function CollectionsPage() {
         </div>
       ),
     },
+    {
+      header: "Guarantor",
+      cell: ({ row }) => row.original.guarantor_phone
+        ? <a href={`tel:${row.original.guarantor_phone}`} className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-sm font-medium text-amber-800 hover:bg-amber-200" onClick={(e) => e.stopPropagation()}><Phone className="size-3.5" /> {row.original.guarantor_phone}</a>
+        : "-",
+    },
     { header: "Vehicle", cell: ({ row }) => [row.original.vehicle.brand, row.original.vehicle.model].filter(Boolean).join(" ") || row.original.vehicle.chassis_no },
     { header: "For", cell: ({ row }) => <Badge tone={row.original.type === "installment" ? "blue" : "gray"}>{row.original.label}</Badge> },
     { header: "Due date", cell: ({ row }) => <span className="flex flex-wrap items-center justify-end gap-2 md:justify-start">{fmtDate(row.original.due_date)} <When row={row.original} /></span> },

@@ -1,6 +1,7 @@
 "use client";
 
 import { LoginPoster } from "@/components/LoginPoster";
+import { authError, GoogleSignIn, useAuthConfig } from "@/components/GoogleSignIn";
 import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -10,7 +11,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { applyServerErrors } from "@/lib/api";
-import { Car } from "lucide-react";
+import { Car, UserPlus } from "lucide-react";
 import { Button, Card, Field } from "@/components/app-ui";
 import { CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,7 @@ type FormValues = z.infer<typeof schema>;
 export default function LoginPage() {
   const router = useRouter();
   const { user, loading, login } = useAuth();
+  const config = useAuthConfig();
   const {
     register,
     handleSubmit,
@@ -40,7 +42,8 @@ export default function LoginPage() {
       await login(values.email, values.password);
       toast.success("Logged in");
     } catch (e) {
-      toast.error(applyServerErrors(e, setError));
+      applyServerErrors(e, setError);
+      toast.error(authError(e)); // "waiting for approval" says more than "Validation failed"
     }
   };
 
@@ -66,6 +69,15 @@ export default function LoginPage() {
             <Button type="submit" disabled={isSubmitting} className="w-full">
               {isSubmitting ? "Signing in..." : "Sign in"}
             </Button>
+            <GoogleSignIn clientId={config?.google.client_id} />
+            {config?.signup_enabled && (
+              <div className="border-t border-slate-200 pt-4 text-center">
+                <p className="mb-2 text-sm text-slate-500">New to Vehicle Hub?</p>
+                <Link href="/signup" className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 text-sm font-semibold text-emerald-700 hover:bg-emerald-100">
+                  <UserPlus className="size-4" /> Create an account
+                </Link>
+              </div>
+            )}
           </form>
         </CardContent>
       </Card>
