@@ -16,6 +16,7 @@ class SettingsRequest extends ApiRequest
             'purchase.prices.*' => ['nullable', 'numeric', 'min:1'],
             'sale.prices' => ['nullable', 'array'],
             'sale.prices.*' => ['nullable', 'numeric', 'min:1'],
+            'collections.recall_days' => ['nullable', 'integer', 'min:1', 'max:360'],
             'type_defaults' => ['nullable', 'array'],
             'type_defaults.*' => ['array'],
             'type_defaults.*.brand' => ['nullable', 'string', 'max:100'],

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\CallLog;
 use App\Models\DuePromise;
 use App\Models\Installment;
 use App\Models\Sale;
@@ -13,6 +14,7 @@ use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use App\Support\ShopSettings;
 
 /**
  * The due lists: what each customer owes and when, as an overdue list and as what falls due in the next 3, 7 and 10 days.
@@ -57,6 +59,9 @@ class CollectionController extends Controller implements HasMiddleware
             'buckets' => $buckets,
             // What should be collected right now: everything overdue plus what falls due today.
             'current_due' => Money::sum($rows->where('days_left', '<=', 0), 'amount'),
+            // everything customers still owe on active sales, as on the dashboard
+            'total_due' => round((float) Sale::where('status', 'active')->sum('due_amount'), 2),
+            'recall_days' => ShopSettings::recallDays(),
         ]);
     }
 
@@ -100,14 +105,67 @@ class CollectionController extends Controller implements HasMiddleware
             ->whereDate('promised_date', '<=', $limit)
             ->whereHas('sale', fn ($q) => $q->where('status', 'active')->where('due_amount', '>', 0))
             ->get()
-            ->map(fn (DuePromise $p) => $this->row('promise', $p->id, 'Normal due', $p->sale, $p->promised_date, min($p->promised_amount, $p->sale->due_amount)));
+            ->map(fn (DuePromise $p) => $this->row('promise', $p->id, 'Due', $p->sale, $p->promised_date, min($p->promised_amount, $p->sale->due_amount)));
 
         $rows = $installments->concat($promises);
         $totals = Sale::where('status', 'active')->whereIn('customer_id', $rows->pluck('customer.id')->unique())
             ->selectRaw('customer_id, SUM(due_amount) as total')->groupBy('customer_id')->pluck('total', 'customer_id');
 
-        return $rows->map(fn (array $r) => $this->withCustomerTotal($r, $totals))
+        $calls = $this->recentCalls();
+
+        return $rows->map(fn (array $r) => $this->withCustomerTotal($r, $totals) + [
+                'called_until' => $calls[$r['type'].':'.$r['id']]['until'] ?? null,
+                'called_meet_date' => $calls[$r['type'].':'.$r['id']]['meet_date'] ?? null,
+                'called_note' => $calls[$r['type'].':'.$r['id']]['note'] ?? null,
+            ])
             ->sortBy('due_date')->values();
+    }
+
+    /** @return array<string,array{until:string,meet_date:?string,note:?string}> "kind:id" => the day the row is due for another call, for rows called recently */
+    private function recentCalls(): array
+    {
+        $days = ShopSettings::recallDays();
+
+        // the latest call on a row wins; the customer's meeting day, when they gave one, is the day to call again
+        return CallLog::where('called_at', '>=', today()->subDays(360)->startOfDay())
+            ->orderBy('called_at')->get()
+            ->mapWithKeys(fn (CallLog $c) => [$c->kind.':'.$c->ref_id => [
+                'until' => ($c->meet_date ?? $c->called_at->copy()->startOfDay()->addDays($days))->toDateString(),
+                'meet_date' => $c->meet_date?->toDateString(),
+                'note' => $c->note,
+            ]])
+            ->filter(fn (array $c) => $c['until'] > today()->toDateString())
+            ->all();
+    }
+
+    /** Mark a row "call done": it stays in the lists, marked as called, until the recall days pass. */
+    public function markCalled(Request $request): JsonResponse
+    {
+        $data = $this->target($request);
+
+        $extra = $request->validate(['meet_date' => ['nullable', 'date', 'after_or_equal:today', 'before_or_equal:'.today()->addDays(360)->toDateString()], 'note' => ['nullable', 'string', 'max:500']]);
+
+        CallLog::create($data + $extra + ['called_by' => $request->user()->id, 'called_at' => now()]);
+
+        return $this->success(null, 'Call marked done');
+    }
+
+    /** Undo a "call done" mark so the row is due for a call again. */
+    public function unmarkCalled(Request $request): JsonResponse
+    {
+        CallLog::where($this->target($request))->delete();
+
+        return $this->success(null, 'Call mark removed');
+    }
+
+    /** @return array{kind:string,ref_id:int} */
+    private function target(Request $request): array
+    {
+        $data = $request->validate(['type' => ['required', 'in:'.implode(',', self::KINDS)], 'id' => ['required', 'integer']]);
+        $exists = $data['type'] === 'installment' ? Installment::whereKey($data['id'])->exists() : DuePromise::whereKey($data['id'])->exists();
+        abort_unless($exists, 404, 'Not found.');
+
+        return ['kind' => $data['type'], 'ref_id' => (int) $data['id']];
     }
 
     /**
@@ -135,7 +193,7 @@ class CollectionController extends Controller implements HasMiddleware
             'sale_due' => $sale->due_amount,
             'guarantor_phone' => $sale->guarantor_phone,
             'customer' => $sale->customer->only(['id', 'name', 'phone', 'alt_phone', 'address']),
-            'vehicle' => $sale->vehicle->only(['id', 'chassis_no', 'brand', 'model']),
+            'vehicle' => $sale->vehicle->only(['id', 'chassis_no', 'engine_no', 'brand', 'model']),
         ];
     }
 

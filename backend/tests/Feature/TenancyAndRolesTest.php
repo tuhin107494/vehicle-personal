@@ -314,7 +314,7 @@ class TenancyAndRolesTest extends TestCase
         $this->assertCount(3, $list('d10'));                          // plus installment #2 on day 8
         $this->assertCount(2, $list('d10', 'installment'));
         $this->assertCount(1, $list('d10', 'promise'));
-        $this->assertSame('Normal due', $list('d10', 'promise')[0]['label']);
+        $this->assertSame('Due', $list('d10', 'promise')[0]['label']);
         $this->assertSame(300, (int) $list('d10', 'promise')[0]['amount']);
         $this->assertCount(0, $list('overdue'));
         $first = $list('d3')[0];

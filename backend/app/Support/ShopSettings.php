@@ -15,7 +15,16 @@ class ShopSettings
             'purchase' => ['vehicle_type' => self::primaryType('purchase'), 'prices' => (object) self::prices('purchase')],
             'sale' => ['vehicle_type' => self::primaryType('sale'), 'prices' => (object) self::prices('sale')],
             'type_defaults' => (object) self::typeDefaults(),
+            'collections' => ['recall_days' => self::recallDays()],
         ];
+    }
+
+    public const DEFAULT_RECALL_DAYS = 7;
+
+    /** After a due-alert row is marked "call done", it comes back after this many days. */
+    public static function recallDays(): int
+    {
+        return (int) (ShopSetting::where('key', 'collections.recall_days')->value('value') ?: self::DEFAULT_RECALL_DAYS);
     }
 
     /** The vehicle type a form starts on (the Buy vehicle form preselects it, the New sale form filters by it). */
@@ -53,6 +62,10 @@ class ShopSettings
 
     public static function save(array $input): void
     {
+        if (isset($input['collections']['recall_days'])) {
+            ShopSetting::updateOrCreate(['key' => 'collections.recall_days'], ['value' => $input['collections']['recall_days']]);
+        }
+
         foreach ($input['type_defaults'] ?? [] as $type => $fields) {
             foreach (self::TYPE_FIELDS as $field) {
                 if (! array_key_exists($field, $fields)) {
