@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->trustProxies(at: '*'); // Render ends HTTPS at its proxy; trust it so URLs and client IPs are right
         $middleware->throttleApi('api'); // the 120-a-minute limit above, on every API route
         $middleware->alias([
             'role' => EnsureRole::class,
