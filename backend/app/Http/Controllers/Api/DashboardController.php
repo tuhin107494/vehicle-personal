@@ -19,6 +19,7 @@ use App\Models\Vehicle;
 use App\Models\VehicleCategory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 
@@ -72,21 +73,28 @@ class DashboardController extends Controller implements HasMiddleware
 
         $monthPurchases = Purchase::whereBetween('purchase_date', [now()->startOfMonth()->toDateString(), now()->endOfMonth()->toDateString()]);
 
-        // the last six months side by side: what was sold, bought and collected
-        $months = collect(range(5, 0))->map(function ($ago) {
+        // the last six months side by side: what was sold, bought and collected (one grouped query each, bucketed by month here)
+        $first = now()->startOfMonth()->subMonths(5);
+        $perMonth = fn ($rows) => $rows->groupBy(fn ($r) => substr($r->d, 0, 7))->map(fn ($g) => (float) $g->sum('total'));
+        $soldBy = $perMonth(Sale::where('status', 'active')->where('sale_date', '>=', $first->toDateString())->selectRaw('sale_date as d, SUM(sale_price) as total')->groupBy('sale_date')->get());
+        $boughtBy = $perMonth(Purchase::where('purchase_date', '>=', $first->toDateString())->selectRaw('purchase_date as d, SUM(price) as total')->groupBy('purchase_date')->get());
+        $collectedBy = $perMonth(Payment::where('amount', '>', 0)->where('paid_at', '>=', $first->copy()->startOfDay())->selectRaw('DATE(paid_at) as d, SUM(amount) as total')->groupBy(DB::raw('DATE(paid_at)'))->get());
+
+        $months = collect(range(5, 0))->map(function ($ago) use ($soldBy, $boughtBy, $collectedBy) {
             $start = now()->startOfMonth()->subMonths($ago);
-            $end = $start->copy()->endOfMonth();
-            $range = [$start->toDateString(), $end->toDateString()];
+            $key = $start->format('Y-m');
 
             return [
                 'month' => $start->format('M'),
-                'sales' => (float) Sale::where('status', 'active')->whereBetween('sale_date', $range)->sum('sale_price'),
-                'purchases' => (float) Purchase::whereBetween('purchase_date', $range)->sum('price'),
-                'collected' => (float) Payment::where('amount', '>', 0)->whereBetween('paid_at', [$start->startOfDay(), $end->endOfDay()])->sum('amount'),
+                'sales' => (float) ($soldBy[$key] ?? 0),
+                'purchases' => (float) ($boughtBy[$key] ?? 0),
+                'collected' => (float) ($collectedBy[$key] ?? 0),
             ];
         })->values();
 
         $stockByType = Vehicle::where('status', 'in_stock')->selectRaw('vehicle_type, COUNT(*) as total')->groupBy('vehicle_type')->pluck('total', 'vehicle_type');
+        $inStock = Vehicle::where('status', 'in_stock')->count();
+        $typeNames = VehicleCategory::whereIn('key', $stockByType->keys())->pluck('name', 'key');
         $unpaid = Purchase::query()->selectRaw('COALESCE(SUM(CASE WHEN price - paid_amount - due_adjustment > 0 THEN price - paid_amount - due_adjustment ELSE 0 END), 0) as total')->value('total');
         $payments = Sale::where('status', 'active')->selectRaw('payment_type, COUNT(*) as total')->groupBy('payment_type')->pluck('total', 'payment_type');
 
@@ -94,8 +102,8 @@ class DashboardController extends Controller implements HasMiddleware
             'months' => $months,
             'stock_by_type' => $stockByType,
             // the same, with each type's display name, so the dashboard needs no second request for the type list
-            'stock_types' => $stockByType->map(fn ($count, $key) => ['key' => $key, 'name' => VehicleCategory::where('key', $key)->value('name') ?? ucfirst(str_replace('_', ' ', (string) $key)), 'count' => $count])->sortByDesc('count')->values(),
-            'vehicles' => ['in_stock' => Vehicle::where('status', 'in_stock')->count(), 'sold' => Vehicle::where('status', 'sold')->count()],
+            'stock_types' => $stockByType->map(fn ($count, $key) => ['key' => $key, 'name' => $typeNames[$key] ?? ucfirst(str_replace('_', ' ', (string) $key)), 'count' => $count])->sortByDesc('count')->values(),
+            'vehicles' => ['in_stock' => $inStock, 'sold' => Vehicle::where('status', 'sold')->count()],
             'sale_types' => $payments,
             'counts' => ['customers' => Customer::count(), 'suppliers' => Supplier::count(), 'investors' => Investor::count()],
             'payable' => round((float) $unpaid, 2),
@@ -103,7 +111,7 @@ class DashboardController extends Controller implements HasMiddleware
             'registration_pending' => Sale::where('status', 'active')->where('registration_status', 'pending')->count(),
             'old_stock' => Vehicle::where('status', 'in_stock')->whereHas('currentPurchase', fn ($q) => $q->whereDate('purchase_date', '<', today()->subDays(30)))->count(),
             'invested' => round((float) InvestorSettlement::where('type', 'investment')->sum('amount'), 2),
-            'stock_count' => Vehicle::where('status', 'in_stock')->count(),
+            'stock_count' => $inStock,
             'sales_this_month' => (clone $monthSales)->count(),
             'sales_amount_this_month' => (float) (clone $monthSales)->sum('sale_price'),
             'total_sales' => Sale::where('status', 'active')->count(),

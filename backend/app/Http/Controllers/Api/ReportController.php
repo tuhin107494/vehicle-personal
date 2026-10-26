@@ -65,9 +65,12 @@ class ReportController extends Controller implements HasMiddleware
 
     public function investors(InvestorPortfolioService $portfolio): JsonResponse
     {
-        return $this->success(Investor::orderBy('name')->get()->map(fn ($i) => [
+        $investors = Investor::orderBy('name')->get();
+        $summaries = $portfolio->summaries($investors);
+
+        return $this->success($investors->map(fn ($i) => [
             'investor' => InvestorResource::make($i)->resolve(),
-            'summary' => $portfolio->summary($i),
+            'summary' => $summaries[$i->id],
         ]));
     }
 

@@ -9,6 +9,7 @@ use App\Http\Requests\InvestorRequest;
 use App\Http\Resources\InvestorResource;
 use App\Http\Resources\InvestorSettlementResource;
 use App\Http\Resources\SaleResource;
+use App\Models\InstallmentPlan;
 use App\Models\Investor;
 use App\Models\InvestorSettlement;
 use App\Services\InvestorPortfolioService;
@@ -94,10 +95,12 @@ class InvestorController extends Controller implements HasMiddleware
     {
         $paid = InvestorSettlement::whereIn('investor_id', $investors->pluck('id'))->whereIn('type', ['principal_return', 'profit_share'])
             ->selectRaw('plan_id, SUM(amount) as total')->groupBy('plan_id')->pluck('total', 'plan_id');
-        $investors->each(function (Investor $i) use ($paid) {
+        $plans = InstallmentPlan::whereIn('investor_id', $investors->pluck('id'))->with('installments:id,plan_id,due_date,status')
+            ->whereHas('sale', fn ($q) => $q->where('status', 'active'))->get()->groupBy('investor_id');
+        $investors->each(function (Investor $i) use ($paid, $plans) {
             $due = 0; // paisa
             $count = 0;
-            foreach ($i->plans()->with('installments:id,plan_id,due_date,status')->whereHas('sale', fn ($q) => $q->where('status', 'active'))->get() as $plan) {
+            foreach ($plans[$i->id] ?? [] as $plan) {
                 $owed = Money::paisa($plan->principal) + Money::percent(Money::paisa($plan->interest_amount), $plan->investor_share_percent);
                 $monthly = $plan->number_of_installments > 0 ? (int) round($owed / $plan->number_of_installments) : 0;
                 $come = $plan->installments->filter(fn ($x) => $x->due_date->lte(today()));

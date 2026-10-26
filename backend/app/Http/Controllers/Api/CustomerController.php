@@ -76,7 +76,7 @@ class CustomerController extends Controller implements HasMiddleware
         return $this->success([
             'customer' => CustomerResource::make($customer),
             'purchases' => PurchaseResource::collection($customer->purchases()->with('vehicle')->latest('purchase_date')->get()),
-            'sales' => SaleResource::collection($customer->sales()->with('vehicle')->latest('sale_date')->get()),
+            'sales' => SaleResource::collection($customer->sales()->with(['vehicle', 'plan'])->latest('sale_date')->get()),
         ]);
     }
 }

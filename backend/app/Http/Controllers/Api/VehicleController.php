@@ -109,7 +109,7 @@ class VehicleController extends Controller implements HasMiddleware
             return $this->success([]);
         }
 
-        $sales = Sale::with(['vehicle', 'customer'])
+        $sales = Sale::with(['vehicle', 'customer', 'plan'])
             ->where('status', 'active')
             ->whereHas('vehicle', fn ($q) => $q->where('status', 'sold')->whereColumn('vehicles.current_sale_id', 'sales.id'))
             ->where(fn ($q) => $q
@@ -123,7 +123,7 @@ class VehicleController extends Controller implements HasMiddleware
     public function history(Vehicle $vehicle): JsonResponse
     {
         $purchases = $vehicle->purchases()->with(['supplier', 'customer'])->get();
-        $sales = $vehicle->sales()->with(['customer', 'payments'])->orderBy('sale_date')->orderBy('id')->get();
+        $sales = $vehicle->sales()->with(['customer', 'payments', 'plan'])->orderBy('sale_date')->orderBy('id')->get();
         $saleIds = $sales->pluck('id');
         $events = collect();
 
