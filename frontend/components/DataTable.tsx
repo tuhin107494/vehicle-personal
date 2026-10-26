@@ -86,7 +86,7 @@ export function DataTable<T>({
         {!data.length && <p className="rounded-xl bg-white/90 py-8 text-center text-sm text-slate-500 ring-1 ring-emerald-300">{loading ? t("Loading...") : t(empty)}</p>}
       </div>
 
-    <div data-report-table className={`hidden overflow-x-auto rounded-xl bg-white/90 shadow-sm ring-1 ring-emerald-300 ${cards ? "" : "md:block"}`}>
+    <div data-report-table className={`hidden overflow-hidden [&_[data-slot=table-container]]:overflow-x-visible [&_th]:!whitespace-normal [&_td]:!whitespace-normal rounded-xl bg-white/90 shadow-sm ring-1 ring-emerald-300 ${cards ? "" : "md:block"}`}>
       <Table>
         <TableHeader className="bg-gradient-to-r from-emerald-50 to-green-50">
           {table.getHeaderGroups().map((hg) => (

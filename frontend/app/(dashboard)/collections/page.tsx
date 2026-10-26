@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Check, Eye, History, Phone, Search, Undo2 } from "lucide-react";
+import { Check, Eye, History, Search, Undo2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { fmtDate, money } from "@/lib/format";
 import { useFetch } from "@/lib/hooks";
@@ -48,11 +48,12 @@ export default function CollectionsPage() {
   const [bucket, setBucket] = useState("overdue");
   const [kind, setKind] = useState<Kind>("");
   const [q, setQ] = useState("");
+  const [callFilter, setCallFilter] = useState<"" | "done" | "pending">("");
   const summary = useFetch<{ buckets: Bucket[]; current_due: number; total_due: number; recall_days: number }>("/collections/summary");
   const list = useFetch<CallRow[]>(`/collections/upcoming?bucket=${bucket}${kind ? `&kind=${kind}` : ""}`);
 
   const term = q.trim().toLowerCase();
-  const rows = (list.data ?? []).filter((r) => !term || [r.customer.name, r.customer.phone, r.customer.alt_phone, r.vehicle.brand, r.vehicle.model, r.vehicle.chassis_no].some((v) => v?.toLowerCase().includes(term)));
+  const rows = (list.data ?? []).filter((r) => callFilter === "" || (callFilter === "done") === !!r.called_until).filter((r) => !term ||[r.customer.name, r.customer.phone, r.customer.alt_phone, r.vehicle.brand, r.vehicle.model, r.vehicle.chassis_no].some((v) => v?.toLowerCase().includes(term)));
 
   const statsOf = (b: Bucket): Stats => (kind ? b.kinds[kind] : b);
   const current = summary.data?.buckets.find((b) => b.key === bucket);
@@ -101,25 +102,25 @@ export default function CollectionsPage() {
   const columns: Col<CallRow>[] = [
     { header: "Customer", cell: ({ row }) => <span className="font-medium">{row.original.customer.name}</span> },
     {
-      header: "Call",
+      header: "Call", meta: { className: "!px-1" },
       cell: ({ row }) => (
         <div className="flex flex-col items-end gap-1 md:items-start">
           {[row.original.customer.phone, row.original.customer.alt_phone].filter(Boolean).map((n) => (
-            <a key={n} href={`tel:${n}`} className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-sm font-medium text-emerald-800 hover:bg-emerald-200" onClick={(e) => e.stopPropagation()}>
-              <Phone className="size-3.5" /> {n}
+            <a key={n} href={`tel:${n}`} className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 hover:bg-emerald-200" onClick={(e) => e.stopPropagation()}>
+              {n}
             </a>
           ))}
         </div>
       ),
     },
     {
-      header: "Guarantor",
+      header: "Guarantor", meta: { className: "!px-1" },
       cell: ({ row }) => row.original.guarantor_phone
-        ? <a href={`tel:${row.original.guarantor_phone}`} className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-sm font-medium text-amber-800 hover:bg-amber-200" onClick={(e) => e.stopPropagation()}><Phone className="size-3.5" /> {row.original.guarantor_phone}</a>
+        ? <a href={`tel:${row.original.guarantor_phone}`} className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 hover:bg-amber-200" onClick={(e) => e.stopPropagation()}>{row.original.guarantor_phone}</a>
         : "-",
     },
     {
-      header: "Vehicle",
+      header: "Vehicle", meta: { className: "min-w-44" },
       cell: ({ row }) => {
         const v = row.original.vehicle;
         return (
@@ -132,27 +133,29 @@ export default function CollectionsPage() {
       },
     },
     { header: "For", cell: ({ row }) => <Badge tone={row.original.type === "installment" ? "blue" : "gray"}>{row.original.label}</Badge> },
-    { header: "Due date", cell: ({ row }) => <span className="flex flex-wrap items-center justify-end gap-2 md:justify-start">{fmtDate(row.original.due_date)} <When row={row.original} /></span> },
+    { header: "Due date", meta: { className: "!px-1" }, cell: ({ row }) => <span className="flex flex-wrap items-center justify-end gap-2 md:justify-start">{fmtDate(row.original.due_date)} <When row={row.original} /></span> },
     { header: "Amount", cell: ({ row }) => <b className={row.original.overdue_by ? "text-red-700" : "text-amber-700"}>{money(row.original.amount)}</b> },
     { header: "Total due", cell: ({ row }) => <b className="text-slate-800">{money(row.original.customer_total_due)}</b> },
     {
       header: "Action",
       id: "actions",
       cell: ({ row }) => (
-        <div className="flex flex-wrap items-center justify-end gap-1.5 md:justify-start" onClick={(e) => e.stopPropagation()}>
-          <Link className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50" href={`/sales/${row.original.sale_id}`}><Eye className="size-4" /> Open sale</Link>
-          <button type="button" onClick={() => showHistory(row.original)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"><History className="size-4" /> History</button>
+        <div className="flex flex-col items-end gap-1 md:items-start" onClick={(e) => e.stopPropagation()}>
+          <div className="flex flex-wrap items-center justify-end gap-1.5 md:flex-nowrap md:justify-start">
+          <Link className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-emerald-200 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50" href={`/sales/${row.original.sale_id}`}><Eye className="size-4" /> Open sale</Link>
+          <button type="button" onClick={() => showHistory(row.original)} className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-sky-300 bg-sky-50 px-3 py-1.5 text-sm font-medium text-sky-700 hover:bg-sky-100"><History className="size-4" /> History</button>
           {row.original.called_until ? (
-            <>
-              <span className="text-xs font-medium text-amber-800">
-                Called · call again {fmtDate(row.original.called_until)}
-                {row.original.called_meet_date && <span className="block">Will meet: {fmtDate(row.original.called_meet_date)}</span>}
-                {row.original.called_note && <span className="block font-normal">{row.original.called_note}</span>}
-              </span>
-              <button type="button" onClick={() => mark(row.original, false)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"><Undo2 className="size-4" /> Undo</button>
-            </>
+            <button type="button" onClick={() => mark(row.original, false)} className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-700 hover:bg-rose-100"><Undo2 className="size-4" /> Undo</button>
           ) : (
-            <button type="button" onClick={() => startCall(row.original)} className="inline-flex items-center gap-1.5 rounded-lg border border-green-300 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-700 hover:bg-green-100"><Check className="size-4" /> Call done</button>
+            <button type="button" onClick={() => startCall(row.original)} className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-green-300 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-700 hover:bg-green-100"><Check className="size-4" /> Call done</button>
+          )}
+          </div>
+          {row.original.called_until && (
+            <span className="text-[11px] font-medium leading-tight text-amber-800">
+              Called · call again {fmtDate(row.original.called_until)}
+              {row.original.called_meet_date && <span className="block">Will meet: {fmtDate(row.original.called_meet_date)}</span>}
+              {row.original.called_note && <span className="block font-normal">{row.original.called_note}</span>}
+            </span>
           )}
         </div>
       ),
@@ -163,9 +166,9 @@ export default function CollectionsPage() {
     <>
       <PageHeader title="Due alert" />
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3">
-        <Stat color="amber-soft" label="Due now (overdue + today)" value={money(summary.data?.current_due ?? 0)} />
-        <Stat color="blue-soft" label={`${current?.label ?? "List"}: amount`} value={money(shown?.amount ?? 0)} />
-        <Stat color="green-soft" label="Total due" value={money(summary.data?.total_due ?? 0)} />
+        <Stat compact color="teal-flat" label="Due now" value={money(summary.data?.current_due ?? 0)} />
+        <Stat compact color="cyan-flat" label={`${current?.label ?? "List"}: amount`} value={money(shown?.amount ?? 0)} />
+        <Stat compact color="amber-flat" label="Total due" value={money(summary.data?.total_due ?? 0)} />
       </div>
 
       <div className="mb-3 flex flex-wrap gap-2">
@@ -193,25 +196,39 @@ export default function CollectionsPage() {
               onClick={() => setBucket(b.key)}
               className={`rounded-xl px-4 py-2 text-left text-sm ring-1 transition ${active ? style.active : `bg-white ${style.ring}`}`}
             >
-              <span className="block font-semibold">{b.label} · {st.count}</span>
+              <span className="block font-semibold">{b.label}</span>
               <span className={`block text-xs ${active ? "text-white/85" : style.text}`}>{money(st.amount)}</span>
             </button>
           );
         })}
       </div>
 
-      <div className="relative mb-3 max-w-md">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-        <input
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search customer, phone, vehicle or chassis"
-          className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
-        />
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="relative w-full max-w-md">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search customer, phone, vehicle or chassis"
+            className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+          />
+        </div>
+        <select
+          value={callFilter}
+          onChange={(e) => setCallFilter(e.target.value as "" | "done" | "pending")}
+          aria-label="Call status"
+          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+        >
+          <option value="">All calls</option>
+          <option value="done">Call done</option>
+          <option value="pending">Not called</option>
+        </select>
       </div>
 
-      <DataTable columns={columns} data={rows} rowClass={(r) => (r.called_until ? "!bg-amber-100/80 hover:!bg-amber-100" : "")} loading={list.loading} onRowClick={(r) => router.push(`/sales/${r.sale_id}`)} empty={term ? "No match found." : bucket === "overdue" ? "Nothing is overdue." : "Nothing falls due in this period."} />
+      <div className="[&_td]:!text-xs [&_td_a]:!text-xs [&_td_button]:!text-xs [&_th]:!text-[11px]">
+        <DataTable columns={columns} data={rows} rowClass={(r) => (r.called_until ? "!bg-amber-100/80 hover:!bg-amber-100" : "")} loading={list.loading} onRowClick={(r) => router.push(`/sales/${r.sale_id}`)} empty={term ? "No match found." : bucket === "overdue" ? "Nothing is overdue." : "Nothing falls due in this period."} />
+      </div>
       <Modal open={!!historyOf} title="Call history" onClose={() => setHistoryOf(null)}>
         {historyOf && (
           <div className="space-y-3">
