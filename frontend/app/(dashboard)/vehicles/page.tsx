@@ -13,19 +13,21 @@ import { Badge, Button, Field, inputCls, PageHeader, Pagination, StatusBadge } f
 import { ResponsiveFilters } from "@/components/ResponsiveFilters";
 import { Col, DataTable } from "@/components/DataTable";
 import { VehicleForm } from "@/components/forms/VehicleForm";
-import { RegistrationModal } from "@/components/forms/RegistrationModal";
+import { REGISTRATION_STEPS, RegistrationModal } from "@/components/forms/RegistrationModal";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { ArrowUpRight, Eye, HandCoins, History, Pencil, Plus } from "lucide-react";
 
 function Vehicles() {
-  const wanted = useSearchParams().get("status"); // e.g. /vehicles?status=in_stock
+  const params = useSearchParams();
+  const wanted = params.get("status"); // e.g. /vehicles?status=in_stock
   // opened from the menu the list starts on what is in stock; ?status=sold or ?status=all opens another view
   const [status, setStatus] = useState(wanted === "sold" ? "sold" : wanted === "all" ? "" : "in_stock");
   const [type, setType] = useState("");
+  const [registration, setRegistration] = useState(REGISTRATION_STEPS.includes(params.get("registration") ?? "") ? params.get("registration")! : ""); // e.g. ?registration=pending
   const { can } = useAuth();
   const { categories, nameOf } = useCategories();
-  const list = usePagedList<Vehicle>("/vehicles", { status, vehicle_type: type });
+  const list = usePagedList<Vehicle>("/vehicles", { status, vehicle_type: type, registration_status: registration });
   const [editing, setEditing] = useState<Vehicle | null>(null);
   const [open, setOpen] = useState(false);
   const [reg, setReg] = useState<Vehicle | null>(null);
@@ -81,6 +83,12 @@ function Vehicles() {
                 <option value="in_stock">In stock</option>
                 <option value="sold">Sold</option>
                 <option value="booked">Booked</option>
+              </NativeSelect>
+            </Field>
+            <Field label="Registration">
+              <NativeSelect className={`${inputCls} w-full lg:w-48`} value={registration} onChange={(e) => setRegistration(e.target.value)}>
+                <option value="">All registration</option>
+                {REGISTRATION_STEPS.map((s) => <option key={s} value={s}>{label(s)}</option>)}
               </NativeSelect>
             </Field>
           </div>

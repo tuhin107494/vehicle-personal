@@ -32,6 +32,8 @@ class VehicleController extends Controller implements HasMiddleware
     {
         $base = Vehicle::query()
             ->when($request->status, fn ($q, $s) => $q->where('status', $s))
+            // where the registration of the vehicle's current sale stands
+            ->when($request->registration_status, fn ($q, $s) => $q->whereIn('current_sale_id', Sale::where('registration_status', $s)->select('id')))
             ->when($request->search, fn ($q, $s) => $q->where(fn ($q) => $q
                 ->where('chassis_no', 'like', "%$s%")->orWhere('engine_no', 'like', "%$s%")
                 ->orWhere('registration_no', 'like', "%$s%")->orWhere('brand', 'like', "%$s%")->orWhere('model', 'like', "%$s%")));

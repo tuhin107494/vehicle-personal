@@ -12,7 +12,7 @@ export function AttentionCard({ payable, overdue, registrationPending, oldStock 
   const items: Item[] = [
     { href: "/collections", label: "Overdue installments", value: overdue, hot: overdue > 0, icon: AlertTriangle },
     { href: "/supplier-payment", label: "Supplier due", value: money(payable), hot: payable > 0, icon: HandCoins },
-    { href: "/vehicles", label: "Registration pending", value: registrationPending, hot: registrationPending > 0, icon: ClipboardCheck },
+    { href: "/vehicles?status=sold&registration=pending", label: "Registration pending", value: registrationPending, hot: registrationPending > 0, icon: ClipboardCheck },
     { href: "/vehicles?status=in_stock", label: "In stock over 30 days", value: oldStock, hot: oldStock > 0, icon: Clock },
   ];
   return (
