@@ -22,6 +22,7 @@ import { Col, DataTable } from "@/components/DataTable";
 import { CustomerSelect, SupplierSelect } from "@/components/Selects";
 import { ResponsiveFilters } from "@/components/ResponsiveFilters";
 import { InvestorTransactions } from "@/components/InvestorTransactions";
+import { useHiddenMenu } from "@/lib/menu";
 import { ReportPrint, useReportPrint } from "@/components/ReportPrint";
 import { PersonStatement } from "@/components/PersonStatement";
 
@@ -249,19 +250,24 @@ function SalesReport() {
   );
 }
 
-const TABS = [
+const ALL_TABS = [
   ["purchases", "Purchases"], ["sales", "Sales"], ["stock", "Stock"], ["dues", "Dues"], ["investors", "Investors"],
   ["customer", "Customer transactions"], ["supplier", "Supplier transactions"], ["investor", "Investor transactions"],
 ] as const;
+
+/** Reports that are about investors: they go when the Investors menu item is hidden. */
+const INVESTOR_TABS: string[] = ["investors", "investor"];
 
 const HAS_FILTERS: string[] = ["purchases", "sales", "customer", "supplier", "investor"];
 
 function Reports() {
   const router = useRouter();
+  const { hidden } = useHiddenMenu();
+  const TABS = hidden.includes("/investors") ? ALL_TABS.filter(([k]) => !INVESTOR_TABS.includes(k)) : ALL_TABS;
   // the open report lives in the address (/reports?tab=dues), so coming back from a details page lands on the same report
   const wanted = useSearchParams().get("tab");
-  const tab: (typeof TABS)[number][0] = TABS.find(([k]) => k === wanted)?.[0] ?? "purchases";
-  const setTab = (k: (typeof TABS)[number][0]) => router.replace(`/reports?tab=${k}`, { scroll: false });
+  const tab: (typeof ALL_TABS)[number][0] = TABS.find(([k]) => k === wanted)?.[0] ?? "purchases";
+  const setTab = (k: (typeof ALL_TABS)[number][0]) => router.replace(`/reports?tab=${k}`, { scroll: false });
   const [menu, setMenu] = useState(false);
   const current = TABS.find(([k]) => k === tab)?.[1];
   return (

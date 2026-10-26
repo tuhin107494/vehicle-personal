@@ -20,8 +20,8 @@ export const NAV: Item[] = [
   { href: "/sales/new", text: "Sales", icon: BadgeDollarSign, color: "text-green-600", permission: "sales.create" },
   { href: "/purchases/new", text: "Purchases", icon: ShoppingCart, color: "text-orange-500", permission: "purchases.create" },
   { href: "/vehicles", text: "Vehicles", icon: Car, color: "text-blue-600", permission: "vehicles.view" },
-  { href: "/due-collection", text: "Due collection", icon: HandCoins, color: "text-green-600", permission: "payments.collect" },
   { href: "/collections", text: "Due alert", icon: Wallet, color: "text-amber-500", permission: "collections.view" },
+  { href: "/due-collection", text: "Due collection", icon: HandCoins, color: "text-green-600", permission: "payments.collect" },
   { href: "/supplier-payment", text: "Supplier payment", icon: HandCoins, color: "text-green-600", permission: "purchases.edit" },
   { href: "/customers", text: "Customers", icon: Users, color: "text-sky-600", permission: "parties.view" },
   { href: "/suppliers", text: "Suppliers", icon: Truck, color: "text-orange-500", permission: "parties.view" },
@@ -63,8 +63,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="flex items-center gap-2 px-5 py-3 md:py-5">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/20"><Car className="size-5" /></span>
           <div className="min-w-0 flex-1">
-            <p className="text-lg font-bold leading-tight">{t("Vehicle Hub")}</p>
-            {user?.shop && <p className="truncate text-xs text-white/75">{user.shop.name}</p>}
+            {/* a shop user sees only their shop's name; the platform admin has no shop, so the product name shows */}
+            <p className="truncate text-xl font-bold leading-tight text-orange-200">{user?.shop ? user.shop.name : t("Vehicle Hub")}</p>
           </div>
           <button type="button" aria-label={menuOpen ? "Close menu" : "Open menu"} aria-expanded={menuOpen} className="flex size-10 items-center justify-center rounded-xl bg-white/15 hover:bg-white/25 md:hidden" onClick={() => setMenuOpen((o) => !o)}>
             {menuOpen ? <X className="size-5" /> : <Menu className="size-5" />}

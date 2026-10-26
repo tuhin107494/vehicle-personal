@@ -10,6 +10,7 @@ import { Col, DataTable } from "@/components/DataTable";
 import { DashboardCharts, type Stats } from "@/components/DashboardCharts";
 import { AttentionCard } from "@/components/AttentionCard";
 import { useHiddenDashboard } from "@/lib/dashboard";
+import { useHiddenMenu } from "@/lib/menu";
 import { TodayCard, type TodayFigures } from "@/components/TodayCard";
 
 type InvestorToday = { plan_id: number; sale_id: number; investor: { id: number; name: string; phone: string | null }; vehicle: { chassis_no: string; engine_no: string | null }; amount: number };
@@ -22,7 +23,9 @@ type Dashboard = Stats & {
 export default function DashboardPage() {
   const { data, loading, error } = useFetch<Dashboard>("/dashboard");
   const { hidden } = useHiddenDashboard();
-  const show = (key: string) => !hidden.includes(key);
+  const hiddenMenu = useHiddenMenu().hidden;
+  // hiding Investors from the menu also takes the investor card off the dashboard
+  const show = (key: string) => !hidden.includes(key) && !(key === "investors" && hiddenMenu.includes("/investors"));
   if (loading && !data) return <Loading />;
   if (error || !data) return <ErrorText message={error ?? "Failed to load"} />;
 

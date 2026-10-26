@@ -63,7 +63,7 @@ export default function SettingsPage() {
   const { categories } = useCategories();
   const [saving, setSaving] = useState(false);
   // The vehicle type each form starts on: the Buy vehicle form preselects it, the New sale form filters its vehicles by it.
-  const [primary, setPrimary] = useState({ purchase: "", sale: "" });
+  const [primary, setPrimary] = useState(""); // one vehicle type for both the Buy and the Sale form
   const [savedPrimary, setSavedPrimary] = useState("");
   // The per-vehicle-type table lives outside the form fields: which types and fields are shown, and their values.
   const [grid, setGrid] = useState<Grid>(emptyGrid());
@@ -75,7 +75,7 @@ export default function SettingsPage() {
   const [loadedFrom, setLoadedFrom] = useState<Settings | null>(null);
   if (settings.data && settings.data !== loadedFrom) {
     setLoadedFrom(settings.data);
-    const start = { purchase: settings.data.purchase.vehicle_type ?? "", sale: settings.data.sale.vehicle_type ?? "" };
+    const start = settings.data.purchase.vehicle_type ?? settings.data.sale.vehicle_type ?? "";
     setPrimary(start);
     setSavedPrimary(JSON.stringify(start));
     const loaded = gridFrom(settings.data);
@@ -123,15 +123,15 @@ export default function SettingsPage() {
       const res = await api<Settings>("/settings", {
         method: "PUT",
         body: {
-          purchase: { vehicle_type: primary.purchase || null, prices: Object.fromEntries(categories.map((c) => [c.key, num("purchase_price", c.key)])) },
-          sale: { vehicle_type: primary.sale || null, prices: Object.fromEntries(categories.map((c) => [c.key, num("sale_price", c.key)])) },
+          purchase: { vehicle_type: primary || null, prices: Object.fromEntries(categories.map((c) => [c.key, num("purchase_price", c.key)])) },
+          sale: { vehicle_type: primary || null, prices: Object.fromEntries(categories.map((c) => [c.key, num("sale_price", c.key)])) },
           type_defaults: Object.fromEntries(categories.map((c) => [c.key, Object.fromEntries(VEHICLE_KEYS.map((f) => [f, NUMERIC_KEYS.includes(f) ? num(f, c.key) : text(f, c.key)]))])),
         },
       });
       toast.success(res.message);
       const saved = gridFrom(res.data);
       setSavedGrid(JSON.stringify({ ...saved }));
-      setSavedPrimary(JSON.stringify({ purchase: res.data.purchase.vehicle_type ?? "", sale: res.data.sale.vehicle_type ?? "" }));
+      setSavedPrimary(JSON.stringify(res.data.purchase.vehicle_type ?? ""));
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Failed to save");
     } finally {
@@ -144,21 +144,15 @@ export default function SettingsPage() {
       <PageHeader title="Settings" actions={<Button type="submit" disabled={saving || !tableDirty}><Save className="size-4" /> {saving ? "Saving..." : "Save settings"}</Button>} />
       <p className="mb-4 text-sm text-slate-600">Starting values for the Buy and Sale forms.</p>
       <Card title="Primary vehicle type" className="mb-4">
-        <div className="grid gap-3 md:grid-cols-2">
-          <Field label="Purchase form (Buy vehicle)">
-            <NativeSelect className={inputCls} value={primary.purchase} onChange={(e) => setPrimary((p) => ({ ...p, purchase: e.target.value }))}>
+        <div className="max-w-sm">
+          <Field label="Vehicle type">
+            <NativeSelect className={inputCls} value={primary} onChange={(e) => setPrimary(e.target.value)}>
               <option value="">None (choose each time)</option>
               {categories.map((c) => <option key={c.key} value={c.key}>{c.name}</option>)}
             </NativeSelect>
           </Field>
-          <Field label="Sales form (New sale)">
-            <NativeSelect className={inputCls} value={primary.sale} onChange={(e) => setPrimary((p) => ({ ...p, sale: e.target.value }))}>
-              <option value="">None (show all types)</option>
-              {categories.map((c) => <option key={c.key} value={c.key}>{c.name}</option>)}
-            </NativeSelect>
-          </Field>
         </div>
-        <p className="mt-2 text-xs text-slate-500">The forms open with this type selected.</p>
+        <p className="mt-2 text-xs text-slate-500">The Buy vehicle and New sale forms both open with this type selected.</p>
       </Card>
       <Card title="Defaults by vehicle type" className="mb-4">
         <p className="mb-3 text-sm text-slate-600">Add a vehicle type, then the fields to fill in when it is chosen.</p>
