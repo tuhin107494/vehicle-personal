@@ -3,11 +3,15 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, Phone, Search } from "lucide-react";
+import { toast } from "sonner";
+import { Check, Eye, Phone, Search, Undo2 } from "lucide-react";
+import { api, ApiError } from "@/lib/api";
 import { fmtDate, money } from "@/lib/format";
 import { useFetch } from "@/lib/hooks";
 import type { CallRow } from "@/lib/types";
-import { Badge, PageHeader, Stat } from "@/components/app-ui";
+import { Badge, Button, Field, inputCls, Modal, PageHeader, Stat } from "@/components/app-ui";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Col, DataTable } from "@/components/DataTable";
 
 type Kind = "" | "installment" | "promise";
@@ -17,7 +21,7 @@ type Bucket = Stats & { key: string; label: string; kinds: { installment: Stats;
 const KINDS: { value: Kind; label: string }[] = [
   { value: "", label: "All" },
   { value: "installment", label: "Installments" },
-  { value: "promise", label: "Normal due" },
+  { value: "promise", label: "Due" },
 ];
 
 const STYLE: Record<string, { ring: string; active: string; text: string }> = {
@@ -43,7 +47,7 @@ export default function CollectionsPage() {
   const [bucket, setBucket] = useState("overdue");
   const [kind, setKind] = useState<Kind>("");
   const [q, setQ] = useState("");
-  const summary = useFetch<{ buckets: Bucket[]; current_due: number }>("/collections/summary");
+  const summary = useFetch<{ buckets: Bucket[]; current_due: number; total_due: number; recall_days: number }>("/collections/summary");
   const list = useFetch<CallRow[]>(`/collections/upcoming?bucket=${bucket}${kind ? `&kind=${kind}` : ""}`);
 
   const term = q.trim().toLowerCase();
@@ -52,6 +56,32 @@ export default function CollectionsPage() {
   const statsOf = (b: Bucket): Stats => (kind ? b.kinds[kind] : b);
   const current = summary.data?.buckets.find((b) => b.key === bucket);
   const shown = current ? statsOf(current) : undefined;
+
+  // "Call done" opens a small form: the day the customer said they will meet, and a note
+  const [calling, setCalling] = useState<CallRow | null>(null);
+  const [meetDate, setMeetDate] = useState("");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const startCall = (r: CallRow) => {
+    setMeetDate("");
+    setNote("");
+    setCalling(r);
+  };
+
+  const mark = async (r: CallRow, done: boolean) => {
+    setSaving(true);
+    try {
+      await api("/collections/call", { method: done ? "POST" : "DELETE", body: { type: r.type, id: r.id, ...(done && { meet_date: meetDate || null, note: note.trim() || null }) } });
+      toast.success(done ? (meetDate ? `Marked done. Call again on ${fmtDate(meetDate)}.` : `Marked done. Call again in ${summary.data?.recall_days ?? 7} days.`) : "Call mark removed");
+      setCalling(null);
+      list.reload();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Failed");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const columns: Col<CallRow>[] = [
     { header: "Customer", cell: ({ row }) => <span className="font-medium">{row.original.customer.name}</span> },
@@ -73,12 +103,44 @@ export default function CollectionsPage() {
         ? <a href={`tel:${row.original.guarantor_phone}`} className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-sm font-medium text-amber-800 hover:bg-amber-200" onClick={(e) => e.stopPropagation()}><Phone className="size-3.5" /> {row.original.guarantor_phone}</a>
         : "-",
     },
-    { header: "Vehicle", cell: ({ row }) => [row.original.vehicle.brand, row.original.vehicle.model].filter(Boolean).join(" ") || row.original.vehicle.chassis_no },
+    {
+      header: "Vehicle",
+      cell: ({ row }) => {
+        const v = row.original.vehicle;
+        return (
+          <span className="block leading-tight">
+            <span className="font-medium">{[v.brand, v.model].filter(Boolean).join(" ") || v.chassis_no}</span>
+            {(v.brand || v.model) && <span className="block text-xs text-slate-500">Chassis: {v.chassis_no}</span>}
+            {v.engine_no && <span className="block text-xs text-slate-500">Engine: {v.engine_no}</span>}
+          </span>
+        );
+      },
+    },
     { header: "For", cell: ({ row }) => <Badge tone={row.original.type === "installment" ? "blue" : "gray"}>{row.original.label}</Badge> },
     { header: "Due date", cell: ({ row }) => <span className="flex flex-wrap items-center justify-end gap-2 md:justify-start">{fmtDate(row.original.due_date)} <When row={row.original} /></span> },
     { header: "Amount", cell: ({ row }) => <b className={row.original.overdue_by ? "text-red-700" : "text-amber-700"}>{money(row.original.amount)}</b> },
-    { header: "Customer's total due", cell: ({ row }) => <b className="text-slate-800">{money(row.original.customer_total_due)}</b> },
-    { header: "Action", id: "actions", cell: ({ row }) => <Link className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50" href={`/sales/${row.original.sale_id}`}><Eye className="size-4" /> Open sale</Link> },
+    { header: "Total due", cell: ({ row }) => <b className="text-slate-800">{money(row.original.customer_total_due)}</b> },
+    {
+      header: "Action",
+      id: "actions",
+      cell: ({ row }) => (
+        <div className="flex flex-wrap items-center justify-end gap-1.5 md:justify-start" onClick={(e) => e.stopPropagation()}>
+          <Link className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50" href={`/sales/${row.original.sale_id}`}><Eye className="size-4" /> Open sale</Link>
+          {row.original.called_until ? (
+            <>
+              <span className="text-xs font-medium text-amber-800">
+                Called · call again {fmtDate(row.original.called_until)}
+                {row.original.called_meet_date && <span className="block">Will meet: {fmtDate(row.original.called_meet_date)}</span>}
+                {row.original.called_note && <span className="block font-normal">{row.original.called_note}</span>}
+              </span>
+              <button type="button" onClick={() => mark(row.original, false)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"><Undo2 className="size-4" /> Undo</button>
+            </>
+          ) : (
+            <button type="button" onClick={() => startCall(row.original)} className="inline-flex items-center gap-1.5 rounded-lg border border-green-300 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-700 hover:bg-green-100"><Check className="size-4" /> Call done</button>
+          )}
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -87,7 +149,7 @@ export default function CollectionsPage() {
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3">
         <Stat color="amber-soft" label="Due now (overdue + today)" value={money(summary.data?.current_due ?? 0)} />
         <Stat color="blue-soft" label={`${current?.label ?? "List"}: amount`} value={money(shown?.amount ?? 0)} />
-        <Stat color="green-soft" label={`${current?.label ?? "List"}: customers to call`} value={shown?.customers ?? 0} />
+        <Stat color="green-soft" label="Total due" value={money(summary.data?.total_due ?? 0)} />
       </div>
 
       <div className="mb-3 flex flex-wrap gap-2">
@@ -133,7 +195,25 @@ export default function CollectionsPage() {
         />
       </div>
 
-      <DataTable columns={columns} data={rows} loading={list.loading} onRowClick={(r) => router.push(`/sales/${r.sale_id}`)} empty={term ? "No match found." : bucket === "overdue" ? "Nothing is overdue." : "Nothing falls due in this period."} />
+      <DataTable columns={columns} data={rows} rowClass={(r) => (r.called_until ? "!bg-amber-100/80 hover:!bg-amber-100" : "")} loading={list.loading} onRowClick={(r) => router.push(`/sales/${r.sale_id}`)} empty={term ? "No match found." : bucket === "overdue" ? "Nothing is overdue." : "Nothing falls due in this period."} />
+      <Modal open={!!calling} title="Call done" onClose={() => setCalling(null)}>
+        {calling && (
+          <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); mark(calling, true); }}>
+            <p className="text-sm text-slate-600">{calling.customer.name} · {calling.customer.phone}</p>
+            <Field label="Customer will meet me on">
+              <Input type="date" className={inputCls} value={meetDate} min={new Date().toLocaleDateString("en-CA")} onChange={(e) => setMeetDate(e.target.value)} />
+            </Field>
+            <Field label="Note">
+              <Textarea className={inputCls} rows={3} maxLength={500} placeholder="What the customer said" value={note} onChange={(e) => setNote(e.target.value)} />
+            </Field>
+            <p className="text-xs text-slate-500">Leave the date empty to call again after {summary.data?.recall_days ?? 7} days.</p>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setCalling(null)}>Cancel</Button>
+              <Button type="submit" disabled={saving}><Check className="size-4" /> {saving ? "Saving..." : "Call done"}</Button>
+            </div>
+          </form>
+        )}
+      </Modal>
     </>
   );
 }

@@ -318,7 +318,6 @@ function PurchaseForm() {
         ))}
       </div>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-        <p className="text-xs text-slate-500"><span className="text-red-600">*</span> Required</p>
         {source === "customer" && (
           <>
             <Card title="1. Customer (seller)">

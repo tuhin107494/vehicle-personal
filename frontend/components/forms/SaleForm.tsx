@@ -287,7 +287,6 @@ export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
       <PageHeader titleClass={investorMode ? "from-sky-700 via-blue-600 to-blue-500" : undefined} title={investorMode ? "New investor sale" : "New sale"} actions={investorMode && <Button variant="outline" onClick={() => setCalcOpen(true)}><Calculator className="size-4 text-sky-600" /> <span className="sm:hidden">Calculate</span><span className="hidden sm:inline">Profit calculation</span></Button>} />
       <DraftsBar type="sale" refreshKey={draftsKey} activeId={draftId} onResume={resumeDraft} onDeleted={(id) => id === draftId && setDraftId(null)} />
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-        <p className="text-xs text-slate-500"><span className="text-red-600">*</span> Required</p>
         <Card title="1. Customer">
           <CustomerSelect label="Buyer" value={w.party_id} onChange={(id) => setValue("party_id", id, { shouldValidate: true })} error={errors.party_id?.message} />
           {buyer.data && (

@@ -20,6 +20,8 @@ export function DataTable<T>({
   serverPaged,
   pager = true,
   compact,
+  cards,
+  rowClass,
 }: {
   columns: Col<T>[];
   data: T[];
@@ -33,6 +35,10 @@ export function DataTable<T>({
   pager?: boolean;
   /** tighter rows, for a small table inside a card */
   compact?: boolean;
+  /** always one card per row, never the wide table: for a narrow card on a dashboard */
+  cards?: boolean;
+  /** extra classes for a row, e.g. to tint it */
+  rowClass?: (row: T) => string;
 }) {
   const { t } = useT();
   const table = useReactTable({ data, columns, getCoreRowModel: getCoreRowModel() });
@@ -48,7 +54,7 @@ export function DataTable<T>({
   return (
     <>
       {/* Mobile: one card per row, no sideways scrolling */}
-      <div className="space-y-3 md:hidden">
+      <div className={`space-y-3 ${cards ? "" : "md:hidden"}`}>
         {rows.map((row) => {
           const [first, ...rest] = row.getVisibleCells();
           const headerOf = (c: typeof first) => (typeof c.column.columnDef.header === "string" ? t(c.column.columnDef.header) : "");
@@ -58,7 +64,7 @@ export function DataTable<T>({
             <div
               key={row.id}
               onClick={() => onRowClick?.(row.original)}
-              className={`rounded-xl bg-white/90 p-3 shadow-sm ring-1 ring-emerald-300 ${onRowClick ? "cursor-pointer active:bg-emerald-50" : ""}`}
+              className={`rounded-xl bg-white/90 p-3 shadow-sm ring-1 ring-emerald-300 ${onRowClick ? "cursor-pointer active:bg-emerald-50" : ""} ${rowClass?.(row.original) ?? ""}`}
             >
               {first && <div className="mb-2 border-b border-emerald-50 pb-2 font-semibold text-slate-900">{flexRender(first.column.columnDef.cell, first.getContext())}</div>}
               <dl className="space-y-1.5 text-sm">
@@ -80,13 +86,13 @@ export function DataTable<T>({
         {!data.length && <p className="rounded-xl bg-white/90 py-8 text-center text-sm text-slate-500 ring-1 ring-emerald-300">{loading ? t("Loading...") : t(empty)}</p>}
       </div>
 
-    <div className="hidden overflow-x-auto rounded-xl bg-white/90 shadow-sm ring-1 ring-emerald-300 md:block">
+    <div data-report-table className={`hidden overflow-x-auto rounded-xl bg-white/90 shadow-sm ring-1 ring-emerald-300 ${cards ? "" : "md:block"}`}>
       <Table>
         <TableHeader className="bg-gradient-to-r from-emerald-50 to-green-50">
           {table.getHeaderGroups().map((hg) => (
             <TableRow key={hg.id} className="border-emerald-300 hover:bg-transparent">
               {hg.headers.map((h) => (
-                <TableHead key={h.id} className={`${h.column.columnDef.header === "Action" ? "text-center " : ""}${(h.column.columnDef.meta as { className?: string } | undefined)?.className ?? ""} ${compact ? "h-8" : "h-10"} whitespace-nowrap border-r border-emerald-200 text-xs font-semibold uppercase tracking-wide text-emerald-700 last:border-r-0`}>
+                <TableHead key={h.id} data-print-hide={ACTION_IDS.includes(h.column.id) || undefined} className={`${h.column.columnDef.header === "Action" ? "text-center " : ""}${(h.column.columnDef.meta as { className?: string } | undefined)?.className ?? ""} ${compact ? "h-8" : "h-10"} whitespace-nowrap border-r border-emerald-200 text-xs font-semibold uppercase tracking-wide text-emerald-700 last:border-r-0`}>
                   {typeof h.column.columnDef.header === "string" ? t(h.column.columnDef.header) : flexRender(h.column.columnDef.header, h.getContext())}
                 </TableHead>
               ))}
@@ -98,10 +104,10 @@ export function DataTable<T>({
             <TableRow
               key={row.id}
               onClick={() => onRowClick?.(row.original)}
-              className={`border-emerald-200 hover:bg-emerald-50/60 ${onRowClick ? "cursor-pointer" : ""}`}
+              className={`border-emerald-200 hover:bg-emerald-50/60 ${onRowClick ? "cursor-pointer" : ""} ${rowClass?.(row.original) ?? ""}`}
             >
               {row.getVisibleCells().map((cell) => (
-                <TableCell key={cell.id} className={`${(cell.column.columnDef.meta as { className?: string } | undefined)?.className ?? ""} whitespace-nowrap border-r border-emerald-100 ${compact ? "py-1.5" : "py-2.5"} text-slate-800 last:border-r-0`}>
+                <TableCell key={cell.id} data-print-hide={ACTION_IDS.includes(cell.column.id) || undefined} className={`${(cell.column.columnDef.meta as { className?: string } | undefined)?.className ?? ""} whitespace-nowrap border-r border-emerald-100 ${compact ? "py-1.5" : "py-2.5"} text-slate-800 last:border-r-0`}>
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </TableCell>
               ))}

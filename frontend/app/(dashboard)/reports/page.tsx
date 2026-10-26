@@ -8,19 +8,21 @@ import { openSaleMemo } from "@/components/SaleMemo";
 import { printVoucher } from "@/components/TransactionVoucher";
 import { purchaseVoucher } from "@/lib/purchaseVoucher";
 import { Suspense, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { fmtDate, money } from "@/lib/format";
 import { useCategories } from "@/lib/categories";
 import { useFetch } from "@/lib/hooks";
 import type { Investor, Purchase, Sale, Summary, Vehicle } from "@/lib/types";
 import { Button, ErrorText, Field, inputCls, Loading, Modal, PageHeader, Stat, StatusBadge } from "@/components/app-ui";
-import { ChevronDown } from "lucide-react";
+import Link from "next/link";
+import { ArrowUpRight, ChevronDown, Eye } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Col, DataTable } from "@/components/DataTable";
 import { CustomerSelect, SupplierSelect } from "@/components/Selects";
 import { ResponsiveFilters } from "@/components/ResponsiveFilters";
 import { InvestorTransactions } from "@/components/InvestorTransactions";
+import { ReportPrint, useReportPrint } from "@/components/ReportPrint";
 import { PersonStatement } from "@/components/PersonStatement";
 
 type Stock = { total_count: number; total_cost: number; vehicles: Vehicle[] };
@@ -29,6 +31,8 @@ type InvRow = { investor: Investor; summary: Summary };
 
 function StockReport() {
   const { data, loading, error } = useFetch<Stock>("/reports/stock");
+  const pr = useReportPrint("Stock report");
+  const { can } = useAuth();
   if (loading && !data) return <Loading />;
   if (error || !data) return <ErrorText message={error ?? "Failed"} />;
   const cols: Col<Vehicle>[] = [
@@ -38,25 +42,36 @@ function StockReport() {
     { header: "Bought", cell: ({ row }) => fmtDate(row.original.current_purchase?.purchase_date) },
     { header: "Cost", cell: ({ row }) => money((row.original.current_purchase?.price ?? 0) + (row.original.current_purchase?.cost_extra ?? 0)) },
     { header: "Days in stock", cell: ({ row }) => row.original.days_in_stock ?? "-" },
-    viewCol<Vehicle>((v) => `/vehicles/${v.id}`),
+    {
+      header: "Action",
+      id: "view",
+      cell: ({ row }) => (
+        <div className="flex flex-wrap items-center justify-end gap-1.5 md:flex-nowrap">
+          <Link className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 px-2.5 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-50" href={`/vehicles/${row.original.id}`}><Eye className="size-4" /> View</Link>
+          {can("sales.create") && <Link className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100" href={`/sales/new?vehicle=${row.original.id}`} title="Sell"><ArrowUpRight className="size-4" /> Sell</Link>}
+        </div>
+      ),
+    },
   ];
   return (
     <>
+      <ReportPrint pr={pr} meta={{ totals: [["Vehicles in stock", data.total_count], ["Stock cost", money(data.total_cost)]] }} />
       <div className="mb-3 grid grid-cols-2 gap-3 md:max-w-md"><Stat color="blue" label="Vehicles in stock" value={data.total_count} /><Stat color="slate" label="Stock cost" value={money(data.total_cost)} /></div>
-      <DataTable columns={cols} data={data.vehicles} empty="No vehicles in stock." />
+      <DataTable columns={cols} data={data.vehicles} empty="No vehicles in stock." pageSize={pr.pageSize} />
     </>
   );
 }
 
 function DuesReport() {
   const { data, loading, error } = useFetch<Dues>("/reports/dues");
+  const pr = useReportPrint("Dues report");
   if (loading && !data) return <Loading />;
   if (error || !data) return <ErrorText message={error ?? "Failed"} />;
   const cols: Col<Dues["sales"][number]>[] = [
     { header: "Sale", cell: ({ row }) => <span className="font-medium">#{row.original.id}</span> },
     { header: "Buyer", cell: ({ row }) => row.original.customer?.name },
     { header: "Phone", cell: ({ row }) => row.original.customer?.phone },
-    { header: "Vehicle", cell: ({ row }) => row.original.vehicle?.chassis_no },
+    { header: "Vehicle", cell: ({ row }) => <span className="font-medium">{row.original.vehicle?.chassis_no}</span> },
     { header: "Type", accessorKey: "payment_type" },
     { header: "Paid", cell: ({ row }) => money(row.original.total_paid) },
     { header: "Due", cell: ({ row }) => <b className="text-red-600">{money(row.original.due_amount)}</b> },
@@ -65,14 +80,16 @@ function DuesReport() {
   ];
   return (
     <>
+      <ReportPrint pr={pr} meta={{ totals: [["Total due", money(data.total_due)]] }} />
       <div className="mb-3 md:max-w-xs"><Stat label="Total due" value={money(data.total_due)} tone="red" /></div>
-      <DataTable columns={cols} data={data.sales} empty="Nothing due." />
+      <DataTable columns={cols} data={data.sales} empty="Nothing due." pageSize={pr.pageSize} />
     </>
   );
 }
 
 function InvestorsReport() {
   const { data, loading, error } = useFetch<InvRow[]>("/reports/investors");
+  const pr = useReportPrint("Investors report");
   if (loading && !data) return <Loading />;
   if (error || !data) return <ErrorText message={error ?? "Failed"} />;
   const cols: Col<InvRow>[] = [
@@ -85,7 +102,12 @@ function InvestorsReport() {
     { header: "Still due from buyers", cell: ({ row }) => money(row.original.summary.sales_due) },
     viewCol<InvRow>((x) => `/investors/${x.investor.id}`),
   ];
-  return <DataTable columns={cols} data={data} empty="No investors." />;
+  return (
+    <>
+      <ReportPrint pr={pr} />
+      <DataTable columns={cols} data={data} empty="No investors." pageSize={pr.pageSize} />
+    </>
+  );
 }
 
 type TypeRow = { type: string; count: number; amount: number; profit?: number };
@@ -122,6 +144,7 @@ function PurchasesReport() {
   const { data, loading, error } = useFetch<{ totals: Record<string, number>; by_type: TypeRow[]; purchases: (Purchase & { total_cost: number; unpaid: number })[] }>(`/reports/purchases?${qs}`);
 
   const { user } = useAuth();
+  const pr = useReportPrint("Purchases report");
   const cols: Col<NonNullable<typeof data>["purchases"][number]>[] = [
     { header: "Date", cell: ({ row }) => fmtDate(row.original.purchase_date) },
     { header: "Memo no.", cell: ({ row }) => row.original.memo_no ?? "-" },
@@ -138,6 +161,7 @@ function PurchasesReport() {
 
   return (
     <>
+      <ReportPrint pr={pr} disabled={!data} meta={{ period: `Period: ${from ? fmtDate(from) : "Beginning"} to ${to ? fmtDate(to) : "today"}`, filters: [type && `Type: ${categories.find((c) => c.key === type)?.name ?? type}`, source && `Bought from: ${source}`].filter(Boolean) as string[], totals: data ? [["Purchases", data.totals.count], ["Total cost", money(data.totals.total_cost)], ["Paid", money(data.totals.paid)], ["Unpaid", money(data.totals.unpaid)], ["Extra cost", money(data.totals.extra_cost)]] : [] }} />
       <Filters from={from} to={to} type={type} setFrom={setFrom} setTo={setTo} setType={setType}>
         <Field label="Bought from">
           <NativeSelect className={inputCls} value={source} onChange={(e) => setSource(e.target.value)}>
@@ -148,17 +172,14 @@ function PurchasesReport() {
       </Filters>
       {error && <ErrorText message={error} />}
       {data && (
-        <>
-          <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <Stat color="blue" label="Purchases" value={data.totals.count} />
-            <Stat color="slate" label="Total cost" value={money(data.totals.total_cost)} />
-            <Stat color="green" label="Paid" value={money(data.totals.paid)} />
-            <Stat color="amber" label="Unpaid" value={money(data.totals.unpaid)} />
-            <Stat color="slate" label="Extra cost" value={money(data.totals.extra_cost)} />
-          </div>
-        </>
+        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Stat color="slate" label="Total cost" value={money(data.totals.total_cost)} />
+          <Stat color="green" label="Paid" value={money(data.totals.paid)} />
+          <Stat color="amber" label="Unpaid" value={money(data.totals.unpaid)} />
+          <Stat color="slate" label="Extra cost" value={money(data.totals.extra_cost)} />
+        </div>
       )}
-      <DataTable columns={cols} data={data?.purchases ?? []} loading={loading} empty="No purchases in this period." />
+      <DataTable columns={cols} data={data?.purchases ?? []} loading={loading} empty="No purchases in this period." pageSize={pr.pageSize} />
     </>
   );
 }
@@ -175,6 +196,7 @@ function SalesReport() {
   const { data, loading, error } = useFetch<{ totals: Record<string, number>; by_type: TypeRow[]; sales: (Sale & { cost: number; profit: number })[] }>(`/reports/sales?${qs}`);
 
   const { user } = useAuth();
+  const pr = useReportPrint("Sales report");
   const cols: Col<NonNullable<typeof data>["sales"][number]>[] = [
     { header: "Date", cell: ({ row }) => fmtDate(row.original.sale_date) },
     { header: "Sale", cell: ({ row }) => <span className="font-medium">#{row.original.id}</span> },
@@ -199,6 +221,7 @@ function SalesReport() {
 
   return (
     <>
+      <ReportPrint pr={pr} disabled={!data} meta={{ period: `Period: ${from ? fmtDate(from) : "Beginning"} to ${to ? fmtDate(to) : "today"}`, filters: [type && `Type: ${categories.find((c) => c.key === type)?.name ?? type}`, paymentType && `Payment: ${paymentType}`, status && `Status: ${status}`].filter(Boolean) as string[], totals: data ? [["Sales", data.totals.count], ["Sales amount", money(data.totals.sales_amount)], ["Paid", money(data.totals.paid)], ["Due", money(data.totals.due)], ["Profit", money(data.totals.profit)]] : [] }} />
       <Filters from={from} to={to} type={type} setFrom={setFrom} setTo={setTo} setType={setType}>
         <Field label="Payment type">
           <NativeSelect className={inputCls} value={paymentType} onChange={(e) => setPaymentType(e.target.value)}>
@@ -214,17 +237,14 @@ function SalesReport() {
       </Filters>
       {error && <ErrorText message={error} />}
       {data && (
-        <>
-          <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <Stat color="blue" label={`Sales${data.totals.cancelled ? ` (${data.totals.cancelled} cancelled)` : ""}`} value={data.totals.count} />
-            <Stat color="slate" label="Sales amount" value={money(data.totals.sales_amount)} />
-            <Stat color="green" label="Paid" value={money(data.totals.paid)} />
-            <Stat color="amber" label="Due" value={money(data.totals.due)} />
-            <Stat color="green" label="Profit" value={money(data.totals.profit)} />
-          </div>
-        </>
+        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Stat color="slate" label="Sales amount" value={money(data.totals.sales_amount)} />
+          <Stat color="green" label="Paid" value={money(data.totals.paid)} />
+          <Stat color="amber" label="Due" value={money(data.totals.due)} />
+          <Stat color="green" label="Profit" value={money(data.totals.profit)} />
+        </div>
       )}
-      <DataTable columns={cols} data={data?.sales ?? []} loading={loading} empty="No sales in this period." />
+      <DataTable columns={cols} data={data?.sales ?? []} loading={loading} empty="No sales in this period." pageSize={pr.pageSize} />
     </>
   );
 }
@@ -237,8 +257,11 @@ const TABS = [
 const HAS_FILTERS: string[] = ["purchases", "sales", "customer", "supplier", "investor"];
 
 function Reports() {
-  const wanted = useSearchParams().get("tab"); // e.g. /reports?tab=sales opens that report
-  const [tab, setTab] = useState<(typeof TABS)[number][0]>(TABS.find(([k]) => k === wanted)?.[0] ?? "purchases");
+  const router = useRouter();
+  // the open report lives in the address (/reports?tab=dues), so coming back from a details page lands on the same report
+  const wanted = useSearchParams().get("tab");
+  const tab: (typeof TABS)[number][0] = TABS.find(([k]) => k === wanted)?.[0] ?? "purchases";
+  const setTab = (k: (typeof TABS)[number][0]) => router.replace(`/reports?tab=${k}`, { scroll: false });
   const [menu, setMenu] = useState(false);
   const current = TABS.find(([k]) => k === tab)?.[1];
   return (

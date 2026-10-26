@@ -73,7 +73,12 @@ export type CallRow = {
   amount: number; sale_due: number; customer_total_due: number; guarantor_phone: string | null;
   overdue_by: { months: number; days: number; total_days: number } | null;
   customer: { id: number; name: string; phone: string; alt_phone: string | null; address: string | null };
-  vehicle: { id: number; chassis_no: string; brand: string | null; model: string | null };
+  vehicle: { id: number; chassis_no: string; engine_no: string | null; brand: string | null; model: string | null };
+  /** set when the row was marked "call done": the day it comes back to the list */
+  called_until: string | null;
+  /** what the customer said on that call: the day they will meet the shop, and a note */
+  called_meet_date: string | null;
+  called_note: string | null;
 };
 /** What a half-finished form saves: its field values plus the page state needed to reopen it. */
 export type DraftData = {

@@ -8,6 +8,7 @@ import { useCategories } from "@/lib/categories";
 import { useT } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
 import { useHiddenMenu } from "@/lib/menu";
+import { DASHBOARD_SECTIONS, useHiddenDashboard } from "@/lib/dashboard";
 import { allowedNav } from "@/components/AppShell";
 import { ShopProfileCard } from "@/components/ShopProfileCard";
 import { typeColor } from "@/lib/typeColors";
@@ -56,6 +57,8 @@ export default function SettingsPage() {
   const { lang, setLang, showSwitch, setShowSwitch, t } = useT();
   const { user, can } = useAuth();
   const { hidden, setHidden } = useHiddenMenu();
+  const dash = useHiddenDashboard();
+  const [recallDays, setRecallDays] = useState<number | null>(null); // saved on its own, apart from the settings table
   const menuItems = allowedNav(user?.role, can);
   const { categories } = useCategories();
   const [saving, setSaving] = useState(false);
@@ -220,6 +223,23 @@ export default function SettingsPage() {
         </label>
         <p className="mt-1 text-xs text-slate-500">Applies at once, on this device.</p>
       </Card>
+      <Card title="Call follow-up" className="mb-4">
+        <p className="mb-3 text-xs text-slate-500">On the Due alert page, a row marked "Call done" is hidden and comes back for another call after this many days.</p>
+        <Field label="Call again after">
+          <NativeSelect className={inputCls} value={recallDays ?? settings.data.collections?.recall_days ?? 7} onChange={async (e) => {
+            const days = Number(e.target.value);
+            try {
+              await api("/settings", { method: "PUT", body: { collections: { recall_days: days } } });
+              setRecallDays(days);
+              toast.success("Saved");
+            } catch (err) {
+              toast.error(err instanceof ApiError ? err.message : "Failed to save");
+            }
+          }}>
+            {[3, 7, 10, 15, 30, 60, 90, 180, 360].map((d) => <option key={d} value={d}>{d} days</option>)}
+          </NativeSelect>
+        </Field>
+      </Card>
       <Card title="Menu" className="mb-4">
         <p className="mb-3 text-xs text-slate-500">Choose which items show in the side menu.</p>
         <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -231,6 +251,18 @@ export default function SettingsPage() {
           ))}
         </div>
         {hidden.length > 0 && <Button variant="outline" className="mt-3" onClick={() => setHidden([])}>Show all</Button>}
+      </Card>
+      <Card title="Dashboard" className="mb-4">
+        <p className="mb-3 text-xs text-slate-500">Choose which sections show on the dashboard, on this device.</p>
+        <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+          {DASHBOARD_SECTIONS.map(([key, text]) => (
+            <label key={key} className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" className="size-4 accent-emerald-600" checked={!dash.hidden.includes(key)} onChange={(e) => dash.setHidden(e.target.checked ? dash.hidden.filter((h) => h !== key) : [...dash.hidden, key])} />
+              {t(text)}
+            </label>
+          ))}
+        </div>
+        {dash.hidden.length > 0 && <Button variant="outline" className="mt-3" onClick={() => dash.setHidden([])}>Show all</Button>}
       </Card>
     </form>
   );

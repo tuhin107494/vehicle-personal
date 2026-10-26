@@ -116,7 +116,6 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="max-w-2xl">
         <Card>
           <div className="space-y-4">
-            <p className="text-xs text-slate-500"><span className="text-red-600">*</span> Required</p>
 
             {(() => {
               const Pick = side === "customer" ? CustomerSelect : SupplierSelect;
@@ -185,33 +184,38 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
                 })()}
                 {side === "supplier" && advance > 0 && <p className="text-xs text-slate-600">Advance already paid to them: <b>{money(advance)}</b></p>}
 
-                {itemsPg.items.map((i) => {
-                  const on = side === "customer" ? String(i.id) === saleId : true;
-                  const facts: [string, string | null | undefined][] = [["Chassis", i.vehicle], ["Engine", i.engine_no], ["Memo no", i.memo_no], [side === "customer" ? "Sold" : "Bought", fmtDate(i.date)]];
-                  return (
-                    <div
-                      key={`${i.kind}-${i.id}`}
-                      onClick={() => side === "customer" && setSaleId(String(i.id))}
-                      className={`rounded-md border bg-white p-3 ${side === "customer" ? "cursor-pointer" : ""} ${on ? "border-emerald-400 ring-1 ring-emerald-300" : "border-slate-200"}`}
-                    >
-                      <div className="mb-2 flex flex-wrap items-center gap-2">
-                        <b className="text-slate-800">{i.vehicle_name || i.vehicle}</b>
-                        {i.payment_type && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] uppercase text-slate-600">{i.payment_type}</span>}
-                      </div>
-                      <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4">
-                        {facts.filter(([, v]) => v).map(([k, v]) => (
-                          <div key={k}><dt className="text-slate-500">{k}</dt><dd className="break-all font-medium text-slate-800">{v}</dd></div>
-                        ))}
-                      </dl>
-                      <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 border-t border-slate-100 pt-2 text-xs">
-                        <span className="text-slate-500">Due <b className="text-amber-700">{money(i.due)}</b></span>
-                        {i.current_due !== undefined && <span className="text-slate-500">Now <b className="text-sky-700">{money(i.current_due)}</b></span>}
-                        {i.days_late !== undefined && (i.days_late > 0 ? <span className="font-semibold text-violet-700">{i.days_late} days late</span> : i.next_date ? <span className="text-slate-500">Next date <b className="text-slate-800">{fmtDate(i.next_date)}</b></span> : null)}
-                      </div>
-                    </div>
-                  );
-                })}
-                <Pagination meta={itemsPg.meta} onPage={itemsPg.setPage} />
+                {/* the customer picks which vehicle to collect for; a supplier is simply paid, oldest first, so no vehicle list there */}
+                {side === "customer" && (
+                  <>
+                    {itemsPg.items.map((i) => {
+                      const on = side === "customer" ? String(i.id) === saleId : true;
+                      const facts: [string, string | null | undefined][] = [["Chassis", i.vehicle], ["Engine", i.engine_no], ["Memo no", i.memo_no], [side === "customer" ? "Sold" : "Bought", fmtDate(i.date)]];
+                      return (
+                        <div
+                          key={`${i.kind}-${i.id}`}
+                          onClick={() => side === "customer" && setSaleId(String(i.id))}
+                          className={`rounded-md border bg-white p-3 ${side === "customer" ? "cursor-pointer" : ""} ${on ? "border-emerald-400 ring-1 ring-emerald-300" : "border-slate-200"}`}
+                        >
+                          <div className="mb-2 flex flex-wrap items-center gap-2">
+                            <b className="text-slate-800">{i.vehicle_name || i.vehicle}</b>
+                            {i.payment_type && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] uppercase text-slate-600">{i.payment_type}</span>}
+                          </div>
+                          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4">
+                            {facts.filter(([, v]) => v).map(([k, v]) => (
+                              <div key={k}><dt className="text-slate-500">{k}</dt><dd className="break-all font-medium text-slate-800">{v}</dd></div>
+                            ))}
+                          </dl>
+                          <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 border-t border-slate-100 pt-2 text-xs">
+                            <span className="text-slate-500">Due <b className="text-amber-700">{money(i.due)}</b></span>
+                            {i.current_due !== undefined && <span className="text-slate-500">Now <b className="text-sky-700">{money(i.current_due)}</b></span>}
+                            {i.days_late !== undefined && (i.days_late > 0 ? <span className="font-semibold text-violet-700">{i.days_late} days late</span> : i.next_date ? <span className="text-slate-500">Next date <b className="text-slate-800">{fmtDate(i.next_date)}</b></span> : null)}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <Pagination meta={itemsPg.meta} onPage={itemsPg.setPage} />
+                  </>
+                )}
                 {side === "supplier" && summary.data.items.length > 1 && <p className="text-xs text-slate-500">A payment goes to the oldest first.</p>}
               </div>
             )}
