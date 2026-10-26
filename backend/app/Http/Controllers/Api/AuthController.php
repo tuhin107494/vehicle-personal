@@ -5,7 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ProfileRequest;
 use App\Models\User;
-use App\Support\PermissionCatalog;
+use App\Support\GoogleOAuth;
+use App\Support\PlatformSettings;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -28,8 +29,48 @@ class AuthController extends Controller
 
         $user = User::with('shop')->where('email', $credentials['email'])->first();
 
-        if (! $user || ! Hash::check($credentials['password'], $user->password)) {
+        // hash the password even when there is no such user, so the answer takes as long and cannot reveal which emails have accounts
+        $valid = Hash::check($credentials['password'], $user->password ?? self::dummyHash());
+
+        if (! $user || ! $valid) {
             throw ValidationException::withMessages(['email' => ['The provided credentials are incorrect.']]);
+        }
+
+        return $this->signIn($user);
+    }
+
+    /** What the sign-in and sign-up pages need: whether sign-up is open, and the Google button. The Google client ID is public; the secret never leaves the server. */
+    public function config(): JsonResponse
+    {
+        $google = PlatformSettings::googleEnabled();
+
+        return $this->success([
+            'signup_enabled' => (bool) PlatformSettings::get('signup.enabled'),
+            'google' => ['enabled' => $google, 'client_id' => $google ? PlatformSettings::get('google.client_id') : null],
+        ]);
+    }
+
+    /** Signs in with Google. Only existing accounts can sign in this way; new shops use the sign-up page. */
+    public function google(Request $request): JsonResponse
+    {
+        $request->validate(['code' => ['required', 'string']]);
+
+        $person = GoogleOAuth::person($request->input('code'));
+        $user = User::with('shop')->where('email', $person['email'])->first();
+
+        if (! $user) {
+            throw ValidationException::withMessages(['email' => ['No account uses '.$person['email'].'. Create an account, or ask your shop owner to add you.']]);
+        }
+
+        return $this->signIn($user);
+    }
+
+    /** Hands out a token once the account and its shop are both active. */
+    private function signIn(User $user): JsonResponse
+    {
+        // a signed-up shop is off until approved: say why, instead of "disabled"
+        if ($user->shop?->isPending()) {
+            throw ValidationException::withMessages(['email' => ['Your shop is waiting for approval. You can sign in once it is approved.']]);
         }
 
         if (! $user->is_active) {
@@ -40,10 +81,7 @@ class AuthController extends Controller
             throw ValidationException::withMessages(['email' => ['This shop is currently disabled. Contact support.']]);
         }
 
-        return $this->success([
-            'token' => $user->createToken('api')->plainTextToken,
-            'user' => $this->userData($user),
-        ], 'Logged in');
+        return $this->success($user->newSession(), 'Logged in');
     }
 
     /** Emails a reset link. The answer is the same whether or not the address has an account, so it cannot be used to find accounts. */
@@ -89,7 +127,7 @@ class AuthController extends Controller
 
     public function me(Request $request): JsonResponse
     {
-        return $this->success($this->userData($request->user()->load('shop')));
+        return $this->success($request->user()->load('shop')->authData());
     }
 
     /** Lets any signed-in user change their own name, email and (with the current password) password. */
@@ -105,15 +143,14 @@ class AuthController extends Controller
 
         $user->save();
 
-        return $this->success($this->userData($user->load('shop')), 'Profile updated');
+        return $this->success($user->load('shop')->authData(), 'Profile updated');
     }
 
-    private function userData(User $user): array
+    /** A hash made with the app's current hashing cost, to compare against when the email is unknown. */
+    private static function dummyHash(): string
     {
-        return $user->only(['id', 'name', 'email', 'role', 'photo_url']) + [
-            'role_label' => PermissionCatalog::ROLES[$user->role] ?? $user->role,
-            'shop' => $user->shop?->only(['id', 'name']),
-            'permissions' => $user->permissionKeys(),
-        ];
+        static $hash;
+
+        return $hash ??= Hash::make(Str::random(32));
     }
 }

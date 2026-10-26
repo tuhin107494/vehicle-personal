@@ -200,6 +200,76 @@ class VehicleFlowTest extends TestCase
         $this->deleteJson("/api/purchases/{$purchase['id']}")->assertStatus(409);
     }
 
+    public function test_amounts_in_paisa_add_up_exactly(): void
+    {
+        $v = $this->stockVehicle();
+
+        // 1000.30 - 0.10 leaves 1000.20 due; as floats, 0.10 + 0.20 + ... would leave crumbs like 0.0000000000002
+        $sale = $this->postJson('/api/sales', $this->saleData($v, ['payment_type' => 'due', 'sale_price' => 1000.30, 'down_payment' => 0.10]))
+            ->assertCreated()->assertJsonPath('data.due_amount', 1000.2)->json('data');
+
+        $this->postJson("/api/sales/{$sale['id']}/payments", ['amount' => 1.20])->assertCreated();
+        $this->postJson("/api/sales/{$sale['id']}/payments", ['amount' => 999.01])->assertStatus(409); // only 999.00 is left
+        $this->postJson("/api/sales/{$sale['id']}/payments", ['amount' => 999.00])->assertCreated()
+            ->assertJsonPath('data.sale.due_amount', 0)->assertJsonPath('data.sale.total_paid', 1000.3)->assertJsonPath('data.sale.payment_status', 'paid');
+
+        // an installment plan of 100.00 over 3 is 33.33 + 33.33 + 33.34
+        $v2 = $this->stockVehicle('CH-PAISA');
+        $plan = $this->postJson('/api/sales', $this->saleData($v2, [
+            'payment_type' => 'installment', 'sale_price' => 100.10, 'down_payment' => 0.10,
+            'installment_count' => 3, 'first_due_date' => today()->addMonth()->toDateString(),
+        ]))->assertCreated()->json('data.plan');
+        $this->assertEquals([33.33, 33.33, 33.34], collect($plan['installments'])->pluck('amount')->all());
+    }
+
+    public function test_a_purchase_from_a_customer_cannot_be_paid_from_an_advance(): void
+    {
+        $purchase = $this->postJson('/api/purchases', [
+            'vehicle_type' => 'motorcycle', 'chassis_no' => 'ADV-C', 'engine_no' => 'EN-ADV-C', 'source' => 'customer', 'customer_id' => $this->buyer()->id,
+            'purchase_date' => today()->toDateString(), 'price' => 100000,
+        ])->assertCreated()->json('data');
+
+        $this->postJson("/api/purchases/{$purchase['id']}/payments", ['amount' => 1000, 'method' => 'advance'])->assertStatus(409);
+        $this->postJson("/api/purchases/{$purchase['id']}/payments", ['amount' => 1000, 'method' => 'cash'])->assertCreated()->assertJsonPath('data.balance', 99000);
+    }
+
+    public function test_paid_amount_cannot_be_edited_once_payments_are_recorded(): void
+    {
+        $seller = Supplier::create(['name' => 'Seller', 'phone' => '01700088888']);
+        $purchase = $this->postJson('/api/purchases', [
+            'vehicle_type' => 'motorcycle', 'chassis_no' => 'EDIT-1', 'engine_no' => 'EN-EDIT-1', 'supplier_id' => $seller->id,
+            'purchase_date' => today()->toDateString(), 'price' => 100000, 'paid_amount' => 10000,
+        ])->assertCreated()->json('data');
+
+        // before any payment, the amount paid at purchase can still be corrected
+        $this->putJson("/api/purchases/{$purchase['id']}", ['paid_amount' => 20000])->assertOk()->assertJsonPath('data.paid_amount', 20000);
+
+        $this->postJson("/api/purchases/{$purchase['id']}/payments", ['amount' => 40000, 'method' => 'cash'])->assertCreated();
+        $this->putJson("/api/purchases/{$purchase['id']}", ['paid_amount' => 0])->assertStatus(409);
+        $this->putJson("/api/purchases/{$purchase['id']}", ['paid_amount' => 60000, 'notes' => 'same total is fine'])->assertOk();
+        $this->assertDatabaseHas('purchases', ['id' => $purchase['id'], 'paid_amount' => 60000, 'payment_status' => 'partial']);
+    }
+
+    public function test_cancelling_an_investor_sale_returns_the_principal_still_out(): void
+    {
+        $v = $this->stockVehicle();
+        $investor = Investor::create(['name' => 'Inv']);
+        $sale = $this->postJson('/api/sales', $this->saleData($v, [
+            'payment_type' => 'installment', 'down_payment' => 400000, 'investor_id' => $investor->id,
+            'installment_count' => 3, 'first_due_date' => today()->addMonth()->toDateString(),
+            'interest_rate' => 10, 'investor_share_percent' => 50,
+        ]))->assertCreated()->json('data');
+
+        // 330000 collected returns 300000 of the 600000 principal; cancelling returns the other 300000
+        $this->postJson("/api/sales/{$sale['id']}/payments", ['amount' => 330000])->assertCreated();
+        $this->postJson("/api/sales/{$sale['id']}/cancel", ['reason' => 'Buyer backed out'])->assertOk();
+
+        $this->assertDatabaseHas('investor_settlements', ['investor_id' => $investor->id, 'type' => 'principal_return', 'amount' => 300000, 'note' => "Auto: sale #{$sale['id']} cancelled, principal returned"]);
+        $this->getJson("/api/investors/{$investor->id}/portfolio")->assertOk()
+            ->assertJsonPath('data.summary.invested', 600000)->assertJsonPath('data.summary.returned', 600000)
+            ->assertJsonPath('data.summary.outstanding', 0);
+    }
+
     public function test_account_form_pays_suppliers_and_collects_from_customers_oldest_first(): void
     {
         $seller = Supplier::create(['name' => 'Seller', 'phone' => '01700088888']);

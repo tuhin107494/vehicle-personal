@@ -40,7 +40,7 @@ class PayableController extends Controller implements HasMiddleware
             'paid_amount' => $p->paid_amount,
             'due_adjustment' => $p->due_adjustment,
             'balance' => $this->payables->balance($p),
-            'advance_available' => round((float) ($advance[$p->supplier_id] ?? 0), 2),
+            'advance_available' => (float) ($advance[$p->supplier_id] ?? 0),
         ])->values());
     }
 

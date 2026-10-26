@@ -27,7 +27,7 @@ class ShopController extends Controller
     public function store(ShopRequest $request, ShopService $shops): JsonResponse
     {
         $shop = $shops->create(
-            $request->safe()->only(['name', 'phone', 'address']) + ['is_active' => $request->boolean('is_active', true)],
+            $request->safe()->only(['name', 'phone', 'address']) + ['is_active' => $request->boolean('is_active', true), 'approved_at' => now()],
             ['name' => $request->owner_name, 'email' => $request->owner_email, 'password' => $request->owner_password],
         );
 
@@ -41,7 +41,11 @@ class ShopController extends Controller
 
     public function update(ShopRequest $request, Shop $shop): JsonResponse
     {
-        $shop->update($request->safe()->only(['name', 'phone', 'address']) + ['is_active' => $request->boolean('is_active', $shop->is_active)]);
+        $shop->fill($request->safe()->only(['name', 'phone', 'address']) + ['is_active' => $request->boolean('is_active', $shop->is_active)]);
+        if ($shop->is_active && $shop->isPending()) {
+            $shop->approved_at = now(); // switching a signed-up shop on approves it
+        }
+        $shop->save();
 
         if ($owner = $shop->owner) {
             $owner->fill(array_filter([

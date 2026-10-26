@@ -9,14 +9,18 @@ const apiOrigin = (() => {
   }
 })();
 
-// the page may talk to itself and to the API only; scripts and styles stay inline because Next.js writes some inline
+// Google's sign-in script, which the sign-in page loads when the super admin has turned Google sign-in on
+const google = "https://accounts.google.com/gsi/";
+
+// the page may talk to itself, the API and Google sign-in only; scripts and styles stay inline because Next.js writes some inline
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isProd ? "" : " 'unsafe-eval'"}`,
-  "style-src 'self' 'unsafe-inline'",
+  `script-src 'self' 'unsafe-inline' ${google}client${isProd ? "" : " 'unsafe-eval'"}`,
+  `style-src 'self' 'unsafe-inline' ${google}style`,
   `img-src 'self' data: blob: ${apiOrigin}`,
   "font-src 'self' data:",
-  `connect-src 'self' ${apiOrigin}${isProd ? "" : " ws://localhost:3000 ws://127.0.0.1:3000"}`,
+  `frame-src ${google}`,
+  `connect-src 'self' ${apiOrigin} ${google}${isProd ? "" : " ws://localhost:3000 ws://127.0.0.1:3000"}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
