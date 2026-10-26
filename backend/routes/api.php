@@ -141,6 +141,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('shop', [SettingsController::class, 'updateShop']);
         Route::get('collections/summary', [CollectionController::class, 'summary']);
         Route::get('collections/upcoming', [CollectionController::class, 'upcoming']);
+        Route::get('collections/call-history', [CollectionController::class, 'callHistory']);
         Route::post('collections/call', [CollectionController::class, 'markCalled']);
         Route::delete('collections/call', [CollectionController::class, 'unmarkCalled']);
         Route::delete('customers/{customer}', [CustomerController::class, 'destroy']);

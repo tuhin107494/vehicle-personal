@@ -150,12 +150,41 @@ class CollectionController extends Controller implements HasMiddleware
         return $this->success(null, 'Call marked done');
     }
 
-    /** Undo a "call done" mark so the row is due for a call again. */
+    /** Undo the latest "call done" mark so the row is due for a call again; earlier calls stay in the history. */
     public function unmarkCalled(Request $request): JsonResponse
     {
-        CallLog::where($this->target($request))->delete();
+        CallLog::where($this->target($request))->latest('called_at')->latest('id')->first()?->delete();
 
         return $this->success(null, 'Call mark removed');
+    }
+
+    /** Every call made about the sale behind a row (all its installments and dues), newest first. */
+    public function callHistory(Request $request): JsonResponse
+    {
+        $target = $this->target($request);
+
+        $sale = $target['kind'] === 'installment'
+            ? Installment::with('plan')->findOrFail($target['ref_id'])->plan->sale_id
+            : DuePromise::findOrFail($target['ref_id'])->sale_id;
+
+        $installments = Installment::whereHas('plan', fn ($q) => $q->where('sale_id', $sale))->pluck('seq_no', 'id');
+        $promises = DuePromise::where('sale_id', $sale)->pluck('id');
+
+        $calls = CallLog::with('caller:id,name')
+            ->where(fn ($q) => $q
+                ->where(fn ($q) => $q->where('kind', 'installment')->whereIn('ref_id', $installments->keys()))
+                ->orWhere(fn ($q) => $q->where('kind', 'promise')->whereIn('ref_id', $promises)))
+            ->latest('called_at')->latest('id')->get()
+            ->map(fn (CallLog $c) => [
+                'id' => $c->id,
+                'called_at' => $c->called_at->toIso8601String(),
+                'for' => $c->kind === 'installment' ? 'Installment #'.($installments[$c->ref_id] ?? '') : 'Due',
+                'by' => $c->caller?->name,
+                'meet_date' => $c->meet_date?->toDateString(),
+                'note' => $c->note,
+            ]);
+
+        return $this->success($calls);
     }
 
     /** @return array{kind:string,ref_id:int} */

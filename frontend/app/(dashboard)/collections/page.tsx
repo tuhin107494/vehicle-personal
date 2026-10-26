@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Check, Eye, Phone, Search, Undo2 } from "lucide-react";
+import { Check, Eye, History, Phone, Search, Undo2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { fmtDate, money } from "@/lib/format";
 import { useFetch } from "@/lib/hooks";
@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Col, DataTable } from "@/components/DataTable";
 
 type Kind = "" | "installment" | "promise";
+type CallEntry = { id: number; called_at: string; for: string; by: string | null; meet_date: string | null; note: string | null };
 type Stats = { count: number; amount: number; customers: number };
 type Bucket = Stats & { key: string; label: string; kinds: { installment: Stats; promise: Stats } };
 
@@ -62,6 +63,20 @@ export default function CollectionsPage() {
   const [meetDate, setMeetDate] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // the calls made so far about a row's sale
+  const [historyOf, setHistoryOf] = useState<CallRow | null>(null);
+  const [history, setHistory] = useState<CallEntry[] | null>(null);
+  const showHistory = async (r: CallRow) => {
+    setHistoryOf(r);
+    setHistory(null);
+    try {
+      setHistory((await api<CallEntry[]>(`/collections/call-history?type=${r.type}&id=${r.id}`)).data);
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Failed to load");
+      setHistoryOf(null);
+    }
+  };
 
   const startCall = (r: CallRow) => {
     setMeetDate("");
@@ -126,6 +141,7 @@ export default function CollectionsPage() {
       cell: ({ row }) => (
         <div className="flex flex-wrap items-center justify-end gap-1.5 md:justify-start" onClick={(e) => e.stopPropagation()}>
           <Link className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50" href={`/sales/${row.original.sale_id}`}><Eye className="size-4" /> Open sale</Link>
+          <button type="button" onClick={() => showHistory(row.original)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"><History className="size-4" /> History</button>
           {row.original.called_until ? (
             <>
               <span className="text-xs font-medium text-amber-800">
@@ -196,6 +212,28 @@ export default function CollectionsPage() {
       </div>
 
       <DataTable columns={columns} data={rows} rowClass={(r) => (r.called_until ? "!bg-amber-100/80 hover:!bg-amber-100" : "")} loading={list.loading} onRowClick={(r) => router.push(`/sales/${r.sale_id}`)} empty={term ? "No match found." : bucket === "overdue" ? "Nothing is overdue." : "Nothing falls due in this period."} />
+      <Modal open={!!historyOf} title="Call history" onClose={() => setHistoryOf(null)}>
+        {historyOf && (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">{historyOf.customer.name} · {historyOf.customer.phone} · Sale #{historyOf.sale_id}</p>
+            {history === null ? <p className="text-sm text-slate-500">Loading...</p> : history.length === 0 ? <p className="text-sm text-slate-500">No calls marked done yet.</p> : (
+              <ul className="space-y-2">
+                {history.map((c) => (
+                  <li key={c.id} className="rounded-lg bg-slate-50 p-3 text-sm ring-1 ring-slate-200">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <b className="text-slate-800">{new Date(c.called_at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</b>
+                      <span className="text-xs text-slate-500">{c.for}{c.by ? ` · by ${c.by}` : ""}</span>
+                    </div>
+                    {c.meet_date && <p className="mt-1 text-slate-700">Will meet: {fmtDate(c.meet_date)}</p>}
+                    {c.note && <p className="mt-1 text-slate-700">{c.note}</p>}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="flex justify-end"><Button type="button" variant="outline" onClick={() => setHistoryOf(null)}>Close</Button></div>
+          </div>
+        )}
+      </Modal>
       <Modal open={!!calling} title="Call done" onClose={() => setCalling(null)}>
         {calling && (
           <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); mark(calling, true); }}>

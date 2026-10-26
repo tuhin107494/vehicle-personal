@@ -78,6 +78,23 @@ class CollectionCallTest extends TestCase
         $this->assertNull($this->calledUntil());
     }
 
+    public function test_the_call_history_lists_every_call_and_undo_keeps_the_earlier_ones(): void
+    {
+        $body = ['type' => 'promise', 'id' => $this->promise->id];
+        $this->postJson('/api/collections/call', $body + ['note' => 'First call'])->assertOk();
+        CallLog::query()->update(['called_at' => now()->subDays(9)]);
+        $this->postJson('/api/collections/call', $body + ['note' => 'Second call', 'meet_date' => today()->addDays(3)->toDateString()])->assertOk();
+
+        $history = $this->getJson('/api/collections/call-history?type=promise&id='.$this->promise->id)->assertOk()->json('data');
+        $this->assertSame(['Second call', 'First call'], array_column($history, 'note'));
+        $this->assertSame('Due', $history[0]['for']);
+        $this->assertNotNull($history[0]['by']);
+
+        // undo removes only the latest mark
+        $this->deleteJson('/api/collections/call', $body)->assertOk();
+        $this->assertSame(['First call'], array_column($this->getJson('/api/collections/call-history?type=promise&id='.$this->promise->id)->json('data'), 'note'));
+    }
+
     public function test_a_call_mark_can_be_undone(): void
     {
         $this->postJson('/api/collections/call', ['type' => 'promise', 'id' => $this->promise->id])->assertOk();
