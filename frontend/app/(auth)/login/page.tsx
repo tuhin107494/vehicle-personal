@@ -65,7 +65,10 @@ export default function LoginPage() {
             <Field required label="Password" error={errors.password?.message}>
               <Input id="password" type="password" className="w-full" {...register("password")} />
             </Field>
-            <div className="text-right"><Link className="text-sm font-medium text-emerald-700 hover:underline" href="/forgot-password">Forgot password?</Link></div>
+            <div className="flex flex-wrap justify-between gap-2">
+              {config?.signup_enabled ? <Link className="text-sm text-slate-500 hover:text-emerald-700 hover:underline" href="/verify-email">Didn&apos;t get the confirmation email?</Link> : <span />}
+              <Link className="text-sm font-medium text-emerald-700 hover:underline" href="/forgot-password">Forgot password?</Link>
+            </div>
             <Button type="submit" disabled={isSubmitting} className="w-full">
               {isSubmitting ? "Signing in..." : "Sign in"}
             </Button>

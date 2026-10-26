@@ -37,6 +37,8 @@ Route::get('auth/config', [AuthController::class, 'config']);
 Route::post('auth/google', [AuthController::class, 'google'])->middleware('throttle:10,1');
 Route::post('signup', [SignupController::class, 'store'])->middleware('throttle:5,1');
 Route::post('signup/google', [SignupController::class, 'google'])->middleware('throttle:5,1');
+Route::post('signup/confirm', [SignupController::class, 'confirm'])->middleware('throttle:10,1');
+Route::post('signup/resend', [SignupController::class, 'resend'])->middleware('throttle:signup-resend');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('logout', [AuthController::class, 'logout']);

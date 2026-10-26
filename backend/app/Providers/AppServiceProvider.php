@@ -26,6 +26,8 @@ class AppServiceProvider extends ServiceProvider
     {
         // 5 sign-in tries a minute for each email + address, so passwords cannot be guessed in bulk
         RateLimiter::for('login', fn (Request $request) => Limit::perMinute(5)->by(strtolower((string) $request->input('email')).'|'.$request->ip()));
+        // a new confirmation link: 3 a minute for each email + address, so nobody can flood an inbox with them
+        RateLimiter::for('signup-resend', fn (Request $request) => Limit::perMinute(3)->by('resend|'.strtolower((string) $request->input('email')).'|'.$request->ip()));
         // every other request: 120 a minute for each signed-in user (or address)
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(120)->by($request->user()?->id ?: $request->ip()));
 
