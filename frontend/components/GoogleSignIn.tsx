@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -28,13 +28,31 @@ function loadScript(): Promise<void> {
   });
 }
 
-/** What the super admin has switched on for the sign-in and sign-up pages. Null while loading or when the API cannot be reached. */
+const CONFIG_CACHE = "auth-config";
+const subscribeCache = () => () => {};
+
+/**
+ * What the super admin has switched on for the sign-in and sign-up pages. Null while loading or when the API cannot be reached.
+ * The last answer is kept in the browser so the Google button can show at once, and Google's script starts loading right
+ * away instead of waiting for the API (which can be slow to wake up).
+ */
 export function useAuthConfig() {
-  const [config, setConfig] = useState<AuthConfig | null>(null);
+  const [fresh, setFresh] = useState<AuthConfig | null>(null);
+  // the saved answer is read on the client only (null on the server), so the first paint matches
+  const saved = useSyncExternalStore(subscribeCache, () => { try { return localStorage.getItem(CONFIG_CACHE); } catch { return null; } }, () => null);
   useEffect(() => {
-    api<AuthConfig>("/auth/config").then((res) => setConfig(res.data)).catch(() => {});
+    loadScript().catch(() => {});
+    api<AuthConfig>("/auth/config")
+      .then((res) => {
+        setFresh(res.data);
+        try { localStorage.setItem(CONFIG_CACHE, JSON.stringify(res.data)); } catch { /* ignore */ }
+      })
+      .catch(() => {});
   }, []);
-  return config;
+  return useMemo(() => {
+    if (fresh) return fresh;
+    try { return saved ? (JSON.parse(saved) as AuthConfig) : null; } catch { return null; }
+  }, [fresh, saved]);
 }
 
 /** The message to show for a failed sign-in: the reason ("no account uses ...") sits on the email field, not in "Validation failed". */
@@ -119,12 +137,12 @@ export function GoogleSignIn({ clientId }: { clientId: string | null | undefined
     }
   });
 
-  if (!google.ready) return null;
+  if (clientId === null) return null; // undefined means the settings have not arrived yet: show the button, disabled
 
   return (
     <>
       <OrDivider />
-      <GoogleButton label="Sign in with Google" busy={google.busy} onClick={google.start} />
+      <GoogleButton label="Sign in with Google" busy={google.busy || !google.ready} onClick={google.start} />
     </>
   );
 }

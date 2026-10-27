@@ -26,6 +26,8 @@ export default function LoginPage() {
   const router = useRouter();
   const { user, loading, login } = useAuth();
   const config = useAuthConfig();
+  // the page draws in full at once; a part is only hidden when the settings (saved from the last visit, then fresh) say it is off
+  const signupOn = config ? config.signup_enabled : true;
   const {
     register,
     handleSubmit,
@@ -66,14 +68,14 @@ export default function LoginPage() {
               <Input id="password" type="password" className="w-full" {...register("password")} />
             </Field>
             <div className="flex flex-wrap justify-between gap-2">
-              {config?.signup_enabled ? <Link className="text-sm text-slate-500 hover:text-emerald-700 hover:underline" href="/verify-email">Didn&apos;t get the confirmation email?</Link> : <span />}
+              {signupOn ? <Link className="text-sm text-slate-500 hover:text-emerald-700 hover:underline" href="/verify-email">Didn&apos;t get the confirmation email?</Link> : <span />}
               <Link className="text-sm font-medium text-emerald-700 hover:underline" href="/forgot-password">Forgot password?</Link>
             </div>
             <Button type="submit" disabled={isSubmitting} className="w-full">
               {isSubmitting ? "Signing in..." : "Sign in"}
             </Button>
             <GoogleSignIn clientId={config?.google.client_id} />
-            {config?.signup_enabled && (
+            {signupOn && (
               <div className="border-t border-slate-200 pt-4 text-center">
                 <p className="mb-2 text-sm text-slate-500">New to Vehicle Hub?</p>
                 <Link href="/signup" className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 text-sm font-semibold text-emerald-700 hover:bg-emerald-100">

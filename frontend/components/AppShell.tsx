@@ -61,7 +61,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         style={{ backgroundImage: "linear-gradient(135deg, #1b3a2d, #29493a)" }}
       >
         <div className="flex items-center gap-2 px-5 py-3 md:py-5">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/20"><Car className="size-5" /></span>
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-green-500 text-white ring-2 ring-white/40"><Car className="size-5" /></span>
           <div className="min-w-0 flex-1">
             {/* a shop user sees only their shop's name; the platform admin has no shop, so the product name shows */}
             <p className="truncate text-xl font-bold leading-tight text-orange-200">{user?.shop ? user.shop.name : t("Vehicle Hub")}</p>

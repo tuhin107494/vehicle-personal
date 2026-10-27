@@ -13,7 +13,7 @@ import { api, applyServerErrors } from "@/lib/api";
 import { type Session, useAuth } from "@/lib/auth";
 import { AuthShell } from "@/components/AuthShell";
 import { authError, GoogleButton, OrDivider, useAuthConfig, useGoogleCode } from "@/components/GoogleSignIn";
-import { Button, Field, Loading } from "@/components/app-ui";
+import { Button, Field } from "@/components/app-ui";
 import { Input } from "@/components/ui/input";
 
 const schema = z.object({
@@ -79,9 +79,10 @@ export default function SignupPage() {
     );
   }
 
-  if (!config) return <AuthShell title="Create an account" subtitle="Open your shop on Vehicle Hub"><Loading /></AuthShell>;
+  // the form draws in full at once; only settings that say sign-up is closed (or Google is off) change it
+  const googleOn = config?.google.client_id !== null;
 
-  if (!config.signup_enabled) {
+  if (config && !config.signup_enabled) {
     return (
       <AuthShell title="Create an account" subtitle="Open your shop on Vehicle Hub">
         <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Sign-up is closed right now. Contact support to open an account.</p>
@@ -96,9 +97,9 @@ export default function SignupPage() {
         <Field required label="Shop name" error={errors.shop_name?.message}><Input className="w-full" autoComplete="organization" {...register("shop_name")} /></Field>
         <Field required label="Phone" error={errors.phone?.message}><Input type="tel" className="w-full" autoComplete="tel" {...register("phone")} /></Field>
 
-        {google.ready && (
+        {googleOn && (
           <>
-            <GoogleButton label="Sign up with Google" busy={google.busy} onClick={signUpWithGoogle} />
+            <GoogleButton label="Sign up with Google" busy={google.busy || !google.ready} onClick={signUpWithGoogle} />
             <OrDivider />
           </>
         )}
@@ -108,7 +109,7 @@ export default function SignupPage() {
         <Field required label="Password" error={errors.password?.message}><Input type="password" className="w-full" autoComplete="new-password" {...register("password")} /></Field>
         <Field required label="Confirm password" error={errors.password_confirmation?.message}><Input type="password" className="w-full" autoComplete="new-password" {...register("password_confirmation")} /></Field>
         <Button type="submit" disabled={isSubmitting} className="w-full">{isSubmitting ? "Creating..." : "Create account"}</Button>
-        <p className="text-center text-xs text-slate-500">{google.ready ? "With Google you start right away. With email, we send you a link to confirm it first." : "We will email you a link to confirm your email and sign in."}</p>
+        <p className="text-center text-xs text-slate-500">{googleOn ? "With Google you start right away. With email, we send you a link to confirm it first." : "We will email you a link to confirm your email and sign in."}</p>
       </form>
       <p className="text-center text-sm text-slate-600">Already have an account? <Link className="font-medium text-emerald-700 underline" href="/login">Sign in</Link></p>
     </AuthShell>

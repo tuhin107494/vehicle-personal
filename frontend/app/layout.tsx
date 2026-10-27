@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Vehicle Management",
+  title: "Vehicle Hub",
   description: "Vehicle purchase, sale and collection management",
 };
 
