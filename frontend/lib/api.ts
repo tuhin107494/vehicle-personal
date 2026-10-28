@@ -32,12 +32,28 @@ export const tokenStore = {
 // A GET that is still on its way is shared, so two parts of the page (or React's double render in development) asking for the same thing send one request.
 const inFlight = new Map<string, Promise<ApiEnvelope<unknown>>>();
 
+// Lists that rarely change (shop settings, vehicle types and colors) are kept for a minute, so opening the next page does not ask the server for them again.
+// Any save (POST/PUT/DELETE) throws them away, so a change shows up at once.
+const STABLE = /^\/(settings|vehicle-categories|vehicle-colors)(\?|$)/;
+const STABLE_FOR = 60_000;
+const stable = new Map<string, { at: number; res: ApiEnvelope<unknown> }>();
+
 export function api<T = unknown>(path: string, options: { method?: string; body?: unknown } = {}): Promise<ApiEnvelope<T>> {
-  if ((options.method ?? "GET") !== "GET") return send<T>(path, options);
+  if ((options.method ?? "GET") !== "GET") {
+    stable.clear();
+    return send<T>(path, options).finally(() => stable.clear());
+  }
   const key = `${tokenStore.get() ?? ""}${path}`;
+  const kept = STABLE.test(path) ? stable.get(key) : undefined;
+  if (kept && Date.now() - kept.at < STABLE_FOR) return Promise.resolve(kept.res as ApiEnvelope<T>);
   const pending = inFlight.get(key) as Promise<ApiEnvelope<T>> | undefined;
   if (pending) return pending;
-  const request = send<T>(path, options).finally(() => inFlight.delete(key));
+  const request = send<T>(path, options)
+    .then((res) => {
+      if (STABLE.test(path)) stable.set(key, { at: Date.now(), res });
+      return res;
+    })
+    .finally(() => inFlight.delete(key));
   inFlight.set(key, request);
   return request;
 }
