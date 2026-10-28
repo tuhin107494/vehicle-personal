@@ -1,3 +1,5 @@
+import type { VehicleCategory } from "@/lib/categories";
+import type { PermissionT } from "@/lib/types";
 import type { FieldValues, Path, UseFormSetError } from "react-hook-form";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
@@ -7,7 +9,7 @@ export type ApiEnvelope<T> = {
   success: boolean;
   message: string;
   data: T;
-  meta?: PageMeta & { unread_count?: number; total_amount?: number; type_counts?: Record<string, number> };
+  meta?: PageMeta & { unread_count?: number; total_amount?: number; type_counts?: Record<string, number>; due_count?: number; permissions?: PermissionT[]; categories?: VehicleCategory[] };
   errors?: Record<string, string[]>;
 };
 
@@ -32,12 +34,34 @@ export const tokenStore = {
 // A GET that is still on its way is shared, so two parts of the page (or React's double render in development) asking for the same thing send one request.
 const inFlight = new Map<string, Promise<ApiEnvelope<unknown>>>();
 
+// Lists that rarely change (shop settings, vehicle types and colors) are kept for ten minutes, so opening the next page does not ask the server for them again.
+// Any save (POST/PUT/DELETE) throws them away, so a change shows up at once.
+const STABLE = /^\/(settings|vehicle-categories|vehicle-colors)(\?|$)/;
+const STABLE_FOR = 10 * 60_000;
+const stable = new Map<string, { at: number; res: ApiEnvelope<unknown> }>();
+
 export function api<T = unknown>(path: string, options: { method?: string; body?: unknown } = {}): Promise<ApiEnvelope<T>> {
-  if ((options.method ?? "GET") !== "GET") return send<T>(path, options);
+  if ((options.method ?? "GET") !== "GET") {
+    stable.clear();
+    return send<T>(path, options).finally(() => stable.clear());
+  }
   const key = `${tokenStore.get() ?? ""}${path}`;
+  const kept = STABLE.test(path) ? stable.get(key) : undefined;
+  if (kept && Date.now() - kept.at < STABLE_FOR) return Promise.resolve(kept.res as ApiEnvelope<T>);
   const pending = inFlight.get(key) as Promise<ApiEnvelope<T>> | undefined;
   if (pending) return pending;
-  const request = send<T>(path, options).finally(() => inFlight.delete(key));
+  const request = send<T>(path, options)
+    .then((res) => {
+      if (STABLE.test(path)) stable.set(key, { at: Date.now(), res });
+      // /me brings the shared lists with it (meta.preload): keep each as if its own request had answered
+      const preload = (res.meta as { preload?: Record<string, unknown> } | undefined)?.preload;
+      if (path === "/me" && preload) {
+        const at = Date.now();
+        for (const [p, data] of Object.entries(preload)) stable.set(`${tokenStore.get() ?? ""}${p}`, { at, res: { success: true, message: "OK", data } as ApiEnvelope<unknown> });
+      }
+      return res;
+    })
+    .finally(() => inFlight.delete(key));
   inFlight.set(key, request);
   return request;
 }

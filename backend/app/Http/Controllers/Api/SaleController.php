@@ -48,7 +48,7 @@ class SaleController extends Controller implements HasMiddleware
                 ->whereHas('vehicle', fn ($q) => $q->where('chassis_no', 'like', "%$s%")->orWhere('model', 'like', "%$s%"))
                 ->orWhereHas('customer', fn ($q) => $q->where('name', 'like', "%$s%")->orWhere('phone', 'like', "%$s%"))))
             ->latest('sale_date')->latest('id')
-            ->paginate($request->integer('per_page', 15));
+            ->paginate($this->perPage($request));
 
         return $this->paginated($sales, SaleResource::class);
     }

@@ -6,7 +6,6 @@ import Link from "next/link";
 import { usePagedList } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
 import { label } from "@/lib/format";
-import { useCategories } from "@/lib/categories";
 import { typeColor } from "@/lib/typeColors";
 import type { Vehicle } from "@/lib/types";
 import { Badge, Button, Field, inputCls, PageHeader, Pagination, StatusBadge } from "@/components/app-ui";
@@ -26,8 +25,10 @@ function Vehicles() {
   const [type, setType] = useState("");
   const [registration, setRegistration] = useState(REGISTRATION_STEPS.includes(params.get("registration") ?? "") ? params.get("registration")! : ""); // e.g. ?registration=pending
   const { can } = useAuth();
-  const { categories, nameOf } = useCategories();
   const list = usePagedList<Vehicle>("/vehicles", { status, vehicle_type: type, registration_status: registration });
+  // the vehicle types come with the list (meta), so this page makes one request
+  const categories = list.meta?.categories ?? [];
+  const nameOf = (key?: string | null) => categories.find((c) => c.key === key)?.name ?? label(key);
   const [editing, setEditing] = useState<Vehicle | null>(null);
   const [open, setOpen] = useState(false);
   const [reg, setReg] = useState<Vehicle | null>(null);

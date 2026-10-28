@@ -72,7 +72,8 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
     setFound({ party: fromParty.data.name });
     setValue("party_id", String(fromParty.data.id), { shouldValidate: true });
   }, [fromParty.data, setValue]);
-  const dueSales = useFetch<Sale[]>(side === "customer" && !w.party_id ? `/sales?due=1&per_page=30${vqD ? `&search=${encodeURIComponent(vqD)}` : ""}` : null);
+  const [vehicleListOpened, setVehicleListOpened] = useState(false); // the due list loads when the "find by vehicle" field is first used
+  const dueSales = useFetch<Sale[]>(side === "customer" && !w.party_id && vehicleListOpened ? `/sales?due=1&per_page=30${vqD ? `&search=${encodeURIComponent(vqD)}` : ""}` : null);
   const itemsPg = usePaging(summary.data?.items, false, 5);
   const picked = summary.data?.items.find((i) => String(i.id) === saleId);
   // A due is collected per vehicle: the oldest one is chosen until another is picked.
@@ -135,6 +136,7 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
                     setSaleId(id);
                   }}
                   onQueryChange={setVq}
+                  onOpen={() => setVehicleListOpened(true)}
                   loading={dueSales.loading}
                   placeholder="Search chassis, model or customer..."
                 />

@@ -42,11 +42,13 @@ class UserController extends Controller
             $data['password'] = $request->password;
         }
 
-        $user->fill($data + ['is_active' => $request->boolean('is_active', $user->is_active)])->save();
+        DB::transaction(function () use ($user, $data, $request) {
+            $user->fill($data + ['is_active' => $request->boolean('is_active', $user->is_active)])->save();
 
-        if (! $user->is_active) {
-            DB::table('personal_access_tokens')->where('tokenable_id', $user->id)->where('tokenable_type', User::class)->delete();
-        }
+            if (! $user->is_active) {
+                DB::table('personal_access_tokens')->where('tokenable_id', $user->id)->where('tokenable_type', User::class)->delete();
+            }
+        });
 
         return $this->success(UserResource::make($user), 'User updated');
     }

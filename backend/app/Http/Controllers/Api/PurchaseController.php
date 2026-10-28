@@ -40,7 +40,7 @@ class PurchaseController extends Controller implements HasMiddleware
                 ->orWhereHas('supplier', fn ($q) => $q->where('name', 'like', "%$s%"))
                 ->orWhereHas('customer', fn ($q) => $q->where('name', 'like', "%$s%"))))
             ->latest('purchase_date')->latest('id')
-            ->paginate($request->integer('per_page', 15));
+            ->paginate($this->perPage($request));
 
         return $this->paginated($purchases, PurchaseResource::class);
     }

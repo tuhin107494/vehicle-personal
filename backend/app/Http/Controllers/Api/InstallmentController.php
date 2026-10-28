@@ -32,7 +32,7 @@ class InstallmentController extends Controller implements HasMiddleware
             ->when($request->to, fn ($q, $v) => $q->whereDate('due_date', '<=', $v))
             ->when($request->sale_id, fn ($q, $v) => $q->whereHas('plan', fn ($q) => $q->where('sale_id', $v)))
             ->orderBy('due_date')->orderBy('seq_no')
-            ->paginate($request->integer('per_page', 15));
+            ->paginate($this->perPage($request));
 
         return $this->paginated($installments, InstallmentResource::class);
     }

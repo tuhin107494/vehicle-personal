@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useFetch, usePagedList } from "@/lib/hooks";
+import { usePagedList } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
 import { money } from "@/lib/format";
 import type { Investor } from "@/lib/types";
@@ -22,8 +22,8 @@ export default function InvestorsPage() {
   const { can } = useAuth();
   const router = useRouter();
   const [tab, setTab] = useState<"all" | "due">("all");
-  const list = usePagedList<Investor>("/investors", tab === "due" ? { due: "1" } : {});
-  const dueCount = useFetch<Investor[]>("/investors?due=1&per_page=1");
+  // the Due tab's count comes back with the list, so the page makes one request
+  const list = usePagedList<Investor>("/investors", tab === "due" ? { due: "1" } : { with_due_count: "1" });
   const [editing, setEditing] = useState<Investor | null>(null);
   const [open, setOpen] = useState(false);
   const [calc, setCalc] = useState(false);
@@ -80,7 +80,7 @@ export default function InvestorsPage() {
       <PageHeader title="Investors" actions={<div className="flex gap-2"><Button variant="outline" onClick={() => openCalc()}><Calculator className="size-4 text-sky-600" /> Profit calculator</Button>{can("investors.create") && <Button onClick={() => { setEditing(null); setOpen(true); }}><Plus className="size-4 " /> New investor</Button>}</div>} />
       <div className="mb-3 flex gap-2">
         <Button variant={tab === "all" ? "primary" : "outline"} onClick={() => setTab("all")}>All</Button>
-        <Button variant="outline" className={tab === "due" ? "border-transparent bg-gradient-to-r from-rose-500 to-red-600 text-white hover:from-rose-400 hover:to-red-500 hover:text-white" : "border-red-300 text-red-700 hover:bg-red-50 hover:text-red-800"} onClick={() => setTab("due")}><BellRing className="size-4" /> Due <span className="ml-1 rounded-full bg-black/10 px-1.5 text-xs">{dueCount.meta?.total ?? 0}</span></Button>
+        <Button variant="outline" className={tab === "due" ? "border-transparent bg-gradient-to-r from-rose-500 to-red-600 text-white hover:from-rose-400 hover:to-red-500 hover:text-white" : "border-red-300 text-red-700 hover:bg-red-50 hover:text-red-800"} onClick={() => setTab("due")}><BellRing className="size-4" /> Due <span className="ml-1 rounded-full bg-black/10 px-1.5 text-xs">{list.meta?.due_count ?? 0}</span></Button>
       </div>
       <Input className={`${inputCls} mb-3 max-w-xs`} placeholder="Search name or phone" value={list.search} onChange={(e) => list.setSearch(e.target.value)} />
       <DataTable serverPaged columns={columns} data={list.rows} loading={list.loading} empty={tab === "due" ? "No investor has a due payment." : "No records found."} />

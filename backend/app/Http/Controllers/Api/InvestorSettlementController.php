@@ -28,7 +28,7 @@ class InvestorSettlementController extends Controller implements HasMiddleware
             ->when($request->investor_id, fn ($q, $v) => $q->where('investor_id', $v))
             ->when($request->type, fn ($q, $v) => $q->where('type', $v))
             ->latest('date')->latest('id')
-            ->paginate($request->integer('per_page', 15));
+            ->paginate($this->perPage($request));
 
         return $this->paginated($settlements, InvestorSettlementResource::class);
     }

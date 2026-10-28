@@ -33,7 +33,7 @@ class CustomerController extends Controller implements HasMiddleware
             ->when($request->search, fn ($q, $s) => $q->where(fn ($q) => $q
                 ->where('name', 'like', "%$s%")->orWhere('father_name', 'like', "%$s%")->orWhere('phone', 'like', "%$s%")->orWhere('alt_phone', 'like', "%$s%")->orWhere('nid', 'like', "%$s%")))
             ->latest('id')
-            ->paginate($request->integer('per_page', 15));
+            ->paginate($this->perPage($request));
 
         // what each customer still owes us, for the "Due collection" shortcut
         $owed = Sale::where('status', 'active')->whereIn('customer_id', $customers->getCollection()->pluck('id'))

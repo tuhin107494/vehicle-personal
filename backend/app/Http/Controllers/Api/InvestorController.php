@@ -119,19 +119,21 @@ class InvestorController extends Controller implements HasMiddleware
             ->when($request->has('is_active'), fn ($q) => $q->where('is_active', $request->boolean('is_active')))
             ->latest('id');
 
-        if ($request->boolean('due')) {
-            // only investors who are owed something now
+        $per = $this->perPage($request);
+        $page = max($request->integer('page', 1), 1);
+
+        // the list page also shows how many investors are owed something (its "Due" tab), so that count rides along instead of a second request
+        if ($request->boolean('due') || $request->boolean('with_due_count')) {
             $all = $query->get();
             $this->attachDue($all);
             $due = $all->filter(fn (Investor $i) => $i->getAttribute('current_due') > 0)->values();
-            $per = $request->integer('per_page', 15);
-            $page = max($request->integer('page', 1), 1);
-            $investors = new LengthAwarePaginator($due->forPage($page, $per)->values(), $due->count(), $per, $page);
+            $rows = $request->boolean('due') ? $due : $all;
+            $investors = new LengthAwarePaginator($rows->forPage($page, $per)->values(), $rows->count(), $per, $page);
 
-            return $this->paginated($investors, InvestorResource::class);
+            return $this->paginated($investors, InvestorResource::class, extra: ['due_count' => $due->count()]);
         }
 
-        $investors = $query->paginate($request->integer('per_page', 15));
+        $investors = $query->paginate($per);
         $this->attachDue($investors->getCollection());
 
         return $this->paginated($investors, InvestorResource::class);

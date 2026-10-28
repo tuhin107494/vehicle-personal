@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Facades\DB;
 
 class PromiseController extends Controller implements HasMiddleware
 {
@@ -31,7 +32,7 @@ class PromiseController extends Controller implements HasMiddleware
             ->when($request->from, fn ($q, $v) => $q->whereDate('promised_date', '>=', $v))
             ->when($request->to, fn ($q, $v) => $q->whereDate('promised_date', '<=', $v))
             ->orderBy('promised_date')
-            ->paginate($request->integer('per_page', 15));
+            ->paginate($this->perPage($request));
 
         return $this->paginated($promises, DuePromiseResource::class);
     }
@@ -42,18 +43,23 @@ class PromiseController extends Controller implements HasMiddleware
             throw new BusinessRuleException('A promise can only be added to an active sale that still has an amount due.');
         }
 
-        $promise = DuePromise::create([
-            'sale_id' => $sale->id,
-            'promised_date' => $request->promised_date,
-            'promised_amount' => $request->input('promised_amount', $sale->due_amount),
-            'note' => $request->note,
-            'created_by' => $request->user()->id,
-        ]);
+        // one unit: the new promise and the settling of the earlier ones land together or not at all
+        $promise = DB::transaction(function () use ($request, $sale) {
+            $promise = DuePromise::create([
+                'sale_id' => $sale->id,
+                'promised_date' => $request->promised_date,
+                'promised_amount' => $request->input('promised_amount', $sale->due_amount),
+                'note' => $request->note,
+                'created_by' => $request->user()->id,
+            ]);
 
-        // A renewal settles the earlier open promises: a missed one stays on record as broken, one still ahead is cancelled.
-        $earlier = $sale->promises()->where('status', 'open')->where('id', '!=', $promise->id);
-        (clone $earlier)->whereDate('promised_date', '<', today())->update(['status' => 'broken']);
-        $earlier->update(['status' => 'cancelled']);
+            // A renewal settles the earlier open promises: a missed one stays on record as broken, one still ahead is cancelled.
+            $earlier = $sale->promises()->where('status', 'open')->where('id', '!=', $promise->id);
+            (clone $earlier)->whereDate('promised_date', '<', today())->update(['status' => 'broken']);
+            $earlier->update(['status' => 'cancelled']);
+
+            return $promise;
+        });
 
         return $this->success(DuePromiseResource::make($promise), 'Promise recorded', 201);
     }

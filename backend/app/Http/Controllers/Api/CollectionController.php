@@ -8,13 +8,13 @@ use App\Models\DuePromise;
 use App\Models\Installment;
 use App\Models\Sale;
 use App\Support\Money;
+use App\Support\ShopSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use App\Support\ShopSettings;
 
 /**
  * The due lists: what each customer owes and when, as an overdue list and as what falls due in the next 3, 7 and 10 days.
@@ -39,8 +39,12 @@ class CollectionController extends Controller implements HasMiddleware
 
     public function summary(): JsonResponse
     {
-        $rows = $this->rows();
+        return $this->success($this->summaryOf($this->rows()));
+    }
 
+    /** @param Collection<int,array<string,mixed>> $rows */
+    private function summaryOf(Collection $rows): array
+    {
         $stats = fn (Collection $in) => [
             'count' => $in->count(),
             'amount' => Money::sum($in, 'amount'),
@@ -55,14 +59,14 @@ class CollectionController extends Controller implements HasMiddleware
             ];
         })->values();
 
-        return $this->success([
+        return [
             'buckets' => $buckets,
             // What should be collected right now: everything overdue plus what falls due today.
             'current_due' => Money::sum($rows->where('days_left', '<=', 0), 'amount'),
             // everything customers still owe on active sales, as on the dashboard
             'total_due' => round((float) Sale::where('status', 'active')->sum('due_amount'), 2),
             'recall_days' => ShopSettings::recallDays(),
-        ]);
+        ];
     }
 
     public function upcoming(Request $request): JsonResponse
@@ -73,12 +77,19 @@ class CollectionController extends Controller implements HasMiddleware
         $kind = $request->input('kind');
         abort_unless($kind === null || $kind === '' || in_array($kind, self::KINDS, true), 422, 'Unknown kind.');
 
-        $rows = $this->rows()
+        $all = $this->rows();
+        $rows = $all
             ->filter(fn ($r) => $this->inBucket($r['days_left'], $bucket))
             ->when($kind, fn ($c) => $c->where('type', $kind))
             ->values();
 
-        return $this->success($rows, 'OK', 200, ['total' => $rows->count(), 'total_amount' => Money::sum($rows, 'amount')]);
+        // the page's tabs and totals ride along with the list instead of a second request
+        $meta = ['total' => $rows->count(), 'total_amount' => Money::sum($rows, 'amount')];
+        if ($request->boolean('with_summary')) {
+            $meta['summary'] = $this->summaryOf($all);
+        }
+
+        return $this->success($rows, 'OK', 200, $meta);
     }
 
     private function inBucket(int $daysLeft, string $key): bool
@@ -114,10 +125,10 @@ class CollectionController extends Controller implements HasMiddleware
         $calls = $this->recentCalls();
 
         return $rows->map(fn (array $r) => $this->withCustomerTotal($r, $totals) + [
-                'called_until' => $calls[$r['type'].':'.$r['id']]['until'] ?? null,
-                'called_meet_date' => $calls[$r['type'].':'.$r['id']]['meet_date'] ?? null,
-                'called_note' => $calls[$r['type'].':'.$r['id']]['note'] ?? null,
-            ])
+            'called_until' => $calls[$r['type'].':'.$r['id']]['until'] ?? null,
+            'called_meet_date' => $calls[$r['type'].':'.$r['id']]['meet_date'] ?? null,
+            'called_note' => $calls[$r['type'].':'.$r['id']]['note'] ?? null,
+        ])
             ->sortBy('due_date')->values();
     }
 

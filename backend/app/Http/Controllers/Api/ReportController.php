@@ -212,7 +212,7 @@ class ReportController extends Controller implements HasMiddleware
     private function customerEntries(?int $customerId = null): array
     {
         $out = [];
-        $sales = Sale::with(['vehicle:id,chassis_no,brand,model,engine_no', 'payments.receiver:id,name', 'payments.installment:id,seq_no'])->when($customerId, fn ($q) => $q->where('customer_id', $customerId))->get();
+        $sales = Sale::with(['vehicle:id,chassis_no,brand,model,engine_no', 'plan', 'payments.receiver:id,name', 'payments.installment:id,seq_no'])->when($customerId, fn ($q) => $q->where('customer_id', $customerId))->get();
 
         foreach ($sales as $sale) {
             $vehicle = $sale->vehicle->chassis_no;
