@@ -19,7 +19,7 @@ class ShopController extends Controller
     {
         $shops = Shop::with('owner')->withCount('users')
             ->when($request->search, fn ($q, $s) => $q->where('name', 'like', "%$s%"))
-            ->latest('id')->paginate($request->integer('per_page', 15));
+            ->latest('id')->paginate($this->perPage($request));
 
         return $this->paginated($shops, ShopResource::class);
     }
@@ -41,25 +41,28 @@ class ShopController extends Controller
 
     public function update(ShopRequest $request, Shop $shop): JsonResponse
     {
-        $shop->fill($request->safe()->only(['name', 'phone', 'address']) + ['is_active' => $request->boolean('is_active', $shop->is_active)]);
-        if ($shop->is_active && $shop->isPending()) {
-            $shop->approved_at = now(); // switching a signed-up shop on approves it
-        }
-        $shop->save();
+        // shop, owner and sign-outs change together or not at all
+        DB::transaction(function () use ($request, $shop) {
+            $shop->fill($request->safe()->only(['name', 'phone', 'address']) + ['is_active' => $request->boolean('is_active', $shop->is_active)]);
+            if ($shop->is_active && $shop->isPending()) {
+                $shop->approved_at = now(); // switching a signed-up shop on approves it
+            }
+            $shop->save();
 
-        if ($owner = $shop->owner) {
-            $owner->fill(array_filter([
-                'name' => $request->owner_name, 'email' => $request->owner_email, 'password' => $request->owner_password,
-            ]));
-            $owner->is_active = $shop->is_active;
-            $owner->save();
-        }
+            if ($owner = $shop->owner) {
+                $owner->fill(array_filter([
+                    'name' => $request->owner_name, 'email' => $request->owner_email, 'password' => $request->owner_password,
+                ]));
+                $owner->is_active = $shop->is_active;
+                $owner->save();
+            }
 
-        if (! $shop->is_active) {
-            // Sign everybody in this shop out.
-            DB::table('personal_access_tokens')
-                ->whereIn('tokenable_id', $shop->users()->pluck('id'))->where('tokenable_type', User::class)->delete();
-        }
+            if (! $shop->is_active) {
+                // Sign everybody in this shop out.
+                DB::table('personal_access_tokens')
+                    ->whereIn('tokenable_id', $shop->users()->pluck('id'))->where('tokenable_type', User::class)->delete();
+            }
+        });
 
         return $this->success(ShopResource::make($shop->load('owner')), 'Shop updated');
     }

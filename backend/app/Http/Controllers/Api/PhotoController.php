@@ -22,8 +22,7 @@ class PhotoController extends Controller
     public function store(PhotoRequest $request, string $id, string $type): JsonResponse
     {
         $model = $this->find($type, $id);
-        $model->photo = Photos::store($request->file('photo'), $type, $model->photo);
-        $model->save();
+        $this->replace($model, Photos::store($request->file('photo'), $type));
 
         return $this->success(['photo_url' => $model->photo_url], 'Photo saved');
     }
@@ -31,9 +30,7 @@ class PhotoController extends Controller
     public function destroy(string $id, string $type): JsonResponse
     {
         $model = $this->find($type, $id);
-        Photos::delete($model->photo);
-        $model->photo = null;
-        $model->save();
+        $this->replace($model, null);
 
         return $this->success(['photo_url' => null], 'Photo removed');
     }
@@ -42,8 +39,7 @@ class PhotoController extends Controller
     public function storeOwn(PhotoRequest $request): JsonResponse
     {
         $user = $request->user();
-        $user->photo = Photos::store($request->file('photo'), 'users', $user->photo);
-        $user->save();
+        $this->replace($user, Photos::store($request->file('photo'), 'users'));
 
         return $this->success(['photo_url' => $user->photo_url], 'Photo saved');
     }
@@ -51,9 +47,7 @@ class PhotoController extends Controller
     public function destroyOwn(Request $request): JsonResponse
     {
         $user = $request->user();
-        Photos::delete($user->photo);
-        $user->photo = null;
-        $user->save();
+        $this->replace($user, null);
 
         return $this->success(['photo_url' => null], 'Photo removed');
     }
@@ -62,8 +56,7 @@ class PhotoController extends Controller
     public function storeUser(PhotoRequest $request, User $user): JsonResponse
     {
         $this->authorizeUser($user);
-        $user->photo = Photos::store($request->file('photo'), 'users', $user->photo);
-        $user->save();
+        $this->replace($user, Photos::store($request->file('photo'), 'users'));
 
         return $this->success(['photo_url' => $user->photo_url], 'Photo saved');
     }
@@ -71,11 +64,26 @@ class PhotoController extends Controller
     public function destroyUser(User $user): JsonResponse
     {
         $this->authorizeUser($user);
-        Photos::delete($user->photo);
-        $user->photo = null;
-        $user->save();
+        $this->replace($user, null);
 
         return $this->success(['photo_url' => null], 'Photo removed');
+    }
+
+    /** Points the row at the new photo (or none), and only then removes the old file; a failed save cleans up the new one instead. */
+    private function replace(Customer|Supplier|Investor|User $model, ?string $path): void
+    {
+        $old = $model->photo;
+        $model->photo = $path;
+
+        try {
+            $model->save();
+        } catch (\Throwable $e) {
+            Photos::delete($path);
+
+            throw $e;
+        }
+
+        Photos::delete($old);
     }
 
     private function authorizeUser(User $user): void

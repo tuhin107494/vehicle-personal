@@ -11,6 +11,7 @@ use App\Support\SignupConfirmation;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
@@ -111,8 +112,10 @@ class AuthController extends Controller
         ]);
 
         $status = Password::reset($data, function (User $user, string $password) {
-            $user->forceFill(['password' => $password, 'remember_token' => Str::random(60)])->save();
-            $user->tokens()->delete(); // signed out everywhere
+            DB::transaction(function () use ($user, $password) {
+                $user->forceFill(['password' => $password, 'remember_token' => Str::random(60)])->save();
+                $user->tokens()->delete(); // signed out everywhere
+            });
             event(new PasswordReset($user));
         });
 
@@ -141,12 +144,14 @@ class AuthController extends Controller
         $user = $request->user();
         $user->fill($request->only(['name', 'email']));
 
-        if ($request->filled('password')) {
-            $user->password = $request->input('password');
-            $user->tokens()->where('id', '!=', $user->currentAccessToken()->id)->delete(); // other devices are signed out
-        }
+        DB::transaction(function () use ($request, $user) {
+            if ($request->filled('password')) {
+                $user->password = $request->input('password');
+                $user->tokens()->where('id', '!=', $user->currentAccessToken()->id)->delete(); // other devices are signed out
+            }
 
-        $user->save();
+            $user->save();
+        });
 
         return $this->success($user->load('shop')->authData(), 'Profile updated');
     }

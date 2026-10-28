@@ -32,7 +32,7 @@ class SupplierController extends Controller implements HasMiddleware
             ->when($request->search, fn ($q, $s) => $q->where(fn ($q) => $q
                 ->where('name', 'like', "%$s%")->orWhere('phone', 'like', "%$s%")->orWhere('alt_phone', 'like', "%$s%")->orWhere('nid', 'like', "%$s%")))
             ->latest('id')
-            ->paginate($request->integer('per_page', 15));
+            ->paginate($this->perPage($request));
 
         // what we still owe each supplier, for the "Pay" shortcut
         $owed = Purchase::whereIn('supplier_id', $suppliers->getCollection()->pluck('id'))
