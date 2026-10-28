@@ -103,7 +103,7 @@ export default function SaleDetailPage() {
       <PageHeader
         title={`Sale #${sale.id}`}
         actions={<>
-          <Button variant="outline" onClick={() => openSaleMemo(sale, user?.shop?.name ?? "Vehicle Hub")}><Printer className="size-4 text-sky-600" /> Memo</Button>
+          <Button variant="outline" onClick={() => openSaleMemo(sale, user?.shop?.name ?? "Vehicle Hub", { installments: false })}><Printer className="size-4 text-sky-600" /> Memo</Button>
           {active && can("payments.collect") && sale.due_amount > 0 && <Button onClick={() => setModal("pay")}><HandCoins className="size-4 " /> Collect payment</Button>}
           {active && can("promises.manage") && sale.due_amount > 0 && sale.payment_type === "due" && <Button variant="outline" onClick={() => setModal("promise")}><CalendarClock className="size-4 text-amber-500" /> Add promise</Button>}
           {active && can("sales.cancel") && <Button variant="danger" onClick={() => setModal("cancel")}><Ban className="size-4 " /> Cancel sale</Button>}

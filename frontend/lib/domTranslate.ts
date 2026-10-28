@@ -41,6 +41,11 @@ const RULES: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^Vehicle added successfully$/, () => "গাড়ি সফলভাবে যোগ করা হয়েছে"],
   [/^Sale #(\d+)$/, (m) => `বিক্রয় #${bnNum(m[1])}`],
   [/^Draft opened$/, () => "খসড়া খোলা হয়েছে"],
+  [/^Sales details #(\d+)$/, (m) => `বিক্রয়ের বিবরণ #${bnNum(m[1])}`],
+  // due alert: the message after "Call done", and the hint in its form
+  [/^Marked done\. Call again on (\d{1,2}) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept?|Oct|Nov|Dec) (\d{4})\.$/, (m) => `সম্পন্ন চিহ্নিত হয়েছে। আবার কল করুন ${bnNum(m[1])} ${MONTHS[m[2]]} ${bnNum(m[3])}।`],
+  [/^Marked done\. Call again in (\d+) days\.$/, (m) => `সম্পন্ন চিহ্নিত হয়েছে। ${bnNum(m[1])} দিন পর আবার কল করুন।`],
+  [/^Leave the date empty to call again after (\d+) days\.$/, (m) => `তারিখ খালি রাখলে ${bnNum(m[1])} দিন পর আবার কল করার কথা থাকবে।`],
 ];
 
 export function translateText(text: string): string | null {
