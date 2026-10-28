@@ -170,7 +170,7 @@ export default function VehicleDetailPage() {
                               </ul>
                             </div>
                           )}
-                          <Link className="inline-block text-xs underline" href={`/sales/${st.id}`}>Open sale #{st.id}</Link>
+                          <Link className="inline-block text-xs underline" href={`/sales/${st.id}`}>Sales details #{st.id}</Link>
                         </>
                       )}
                     </div>

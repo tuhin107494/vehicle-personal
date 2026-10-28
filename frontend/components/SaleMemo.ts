@@ -9,7 +9,7 @@ const pdate = (v?: string | null) => (v ? fmtDate(v) : "-");
  * Prints the sale memo as a clean one-page document from a hidden frame (no new tab, so it works on phones)
  * and starts the print dialog, where "Save as PDF" downloads it. The file is named Sale-<id>.
  */
-export function openSaleMemo(sale: Sale, shop: string) {
+export function openSaleMemo(sale: Sale, shop: string, options: { installments?: boolean } = {}) {
   const frame = document.createElement("iframe");
   frame.setAttribute("aria-hidden", "true");
   frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
@@ -19,7 +19,8 @@ export function openSaleMemo(sale: Sale, shop: string) {
 
   const v = sale.vehicle;
   const p = sale.customer;
-  const installments = sale.plan?.installments ?? [];
+  // the schedule is left out when the caller asks for a memo without it (the sale page prints the memo alone)
+  const installments = options.installments === false ? [] : (sale.plan?.installments ?? []);
   const payments = (sale.payments ?? []).filter((x) => x.amount > 0);
   const vehicleName = [v?.brand, v?.model, v?.year].filter(Boolean).join(" ");
 

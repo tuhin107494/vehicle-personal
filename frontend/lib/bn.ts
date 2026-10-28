@@ -118,4 +118,8 @@ export const BN: Record<string, string> = {
   supplier: "সাপ্লায়ার", customer: "কাস্টমার", active: "সক্রিয়", due: "বাকি", paid: "পরিশোধিত", unpaid: "অপরিশোধিত", partial: "আংশিক", pending: "অপেক্ষমাণ", sold: "বিক্রিত", "in stock": "স্টকে", "bank chalan done": "ব্যাংক চালান সম্পন্ন",
   "file received": "ফাইল প্রাপ্ত", "file processing": "ফাইল প্রক্রিয়াধীন", "registration complete": "নিবন্ধন সম্পন্ন", "document provided": "কাগজ প্রদান", cash: "নগদ", installment: "কিস্তি", bank: "ব্যাংক", cancelled: "বাতিল", open: "খোলা",
   "principal return": "মূল ফেরত", "profit share": "লাভের অংশ", withdrawal: "উত্তোলন", investment: "বিনিয়োগ",
+  // due alert: marking a call done, and undoing it
+  "All calls": "সব কল", "Call done": "কল সম্পন্ন", "Call history": "কলের ইতিহাস", "Call status": "কলের অবস্থা", "Not called": "কল করা হয়নি", Undo: "ফিরিয়ে নিন",
+  "Customer will meet me on": "কাস্টমার দেখা করবেন", "What the customer said": "কাস্টমার যা বলেছেন", "No calls marked done yet.": "এখনও কোনো কল সম্পন্ন চিহ্নিত হয়নি।",
+  "Call mark removed": "কলের চিহ্ন সরানো হয়েছে", "Sales details": "বিক্রয়ের বিবরণ",
 };
