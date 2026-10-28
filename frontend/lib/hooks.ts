@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { api, PageMeta } from "@/lib/api";
+import type { VehicleCategory } from "@/lib/categories";
 
-type Meta = PageMeta & { unread_count?: number; total_amount?: number; type_counts?: Record<string, number> };
+type Meta = PageMeta & { unread_count?: number; total_amount?: number; type_counts?: Record<string, number>; categories?: VehicleCategory[] };
 
 export function useFetch<T>(path: string | null) {
   // what the last finished request returned, and which request (path + reload count) that was

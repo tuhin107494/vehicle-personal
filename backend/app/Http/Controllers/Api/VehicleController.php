@@ -12,6 +12,7 @@ use App\Models\Payment;
 use App\Models\RegistrationLog;
 use App\Models\Sale;
 use App\Models\Vehicle;
+use App\Models\VehicleCategory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -57,6 +58,8 @@ class VehicleController extends Controller implements HasMiddleware
             'per_page' => $vehicles->perPage(),
             'total' => $vehicles->total(),
             'type_counts' => $counts,
+            // the type chips and labels on the page come with the list, so it needs no second request
+            'categories' => VehicleCategory::orderBy('name')->get(),
         ]);
     }
 

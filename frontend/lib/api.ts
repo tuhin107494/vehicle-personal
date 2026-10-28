@@ -1,3 +1,4 @@
+import type { VehicleCategory } from "@/lib/categories";
 import type { FieldValues, Path, UseFormSetError } from "react-hook-form";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
@@ -7,7 +8,7 @@ export type ApiEnvelope<T> = {
   success: boolean;
   message: string;
   data: T;
-  meta?: PageMeta & { unread_count?: number; total_amount?: number; type_counts?: Record<string, number> };
+  meta?: PageMeta & { unread_count?: number; total_amount?: number; type_counts?: Record<string, number>; categories?: VehicleCategory[] };
   errors?: Record<string, string[]>;
 };
 

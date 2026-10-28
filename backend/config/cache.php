@@ -118,6 +118,13 @@ return [
     |
     */
 
+    /*
+    | The rate limiter (120 API calls a minute) touches its store on every request, so it stays on the local database
+    | instead of the remote Redis cache, where each call costs a network round trip.
+    */
+
+    'limiter' => env('CACHE_LIMITER_STORE', 'database'),
+
     'prefix' => env('CACHE_PREFIX', Str::slug((string) env('APP_NAME', 'laravel')).'-cache-'),
 
     /*
