@@ -84,16 +84,19 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post("$type/{id}/photo", [PhotoController::class, 'store'])->defaults('type', $type)->middleware("permission:$permission");
             Route::delete("$type/{id}/photo", [PhotoController::class, 'destroy'])->defaults('type', $type)->middleware("permission:$permission");
         }
-        Route::get('reports/stock', [ReportController::class, 'stock']);
-        Route::get('reports/dues', [ReportController::class, 'dues']);
-        Route::get('reports/purchases', [ReportController::class, 'purchases']);
-        Route::get('reports/sales', [ReportController::class, 'sales']);
-        Route::get('reports/investor-transactions', [ReportController::class, 'investorTransactions']);
-        Route::get('reports/daily', [ReportController::class, 'daily']);
-        Route::get('reports/transactions', [ReportController::class, 'transactions']);
-        Route::get('reports/person-summary', [ReportController::class, 'personSummary']);
-        Route::get('reports/person-transactions', [ReportController::class, 'personTransactions']);
-        Route::get('reports/investors', [ReportController::class, 'investors']);
+        // every report lives under /api/reports/...
+        Route::prefix('reports')->controller(ReportController::class)->group(function () {
+            Route::get('stock', 'stock');
+            Route::get('dues', 'dues');
+            Route::get('purchases', 'purchases');
+            Route::get('sales', 'sales');
+            Route::get('investor-transactions', 'investorTransactions');
+            Route::get('daily', 'daily');
+            Route::get('transactions', 'transactions');
+            Route::get('person-summary', 'personSummary');
+            Route::get('person-transactions', 'personTransactions');
+            Route::get('investors', 'investors');
+        });
 
         Route::apiResource('customers', CustomerController::class)->except('destroy');
         Route::get('customers/{customer}/history', [CustomerController::class, 'history']);

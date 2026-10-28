@@ -15,19 +15,20 @@ export function CustomerSelect({ label = "Customer", value, onChange, error, all
   const [debounced, setDebounced] = useState("");
   const [creating, setCreating] = useState(false);
   const [typed, setTyped] = useState(""); // what was typed in the search when "+ Add new" was chosen
+  const [opened, setOpened] = useState(false); // the list is fetched when the field is first used (or when a value is already chosen and needs its name)
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search), 250);
     return () => clearTimeout(t);
   }, [search]);
 
-  const list = useFetch<Customer[]>(`/customers?per_page=30${debounced ? `&search=${encodeURIComponent(debounced)}` : ""}`);
+  const list = useFetch<Customer[]>(opened || value ? `/customers?per_page=30${debounced ? `&search=${encodeURIComponent(debounced)}` : ""}` : null);
   const options = (list.data ?? []).map((p) => ({ value: String(p.id), label: p.name, hint: [[p.phone, p.alt_phone].filter(Boolean).join(" / "), p.nid ? `NID ${p.nid}` : ""].filter(Boolean).join(" · ") }));
 
   return (
     <Field required={!filter} label={label} error={error}>
       <div className="flex gap-2">
-        <SearchSelect options={options} value={value} onChange={(id) => onChange(id)} onQueryChange={setSearch} loading={list.loading} fallbackLabel={selectedLabel} placeholder="Search by name or phone..."
+        <SearchSelect options={options} value={value} onChange={(id) => onChange(id)} onQueryChange={setSearch} onOpen={() => setOpened(true)} loading={list.loading} fallbackLabel={selectedLabel} placeholder="Search by name or phone..."
           onCreate={allowCreate ? (text) => { setTyped(text); setCreating(true); } : undefined} createLabel="Add new customer" />
         {allowCreate && <Button variant="outline" onClick={() => { setTyped(""); setCreating(true); }}>+ New</Button>}
       </div>
@@ -47,19 +48,20 @@ export function SupplierSelect({ label = "Supplier", value, onChange, error, all
   const [debounced, setDebounced] = useState("");
   const [creating, setCreating] = useState(false);
   const [typed, setTyped] = useState(""); // what was typed in the search when "+ Add new" was chosen
+  const [opened, setOpened] = useState(false); // the list is fetched when the field is first used (or when a value is already chosen and needs its name)
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search), 250);
     return () => clearTimeout(t);
   }, [search]);
 
-  const list = useFetch<Supplier[]>(`/suppliers?per_page=30${debounced ? `&search=${encodeURIComponent(debounced)}` : ""}`);
+  const list = useFetch<Supplier[]>(opened || value ? `/suppliers?per_page=30${debounced ? `&search=${encodeURIComponent(debounced)}` : ""}` : null);
   const options = (list.data ?? []).map((p) => ({ value: String(p.id), label: p.name, hint: [[p.phone, p.alt_phone].filter(Boolean).join(" / "), p.nid ? `NID ${p.nid}` : ""].filter(Boolean).join(" · ") }));
 
   return (
     <Field required={!filter} label={label} error={error}>
       <div className="flex gap-2">
-        <SearchSelect options={options} value={value} onChange={(id) => onChange(id)} onQueryChange={setSearch} loading={list.loading} fallbackLabel={selectedLabel} placeholder="Search by name or phone..."
+        <SearchSelect options={options} value={value} onChange={(id) => onChange(id)} onQueryChange={setSearch} onOpen={() => setOpened(true)} loading={list.loading} fallbackLabel={selectedLabel} placeholder="Search by name or phone..."
           onCreate={allowCreate ? (text) => { setTyped(text); setCreating(true); } : undefined} createLabel="Add new supplier" />
         {allowCreate && <Button variant="outline" onClick={() => { setTyped(""); setCreating(true); }}>+ New</Button>}
       </div>
@@ -74,12 +76,13 @@ export function SupplierSelect({ label = "Supplier", value, onChange, error, all
 }
 
 export function InvestorSelect({ value, onChange, error, optional, filter }: { value: string; onChange: (id: string) => void; error?: string; optional?: boolean; filter?: boolean }) {
-  const list = useFetch<Investor[]>("/investors?per_page=100&is_active=1");
+  const [opened, setOpened] = useState(false); // fetched when the field is first used, or when a value is already chosen and needs its name
+  const list = useFetch<Investor[]>(opened || value ? "/investors?per_page=100&is_active=1" : null);
   const options = (list.data ?? []).map((i) => ({ value: String(i.id), label: i.name, hint: [i.phone, i.alt_phone].filter(Boolean).join(" / ") }));
 
   return (
     <Field required={!optional && !filter} label={filter ? "Investor" : optional ? "Investor (optional)" : "Investor"} error={error}>
-      <SearchSelect options={options} value={value} onChange={(id) => onChange(id)} placeholder={filter ? "All investors" : optional ? "No investor - shop finances it" : "Search investor..."} />
+      <SearchSelect options={options} value={value} onChange={(id) => onChange(id)} onOpen={() => setOpened(true)} loading={list.loading} placeholder={filter ? "All investors" : optional ? "No investor - shop finances it" : "Search investor..."} />
       {(optional || filter) && !filter && value && <button type="button" className="mt-1 text-xs font-medium text-emerald-700 hover:underline" onClick={() => onChange("")}>Remove investor</button>}
     </Field>
   );
