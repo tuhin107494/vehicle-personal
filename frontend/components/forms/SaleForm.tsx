@@ -111,7 +111,7 @@ export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
   const { user } = useAuth();
   const [created, setCreated] = useState<Sale | null>(null); // the sale just saved: the form stays and offers the memo
   const params = useSearchParams();
-  const vehicles = useFetch<Vehicle[]>(investorMode ? "/vehicles?per_page=100" : "/vehicles?status=in_stock&per_page=100");
+  const [vehicleListOpened, setVehicleListOpened] = useState(false); // the vehicle list loads when the field is first used, or when a vehicle is already chosen
   const { categories, nameOf } = useCategories();
 
   const blank = (vehicleId: string): Values => ({
@@ -137,6 +137,7 @@ export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
   }, [settings.data]);
 
   const w = watch();
+  const vehicles = useFetch<Vehicle[]>(vehicleListOpened || w.vehicle_id ? (investorMode ? "/vehicles?per_page=100" : "/vehicles?status=in_stock&per_page=100") : null);
   const [promiseChoice, setPromiseChoice] = useState("");
   // A resumed draft keeps the date it has; a quick choice follows the sale date.
   const choice = promiseChoice || (w.promised_date ? "other" : "");
@@ -314,6 +315,8 @@ export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
               <SearchSelect
                 value={w.vehicle_id}
                 onChange={(id) => setValue("vehicle_id", id, { shouldValidate: true })}
+                onOpen={() => setVehicleListOpened(true)}
+                loading={vehicles.loading}
                 placeholder="Search by chassis, model or brand..."
                 options={(vehicles.data ?? []).filter((v) => !typeFilter || v.vehicle_type === typeFilter).map((v) => ({ value: String(v.id), label: `${v.chassis_no} - ${[v.brand, v.model, v.year].filter(Boolean).join(" ")}${investorMode ? (v.status === "in_stock" ? " · In stock" : " · Sold") : ""}`, hint: [nameOf(v.vehicle_type), v.engine_no].join(" · ") }))}
               />
