@@ -27,6 +27,8 @@ export function useFetch<T>(path: string | null) {
   const reload = useCallback(() => setTick((t) => t + 1), []);
   // loading until the request for the current path has answered; the previous data stays on screen meanwhile
   const loading = key !== null && result.key !== key;
+  // no path means nothing is wanted (a selection was cleared): show nothing, not the last answer
+  if (path === null) return { data: null, meta: null, loading: false, error: null, reload };
   return { data: result.data, meta: result.meta, loading, error: result.error, reload };
 }
 
