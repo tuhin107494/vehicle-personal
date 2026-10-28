@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\ShopSetting;
+use Illuminate\Support\Facades\DB;
 
 /** Per-shop presets: what the purchase and sale forms fill in when a vehicle type is chosen. */
 class ShopSettings
@@ -62,32 +63,35 @@ class ShopSettings
 
     public static function save(array $input): void
     {
-        if (isset($input['collections']['recall_days'])) {
-            ShopSetting::updateOrCreate(['key' => 'collections.recall_days'], ['value' => $input['collections']['recall_days']]);
-        }
+        // every key is saved together or none are
+        DB::transaction(function () use ($input) {
+            if (isset($input['collections']['recall_days'])) {
+                ShopSetting::updateOrCreate(['key' => 'collections.recall_days'], ['value' => $input['collections']['recall_days']]);
+            }
 
-        foreach ($input['type_defaults'] ?? [] as $type => $fields) {
-            foreach (self::TYPE_FIELDS as $field) {
-                if (! array_key_exists($field, $fields)) {
-                    continue;
+            foreach ($input['type_defaults'] ?? [] as $type => $fields) {
+                foreach (self::TYPE_FIELDS as $field) {
+                    if (! array_key_exists($field, $fields)) {
+                        continue;
+                    }
+
+                    $key = "typedef.$field:$type";
+                    ($fields[$field] === null || $fields[$field] === '')
+                        ? ShopSetting::where('key', $key)->delete()
+                        : ShopSetting::updateOrCreate(['key' => $key], ['value' => $fields[$field]]);
+                }
+            }
+
+            foreach (['purchase', 'sale'] as $group) {
+                if (array_key_exists('vehicle_type', $input[$group] ?? [])) {
+                    ShopSetting::updateOrCreate(['key' => "$group.vehicle_type"], ['value' => $input[$group]['vehicle_type']]);
                 }
 
-                $key = "typedef.$field:$type";
-                ($fields[$field] === null || $fields[$field] === '')
-                    ? ShopSetting::where('key', $key)->delete()
-                    : ShopSetting::updateOrCreate(['key' => $key], ['value' => $fields[$field]]);
+                foreach ($input[$group]['prices'] ?? [] as $type => $price) {
+                    $key = "$group.price:$type";
+                    $price === null ? ShopSetting::where('key', $key)->delete() : ShopSetting::updateOrCreate(['key' => $key], ['value' => $price]);
+                }
             }
-        }
-
-        foreach (['purchase', 'sale'] as $group) {
-            if (array_key_exists('vehicle_type', $input[$group] ?? [])) {
-                ShopSetting::updateOrCreate(['key' => "$group.vehicle_type"], ['value' => $input[$group]['vehicle_type']]);
-            }
-
-            foreach ($input[$group]['prices'] ?? [] as $type => $price) {
-                $key = "$group.price:$type";
-                $price === null ? ShopSetting::where('key', $key)->delete() : ShopSetting::updateOrCreate(['key' => $key], ['value' => $price]);
-            }
-        }
+        });
     }
 }

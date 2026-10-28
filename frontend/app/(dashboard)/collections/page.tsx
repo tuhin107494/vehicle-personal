@@ -49,8 +49,9 @@ export default function CollectionsPage() {
   const [kind, setKind] = useState<Kind>("");
   const [q, setQ] = useState("");
   const [callFilter, setCallFilter] = useState<"" | "done" | "pending">("");
-  const summary = useFetch<{ buckets: Bucket[]; current_due: number; total_due: number; recall_days: number }>("/collections/summary");
-  const list = useFetch<CallRow[]>(`/collections/upcoming?bucket=${bucket}${kind ? `&kind=${kind}` : ""}`);
+  // the tabs and totals come back with the list (meta.summary), so the page makes one request
+  const list = useFetch<CallRow[]>(`/collections/upcoming?bucket=${bucket}${kind ? `&kind=${kind}` : ""}&with_summary=1`);
+  const summary = { data: (list.meta as { summary?: { buckets: Bucket[]; current_due: number; total_due: number; recall_days: number } } | null)?.summary };
 
   const term = q.trim().toLowerCase();
   const rows = (list.data ?? []).filter((r) => callFilter === "" || (callFilter === "done") === !!r.called_until).filter((r) => !term ||[r.customer.name, r.customer.phone, r.customer.alt_phone, r.vehicle.brand, r.vehicle.model, r.vehicle.chassis_no].some((v) => v?.toLowerCase().includes(term)));

@@ -125,13 +125,15 @@ class SignupController extends Controller
                 self::deleteSignup($existing->shop);
             }
 
-            return $this->shops->create(
+            $shop = $this->shops->create(
                 ['name' => $data['shop_name'], 'phone' => $data['phone'], 'is_active' => true, 'approved_at' => now()],
                 ['name' => $person['name'], 'email' => $person['email'], 'password' => Str::random(40), 'is_active' => true],
             );
+            $shop->owner->forceFill(['email_verified_at' => now()])->save();
+
+            return $shop;
         });
         $owner = $shop->owner;
-        $owner->forceFill(['email_verified_at' => now()])->save();
 
         $this->tellSuperAdmins($shop, 'signed up with Google');
 

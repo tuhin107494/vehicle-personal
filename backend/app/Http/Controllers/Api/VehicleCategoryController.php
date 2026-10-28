@@ -9,6 +9,7 @@ use App\Models\ShopSetting;
 use App\Models\Vehicle;
 use App\Models\VehicleCategory;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -34,16 +35,21 @@ class VehicleCategoryController extends Controller
             throw new BusinessRuleException('A category with a similar name already exists.');
         }
 
-        $category = VehicleCategory::create($request->safe()->only(['name', 'default_brand', 'default_model', 'default_color', 'default_cc']) + [
-            'key' => $key, 'shop_id' => $user->shop_id, 'created_by' => $user->id,
-        ]);
-
-        // A shop adding its own type can give it a starting purchase price, kept with the shop's per-type prices.
         $price = $request->input('purchase_price');
 
-        if ($user->shop_id && $price) {
-            ShopSetting::updateOrCreate(['key' => "purchase.price:{$category->key}"], ['value' => $price]);
-        }
+        // the type and its starting price are saved together or not at all
+        $category = DB::transaction(function () use ($request, $user, $key, $price) {
+            $category = VehicleCategory::create($request->safe()->only(['name', 'default_brand', 'default_model', 'default_color', 'default_cc']) + [
+                'key' => $key, 'shop_id' => $user->shop_id, 'created_by' => $user->id,
+            ]);
+
+            // A shop adding its own type can give it a starting purchase price, kept with the shop's per-type prices.
+            if ($user->shop_id && $price) {
+                ShopSetting::updateOrCreate(['key' => "purchase.price:{$category->key}"], ['value' => $price]);
+            }
+
+            return $category;
+        });
 
         return $this->success($category->toArray() + ['purchase_price' => $user->shop_id && $price ? $price + 0 : null], 'Category created', 201);
     }

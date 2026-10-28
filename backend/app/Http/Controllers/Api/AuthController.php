@@ -5,12 +5,16 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ProfileRequest;
 use App\Models\User;
+use App\Models\VehicleCategory;
+use App\Models\VehicleColor;
 use App\Support\GoogleOAuth;
 use App\Support\PlatformSettings;
+use App\Support\ShopSettings;
 use App\Support\SignupConfirmation;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
@@ -111,8 +115,10 @@ class AuthController extends Controller
         ]);
 
         $status = Password::reset($data, function (User $user, string $password) {
-            $user->forceFill(['password' => $password, 'remember_token' => Str::random(60)])->save();
-            $user->tokens()->delete(); // signed out everywhere
+            DB::transaction(function () use ($user, $password) {
+                $user->forceFill(['password' => $password, 'remember_token' => Str::random(60)])->save();
+                $user->tokens()->delete(); // signed out everywhere
+            });
             event(new PasswordReset($user));
         });
 
@@ -132,7 +138,21 @@ class AuthController extends Controller
 
     public function me(Request $request): JsonResponse
     {
-        return $this->success($request->user()->load('shop')->authData());
+        $user = $request->user()->load('shop');
+
+        // The lists almost every page asks for next ride along, so a page does not make a request for each: the same data as
+        // /vehicle-categories, /settings and /vehicle-colors, only what this user may read (the page stores them as those responses).
+        $preload = ['/vehicle-categories' => VehicleCategory::orderBy('name')->get()];
+
+        if ($user->shop_id) {
+            $preload['/settings'] = ShopSettings::all();
+
+            if ($user->hasPermission('purchases.create') || $user->hasPermission('vehicles.edit')) {
+                $preload['/vehicle-colors'] = VehicleColor::orderBy('name')->pluck('name');
+            }
+        }
+
+        return $this->success($user->authData(), 'OK', 200, ['preload' => $preload]);
     }
 
     /** Lets any signed-in user change their own name, email and (with the current password) password. */
@@ -141,12 +161,14 @@ class AuthController extends Controller
         $user = $request->user();
         $user->fill($request->only(['name', 'email']));
 
-        if ($request->filled('password')) {
-            $user->password = $request->input('password');
-            $user->tokens()->where('id', '!=', $user->currentAccessToken()->id)->delete(); // other devices are signed out
-        }
+        DB::transaction(function () use ($request, $user) {
+            if ($request->filled('password')) {
+                $user->password = $request->input('password');
+                $user->tokens()->where('id', '!=', $user->currentAccessToken()->id)->delete(); // other devices are signed out
+            }
 
-        $user->save();
+            $user->save();
+        });
 
         return $this->success($user->load('shop')->authData(), 'Profile updated');
     }

@@ -46,7 +46,7 @@ class VehicleController extends Controller implements HasMiddleware
             ->withSum(['sales as sale_due' => fn ($q) => $q->where('status', 'active')], 'due_amount')
             ->when($request->vehicle_type, fn ($q, $t) => $q->where('vehicle_type', $t))
             ->latest('id')
-            ->paginate($request->integer('per_page', 15));
+            ->paginate($this->perPage($request));
 
         // where each sold vehicle's registration stands (the sale's step)
         $steps = Sale::whereIn('id', $vehicles->getCollection()->pluck('current_sale_id')->filter())->pluck('registration_status', 'id');

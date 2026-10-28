@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Support\PlatformSettings;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -24,6 +25,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // N+1 guard: outside production, loading a relation one row at a time in a loop throws, so a missing with() is caught while developing and in tests
+        Model::preventLazyLoading(! $this->app->isProduction());
+
         // 5 sign-in tries a minute for each email + address, so passwords cannot be guessed in bulk
         RateLimiter::for('login', fn (Request $request) => Limit::perMinute(5)->by(strtolower((string) $request->input('email')).'|'.$request->ip()));
         // a new confirmation link: 3 a minute for each email + address, so nobody can flood an inbox with them

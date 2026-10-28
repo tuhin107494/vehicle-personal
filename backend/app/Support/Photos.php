@@ -5,13 +5,11 @@ namespace App\Support;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
-/** People's photos: stored on the public disk, one file per person, the old one removed when replaced. */
+/** People's photos: stored on the public disk, one file per person. A replaced file is removed only after the row points at the new one, so a failed save never leaves a row with no file. */
 class Photos
 {
-    public static function store(UploadedFile $file, string $dir, ?string $old = null): string
+    public static function store(UploadedFile $file, string $dir): string
     {
-        self::delete($old);
-
         return $file->store("photos/$dir", 'public');
     }
 

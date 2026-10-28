@@ -6,6 +6,7 @@ use App\Models\PlatformSetting;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
 use Throwable;
 
 /** Platform-wide settings the super admin keeps: Google sign-in and the SMTP server mail goes out through. */
@@ -55,28 +56,31 @@ class PlatformSettings
     /** Saves the given values. A blank secret keeps the saved one, so the page does not have to know it. */
     public static function save(array $input): void
     {
-        foreach (self::KEYS as $key => $kind) {
-            [$group, $name] = explode('.', $key, 2);
+        // every key is saved together or none are
+        DB::transaction(function () use ($input) {
+            foreach (self::KEYS as $key => $kind) {
+                [$group, $name] = explode('.', $key, 2);
 
-            if (! array_key_exists($name, $input[$group] ?? [])) {
-                continue;
-            }
-
-            $value = $input[$group][$name];
-
-            if ($kind === 'secret') {
-                if (blank($value)) {
+                if (! array_key_exists($name, $input[$group] ?? [])) {
                     continue;
                 }
-                $value = Crypt::encryptString($value);
-            } elseif ($kind === 'bool') {
-                $value = $value ? '1' : '0';
-            }
 
-            blank($value)
-                ? PlatformSetting::where('key', $key)->delete()
-                : PlatformSetting::updateOrCreate(['key' => $key], ['value' => $value]);
-        }
+                $value = $input[$group][$name];
+
+                if ($kind === 'secret') {
+                    if (blank($value)) {
+                        continue;
+                    }
+                    $value = Crypt::encryptString($value);
+                } elseif ($kind === 'bool') {
+                    $value = $value ? '1' : '0';
+                }
+
+                blank($value)
+                    ? PlatformSetting::where('key', $key)->delete()
+                    : PlatformSetting::updateOrCreate(['key' => $key], ['value' => $value]);
+            }
+        });
 
         Cache::forget(self::CACHE_KEY);
     }

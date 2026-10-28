@@ -5,23 +5,23 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\DuePromiseResource;
 use App\Http\Resources\InstallmentResource;
+use App\Models\Customer;
 use App\Models\DuePromise;
 use App\Models\Installment;
-use App\Models\Investor;
 use App\Models\InstallmentPlan;
+use App\Models\Investor;
 use App\Models\InvestorSettlement;
-use App\Models\Customer;
-use App\Models\Supplier;
 use App\Models\Payment;
 use App\Models\Purchase;
 use App\Models\Sale;
+use App\Models\Supplier;
 use App\Models\Vehicle;
 use App\Models\VehicleCategory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller implements HasMiddleware
 {
@@ -123,7 +123,7 @@ class DashboardController extends Controller implements HasMiddleware
             'total_due' => (float) Sale::where('status', 'active')->sum('due_amount'),
             'overdue_count' => $overdue()->count(),
             'installments_due_today' => InstallmentResource::collection(
-                $dueToday()->with(['plan.sale.vehicle', 'plan.sale.customer'])->orderBy('id')->limit(3)->get()
+                $dueToday()->with(['plan.sale.vehicle', 'plan.sale.customer', 'plan.sale.plan'])->orderBy('id')->limit(3)->get()
             ),
             'installments_due_today_count' => $dueToday()->count(),
             'investor_payments_today' => $investorToday,

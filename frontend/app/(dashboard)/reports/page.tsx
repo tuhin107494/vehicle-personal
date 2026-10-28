@@ -8,7 +8,7 @@ import { openSaleMemo } from "@/components/SaleMemo";
 import { printVoucher } from "@/components/TransactionVoucher";
 import { purchaseVoucher } from "@/lib/purchaseVoucher";
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { fmtDate, money } from "@/lib/format";
 import { useCategories } from "@/lib/categories";
 import { useFetch } from "@/lib/hooks";
@@ -261,13 +261,13 @@ const INVESTOR_TABS: string[] = ["investors", "investor"];
 const HAS_FILTERS: string[] = ["purchases", "sales", "customer", "supplier", "investor"];
 
 function Reports() {
-  const router = useRouter();
   const { hidden } = useHiddenMenu();
   const TABS = hidden.includes("/investors") ? ALL_TABS.filter(([k]) => !INVESTOR_TABS.includes(k)) : ALL_TABS;
   // the open report lives in the address (/reports?tab=dues), so coming back from a details page lands on the same report
   const wanted = useSearchParams().get("tab");
   const tab: (typeof ALL_TABS)[number][0] = TABS.find(([k]) => k === wanted)?.[0] ?? "purchases";
-  const setTab = (k: (typeof ALL_TABS)[number][0]) => router.replace(`/reports?tab=${k}`, { scroll: false });
+  // only the address changes (no request for the page again): useSearchParams follows history.replaceState
+  const setTab = (k: (typeof ALL_TABS)[number][0]) => window.history.replaceState(null, "", `/reports?tab=${k}`);
   const [menu, setMenu] = useState(false);
   const current = TABS.find(([k]) => k === tab)?.[1];
   return (

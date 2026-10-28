@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import { fmtDate, money } from "@/lib/format";
 import { useCategories } from "@/lib/categories";
@@ -19,7 +19,6 @@ export default function VehicleDetailPage() {
   const { can } = useAuth();
   const { nameOf } = useCategories();
   // View opens the vehicle's details; History (?tab=history) opens its purchase and sale chain
-  const router = useRouter();
   const history = useSearchParams().get("tab") === "history";
   const [open, setOpen] = useState<Record<string, boolean>>({}); // which chain steps are expanded
   const { data, loading, error } = useFetch<{ vehicle: Vehicle; sales: Sale[]; purchases: Purchase[]; timeline: Event[] }>(`/vehicles/${id}/history`);
@@ -61,8 +60,8 @@ export default function VehicleDetailPage() {
         actions={v.status === "sold" ? !can("purchases.create") ? null : <Link className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-green-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:from-emerald-500 hover:to-green-500" href={`/purchases/new?chassis=${encodeURIComponent(v.chassis_no)}`}>Repurchase</Link> : v.status === "in_stock" ? !can("sales.create") ? null : <Link className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-green-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:from-emerald-500 hover:to-green-500" href={`/sales/new?vehicle=${v.id}`}>Sell</Link> : null}
       />
       <div className="mb-4 flex gap-2">
-        <Button variant={history ? "outline" : "primary"} onClick={() => router.replace(`/vehicles/${id}`)}>Details</Button>
-        <Button variant={history ? "primary" : "outline"} onClick={() => router.replace(`/vehicles/${id}?tab=history`)}>History</Button>
+        <Button variant={history ? "outline" : "primary"} onClick={() => window.history.replaceState(null, "", `/vehicles/${id}`)}>Details</Button>
+        <Button variant={history ? "primary" : "outline"} onClick={() => window.history.replaceState(null, "", `/vehicles/${id}?tab=history`)}>History</Button>
       </div>
       <Card className="mb-4">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
