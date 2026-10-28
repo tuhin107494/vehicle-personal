@@ -2,13 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Models\Customer;
 use App\Models\DuePromise;
 use App\Models\Installment;
 use App\Models\Investor;
-use App\Models\Customer;
-use App\Models\Supplier;
 use App\Models\Permission;
 use App\Models\Sale;
+use App\Models\Supplier;
 use App\Models\User;
 use App\Models\VehicleCategory;
 use App\Services\ShopService;
@@ -348,5 +348,11 @@ class TenancyAndRolesTest extends TestCase
         // the status shown is worked out from the date, not left as "pending"
         $sale = Sale::where('payment_type', 'installment')->first();
         $this->getJson("/api/sales/{$sale->id}")->assertJsonPath('data.plan.installments.0.status', 'overdue');
+
+        // the reports that total installment sales load each plan up front (lazy loading is off in tests, so a missing with() would fail here)
+        $this->getJson('/api/reports/transactions?side=customer')->assertOk();
+        $this->getJson('/api/reports/person-transactions?side=customer&customer_id='.$sale->customer_id)->assertOk();
+        $this->getJson('/api/reports/daily?date='.today()->toDateString())->assertOk();
+        $this->getJson('/api/dashboard')->assertOk();
     }
 }

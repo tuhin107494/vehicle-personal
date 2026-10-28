@@ -20,6 +20,7 @@ export function SearchSelect({
   fallbackLabel,
   onCreate,
   createLabel = "Add new",
+  onOpen,
 }: {
   options: Option[];
   value: string;
@@ -32,6 +33,8 @@ export function SearchSelect({
   /** Adds a "+ Add new" choice at the end of the list; it receives what was typed so far. */
   onCreate?: (typed: string) => void;
   createLabel?: string;
+  /** Called each time the field is focused, so a list can be fetched only once someone reaches for it. */
+  onOpen?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -73,7 +76,7 @@ export function SearchSelect({
         className={`w-full ${current ? "pr-14" : "pr-9"}`}
         placeholder={current ? current.label : placeholder}
         value={open ? query : current?.label ?? ""}
-        onFocus={() => setOpen(true)}
+        onFocus={() => { setOpen(true); onOpen?.(); }}
         onChange={(e) => {
           setQuery(e.target.value);
           setOpen(true);
