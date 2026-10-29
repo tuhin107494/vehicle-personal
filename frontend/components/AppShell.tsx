@@ -64,7 +64,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-green-500 text-white ring-2 ring-white/40"><Car className="size-5" /></span>
           <div className="min-w-0 flex-1">
             {/* a shop user sees only their shop's name; the platform admin has no shop, so the product name shows */}
-            <p className="truncate text-xl font-bold leading-tight text-orange-200">{user?.shop ? user.shop.name : t("Vehicle Hub")}</p>
+            <p className="truncate text-lg font-bold leading-tight text-orange-200">{user?.shop ? user.shop.name : t("Vehicle Hub")}</p>
           </div>
           <button type="button" aria-label={menuOpen ? "Close menu" : "Open menu"} aria-expanded={menuOpen} className="flex size-10 items-center justify-center rounded-xl bg-white/15 hover:bg-white/25 md:hidden" onClick={() => setMenuOpen((o) => !o)}>
             {menuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
