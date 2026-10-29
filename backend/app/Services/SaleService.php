@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Exceptions\BusinessRuleException;
+use App\Models\Booking;
+use App\Models\Draft;
 use App\Models\DuePromise;
 use App\Models\InstallmentPlan;
 use App\Models\InvestorSettlement;
@@ -20,10 +22,33 @@ class SaleService
 
     public function create(array $data, User $user): Sale
     {
+        app(BookingService::class)->expireDue();
+
         return DB::transaction(function () use ($data, $user) {
             $vehicle = Vehicle::lockForUpdate()->findOrFail($data['vehicle_id']);
+            $booking = ! empty($data['booking_id']) ? Booking::lockForUpdate()->findOrFail($data['booking_id']) : null;
 
-            if ($vehicle->status !== 'in_stock') {
+            if ($booking && ($booking->status !== 'active' || $booking->customer_id !== (int) $data['customer_id'])) {
+                throw new BusinessRuleException('This booking is no longer active, or it is for another buyer.');
+            }
+
+            // the buyer chose another vehicle than the booked one: the booked one goes back in stock and the booking follows the new one
+            $changed = $booking && $booking->vehicle_id !== $vehicle->id;
+
+            if ($changed) {
+                Vehicle::lockForUpdate()->where('id', $booking->vehicle_id)->where('status', 'booked')->update(['status' => 'in_stock']);
+                $booking->update(['vehicle_id' => $vehicle->id]);
+            }
+
+            // the draft this sale completes stops holding the vehicle (and goes away with the sale)
+            $draft = ! empty($data['draft_id']) ? Draft::lockForUpdate()->find($data['draft_id']) : null;
+
+            if ($draft && $draft->vehicle_id === $vehicle->id && ! $booking && $vehicle->status === 'booked') {
+                $vehicle->status = 'in_stock';
+            }
+
+            // a booked vehicle can be sold only through its own booking
+            if ($vehicle->status !== ($booking && ! $changed ? 'booked' : 'in_stock')) {
                 throw new BusinessRuleException('Only vehicles that are in stock can be sold.');
             }
 
@@ -52,13 +77,37 @@ class SaleService
                 $this->createPlan($sale, $data, $price - $down, $user);
             }
 
-            if ($down > 0) {
+            $note = $type === 'cash' ? 'Full payment at sale' : 'Down payment';
+            // money received before the sale: a booking's advance, or an advance the customer paid earlier (kept as its own payment, on its own day)
+            $advance = $booking ? Money::paisa($booking->advance_amount) : (! empty($data['advance_amount']) ? Money::paisa($data['advance_amount']) : 0);
+
+            if ($advance > 0 && $down < $advance) {
+                throw new BusinessRuleException('The down payment must include the advance of '.Money::format($advance).'.');
+            }
+
+            if (! $booking && $advance >= $price) {
+                throw new BusinessRuleException('The advance must be less than the sale price.');
+            }
+
+            // the advance was received earlier (a booking's on its day); whatever is paid on top is received at the sale
+            if ($advance > 0) {
                 Payment::create([
                     'sale_id' => $sale->id,
-                    'amount' => Money::taka($down),
+                    'amount' => Money::taka($advance),
+                    'method' => $booking ? $booking->advance_method : ($data['method'] ?? 'cash'),
+                    'paid_at' => $booking ? $booking->created_at : Carbon::parse($data['advance_date'] ?? $data['sale_date'])->setTimeFrom(now()),
+                    'note' => $booking ? $note : 'Advance', // not "Down payment": the daily report counts it as cash on the day it came
+                    'received_by' => $user->id,
+                ]);
+            }
+
+            if ($down - $advance > 0) {
+                Payment::create([
+                    'sale_id' => $sale->id,
+                    'amount' => Money::taka($down - $advance),
                     'method' => $data['method'] ?? 'cash',
                     'paid_at' => Carbon::parse($data['sale_date'])->setTimeFrom(now()),
-                    'note' => $type === 'cash' ? 'Full payment at sale' : 'Down payment',
+                    'note' => $note,
                     'received_by' => $user->id,
                 ]);
             }
@@ -76,6 +125,8 @@ class SaleService
             }
 
             $vehicle->update(['status' => 'sold', 'current_sale_id' => $sale->id]);
+            $draft && app(DraftService::class)->delete($draft); // the draft became this sale: it goes, and a vehicle it held is released unless this sale sold it
+            $booking?->update(['status' => 'completed', 'sale_id' => $sale->id, 'closed_on' => today()]);
 
             return $sale;
         });

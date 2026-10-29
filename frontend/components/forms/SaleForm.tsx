@@ -1,6 +1,6 @@
 "use client";
 
-import { Calculator, Printer } from "lucide-react";
+import { Calculator, Plus, Printer, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -11,9 +11,9 @@ import { toast } from "sonner";
 import { api, ApiError, applyServerErrors } from "@/lib/api";
 import { addDays, fmtDate, money, todayStr, toPayload, savedMsg } from "@/lib/format";
 import { useFetch } from "@/lib/hooks";
-import type { DraftT, Customer, Investor, Sale, Vehicle } from "@/lib/types";
+import type { Booking, DraftT, Customer, Investor, Sale, Vehicle } from "@/lib/types";
 import { ProfitCalculator } from "@/components/forms/ProfitCalculator";
-import { DraftsBar, draftValues } from "@/components/DraftsBar";
+import { draftValues } from "@/components/DraftsBar";
 import { Button, Card, Field, inputCls, Modal, PageHeader } from "@/components/app-ui";
 import { openSaleMemo } from "@/components/SaleMemo";
 import { useAuth } from "@/lib/auth";
@@ -32,6 +32,8 @@ const schema = z.object({
   sale_date: z.string().min(1, "Sale date is required.").refine((v) => v <= todayStr(), "Sale date cannot be in the future."),
   sale_price: z.string().min(1, "Sale price is required.").refine((v) => Number(v) >= 1, "Sale price must be at least 1."),
   payment_type: z.enum(["cash", "due", "installment"]),
+  advance_amount: z.string(), // money the customer paid earlier; it counts in the down payment but is kept as its own payment
+  advance_date: z.string(),
   down_payment: z.string(),
   method: z.enum(["cash", "bank", "mobile"]),
   promised_date: z.string(),
@@ -53,6 +55,12 @@ const schema = z.object({
   const price = Number(v.sale_price);
   if (v.guarantor_phone.trim() && !/^\+?[0-9\s-]{7,20}$/.test(v.guarantor_phone.trim())) add("guarantor_phone", "Enter a valid mobile number (7 to 20 digits).");
   const down = v.down_payment === "" ? 0 : Number(v.down_payment);
+
+  if (v.advance_amount !== "") {
+    if (!(Number(v.advance_amount) > 0)) add("advance_amount", "Enter an amount above zero.");
+    else if (Number(v.advance_amount) >= price) add("advance_amount", "The advance must be less than the sale price.");
+  }
+  if (v.advance_date && v.advance_date > v.sale_date) add("advance_date", "The advance date cannot be after the sale date.");
 
   if (v.payment_type !== "cash") {
     if (!num(v.down_payment)) add("down_payment", "Enter the down payment (0 if none).");
@@ -107,7 +115,11 @@ function promiseDate(choice: string, from: string) {
 
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
-export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
+/**
+ * The sale form. With a `booking`, the sale is made from it: the vehicle and buyer are the booking's, the price starts at the agreed price,
+ * and the advance already paid is counted in the down payment, so staff only choose how the rest is paid (cash, due or installment).
+ */
+export function SaleForm({ investorMode = false, booking = null, onSold }: { investorMode?: boolean; booking?: Booking | null; onSold?: (sale: Sale) => void }) {
   const { user } = useAuth();
   const [created, setCreated] = useState<Sale | null>(null); // the sale just saved: the form stays and offers the memo
   const params = useSearchParams();
@@ -115,8 +127,8 @@ export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
   const { categories, nameOf } = useCategories();
 
   const blank = (vehicleId: string): Values => ({
-      vehicle_id: vehicleId, party_id: "", sale_date: todayStr(), sale_price: "", payment_type: investorMode ? "installment" : "cash", down_payment: "",
-      method: "cash", promised_date: "", promise_note: "", investor_id: "", guarantor_phone: "", installment_count: "24", first_due_date: addDays(30),
+      vehicle_id: booking?.vehicle_id ? String(booking.vehicle_id) : vehicleId, party_id: booking ? String(booking.customer_id) : "", sale_date: todayStr(), sale_price: booking?.agreed_price ? String(Number(booking.agreed_price)) : "", payment_type: investorMode ? "installment" : "cash", down_payment: booking ? String(Number(booking.advance_amount)) : "", // from a booking this is the total received at the sale: the advance, plus what is paid now (typed apart from it)
+      method: "cash", advance_amount: "", advance_date: "", promised_date: "", promise_note: "", investor_id: "", guarantor_phone: "", installment_count: "24", first_due_date: addDays(30),
       frequency: "monthly", interest_rate: "0", interest_mode: "percent", interest_amount: "", investor_share_percent: "0", investor_share_mode: "percent", investor_share_amount: "", investor_rate: "",
   });
 
@@ -137,7 +149,30 @@ export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
   }, [settings.data]);
 
   const w = watch();
-  const vehicles = useFetch<Vehicle[]>(vehicleListOpened || w.vehicle_id ? (investorMode ? "/vehicles?per_page=100" : "/vehicles?status=in_stock&per_page=100") : null);
+  // money received before the sale: the booking's advance, or an advance typed here (its button opens the amount and date)
+  const [advanceOpen, setAdvanceOpen] = useState(false);
+  const advance = booking ? Number(booking.advance_amount) : Number(w.advance_amount || 0);
+  const advanceDate = booking ? booking.booked_on : w.advance_date || todayStr();
+  // the down payment kept in the form is everything received at the sale, the advance included; changing the advance keeps what is paid on top
+  const changeAdvance = (value: string) => {
+    const extra = Math.max(Number(getValues("down_payment") || 0) - Number(getValues("advance_amount") || 0), 0);
+    setValue("advance_amount", value, { shouldValidate: true });
+    setValue("down_payment", Number(value || 0) > 0 ? String(Number(value) + extra) : extra ? String(extra) : "", { shouldValidate: true });
+  };
+  // the advance cannot be dated after the sale: moving the sale date back pulls the advance date with it
+  useEffect(() => {
+    if (w.advance_date && w.sale_date && w.advance_date > w.sale_date) setValue("advance_date", w.sale_date, { shouldValidate: true });
+  }, [w.sale_date, w.advance_date, setValue]);
+  const removeAdvance = () => {
+    changeAdvance("");
+    setValue("advance_date", "");
+    setAdvanceOpen(false);
+  };
+  const [draftId, setDraftId] = useState<number | null>(null); // the draft being edited: it holds the vehicle chosen in it
+  const vehicles = useFetch<Vehicle[]>(booking ? "/vehicles?status=booked&per_page=100" : vehicleListOpened || w.vehicle_id ? (investorMode ? "/vehicles?per_page=100" : `/vehicles?status=in_stock&per_page=100${draftId ? `&draft_id=${draftId}` : ""}`) : null);
+  // from a booking: the booked vehicle is already chosen, and the buyer may take another one that is in stock (fetched when the field is first used)
+  const moreVehicles = useFetch<Vehicle[]>(booking && (vehicleListOpened || !booking.vehicle_id) ? "/vehicles?status=in_stock&per_page=100" : null);
+  const allVehicles = booking ? [...(vehicles.data ?? []), ...(moreVehicles.data ?? [])] : vehicles.data ?? [];
   const [promiseChoice, setPromiseChoice] = useState("");
   // A resumed draft keeps the date it has; a quick choice follows the sale date.
   const choice = promiseChoice || (w.promised_date ? "other" : "");
@@ -163,10 +198,10 @@ export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
   }, [chosenInvestor.data]);
 
   const buyer = useFetch<Customer>(w.party_id ? `/customers/${w.party_id}` : null);
-  const picked = (vehicles.data ?? []).find((v) => String(v.id) === w.vehicle_id);
+  const picked = allVehicles.find((v) => String(v.id) === w.vehicle_id);
 
   // Choosing a vehicle brings its type's default sale price (Settings), unless a different price was already typed.
-  const vehicleType = (vehicles.data ?? []).find((v) => String(v.id) === w.vehicle_id)?.vehicle_type;
+  const vehicleType = allVehicles.find((v) => String(v.id) === w.vehicle_id)?.vehicle_type;
   const autoPrice = useRef("");
   useEffect(() => {
     const price = vehicleType ? settings.data?.sale.prices?.[vehicleType] : undefined;
@@ -204,20 +239,24 @@ export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
   const showProfit = investorMode ? (w.investor_share_mode === "amount" ? w.investor_share_amount !== "" : w.investor_rate !== "") : ownerProfit > 0;
 
   // Drafts: the form as typed, kept for later. Saving one creates no sale and takes nothing out of stock.
-  const [draftId, setDraftId] = useState<number | null>(null);
-  const [draftsKey, setDraftsKey] = useState(0);
+  // back to an empty form (a booking's own details stay); a draft that was open is left saved but no longer the one being updated
+  const resetForm = () => {
+    reset(blank(""));
+    setAdvanceOpen(false);
+    setPromiseChoice("");
+    setDraftId(null);
+  };
   const [savingDraft, setSavingDraft] = useState(false);
 
   const saveDraft = async () => {
     const values = getValues();
-    const chassis = (vehicles.data ?? []).find((x) => String(x.id) === values.vehicle_id)?.chassis_no;
+    const chassis = allVehicles.find((x) => String(x.id) === values.vehicle_id)?.chassis_no;
     const label = `${chassis ?? "New sale"}${values.sale_price ? ` · ${money(Number(values.sale_price))}` : ""} · ${values.payment_type}`;
     setSavingDraft(true);
     try {
-      const body = { label, data: { values, typeFilter } };
+      const body = { label, data: { values, typeFilter, investor: investorMode } };
       const res = draftId ? await api<DraftT>(`/drafts/${draftId}`, { method: "PUT", body }) : await api<DraftT>("/drafts", { method: "POST", body: { type: "sale", ...body } });
       setDraftId(res.data.id);
-      setDraftsKey((k) => k + 1);
       toast.success(res.message);
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Could not save the draft");
@@ -225,6 +264,18 @@ export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
       setSavingDraft(false);
     }
   };
+
+  const resumeId = params.get("resume");
+  const resumeList = useFetch<DraftT[]>(resumeId ? "/drafts?type=sale&resume=1" : null);
+  const resumed = useRef(false);
+  useEffect(() => {
+    const d = resumeList.data?.find((x) => String(x.id) === resumeId);
+    if (!d || resumed.current) return;
+    resumed.current = true;
+    resumeDraft(d);
+    window.history.replaceState(null, "", investorMode ? "/sales/new?tab=investor" : "/sales/new"); // the draft is open now
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumeList.data]);
 
   const resumeDraft = (d: DraftT) => {
     reset(draftValues(d.data.values, getValues()));
@@ -251,10 +302,20 @@ export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
       setError("investor_rate", { message: "Enter the investor profit percentage." });
       return;
     }
+    if (booking && v.sale_date < booking.booked_on) {
+      setError("sale_date", { message: `The sale date cannot be before the booking date (${fmtDate(booking.booked_on)}).` });
+      return;
+    }
+    if (booking && v.payment_type !== "cash" && Number(v.down_payment || 0) < Number(booking.advance_amount)) {
+      setError("down_payment", { message: `The down payment must include the booking advance of ${money(booking.advance_amount)}.` });
+      return;
+    }
     try {
       const body = toPayload({
+        ...(booking && { booking_id: booking.id }),
         vehicle_id: v.vehicle_id, customer_id: v.party_id, sale_date: v.sale_date, sale_price: v.sale_price, payment_type: v.payment_type, method: v.method,
         down_payment: v.payment_type === "cash" ? v.sale_price : v.down_payment,
+        ...(!booking && Number(v.advance_amount) > 0 && { advance_amount: v.advance_amount, advance_date: v.advance_date }),
         ...(v.payment_type !== "cash" && { guarantor_phone: v.guarantor_phone }),
         ...(v.payment_type === "due" && { promised_date: v.promised_date, promise_note: v.promise_note }),
         ...(v.payment_type === "installment" && {
@@ -267,16 +328,16 @@ export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
             ? (plan && plan.interest > 0 ? String(Math.round((Number(v.investor_share_amount || 0) / plan.interest) * 1000000) / 10000) : "0")
             : v.investor_share_percent,
         }),
-      }, ["vehicle_id", "customer_id", "sale_price", "down_payment", "investor_id", "installment_count", "interest_rate", "interest_amount", "investor_share_percent"]);
-      const res = await api<Sale>("/sales", { method: "POST", body });
-      if (draftId) await api(`/drafts/${draftId}`, { method: "DELETE" }).catch(() => {}); // the real sale exists now
+      }, ["booking_id", "vehicle_id", "customer_id", "sale_price", "down_payment", "advance_amount", "investor_id", "installment_count", "interest_rate", "interest_amount", "investor_share_percent"]);
+      const res = await api<Sale>("/sales", { method: "POST", body: draftId ? { ...body, draft_id: draftId } : body });
       toast.success(savedMsg("Sale", false));
       // stay on this page: clear the form, refresh the stock list and offer the memo
       const full = await api<Sale>(`/sales/${res.data.id}`).then((r) => r.data).catch(() => res.data);
+      if (onSold) return void onSold(full); // made from a booking: go on to the sale itself
       setCreated(full);
       reset(blank(""));
+      setAdvanceOpen(false);
       setDraftId(null);
-      setDraftsKey((k) => k + 1);
       vehicles.reload();
     } catch (e) {
       toast.error(applyServerErrors(e, setError));
@@ -285,11 +346,17 @@ export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
 
   return (
     <>
-      <PageHeader titleClass={investorMode ? "from-sky-700 via-blue-600 to-blue-500" : undefined} title={investorMode ? "New investor sale" : "New sale"} actions={investorMode && <Button variant="outline" onClick={() => setCalcOpen(true)}><Calculator className="size-4 text-sky-600" /> <span className="sm:hidden">Calculate</span><span className="hidden sm:inline">Profit calculation</span></Button>} />
-      <DraftsBar type="sale" refreshKey={draftsKey} activeId={draftId} onResume={resumeDraft} onDeleted={(id) => id === draftId && setDraftId(null)} />
+      <PageHeader titleClass={investorMode ? "text-blue-700" : undefined} title={investorMode ? "New investor sale" : "New sale"} actions={investorMode && <Button variant="outline" onClick={() => setCalcOpen(true)}><Calculator className="size-4 text-sky-600" /> <span className="sm:hidden">Calculate</span><span className="hidden sm:inline">Profit calculation</span></Button>} />
+      {booking && (
+        <div className="mb-4 rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm text-violet-900">
+          From <b>booking #{booking.id}</b> · {Number(booking.advance_amount) > 0 ? <>advance <b>{money(booking.advance_amount)}</b> ({fmtDate(booking.booked_on)})</> : "no advance"}
+        </div>
+      )}
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
         <Card title="1. Customer">
-          <CustomerSelect label="Buyer" value={w.party_id} onChange={(id) => setValue("party_id", id, { shouldValidate: true })} error={errors.party_id?.message} />
+          {booking
+            ? <p className="text-sm text-slate-600">Buyer on the booking: <b className="text-slate-900">{booking.customer?.name}</b></p>
+            : <CustomerSelect label="Buyer" value={w.party_id} onChange={(id) => setValue("party_id", id, { shouldValidate: true })} error={errors.party_id?.message} />}
           {buyer.data && (
             <dl className="mt-3 grid gap-x-4 gap-y-1 rounded-md border border-emerald-100 bg-emerald-50/50 p-3 text-sm sm:grid-cols-2">
               <Info k="Name" v={buyer.data.name} />
@@ -302,9 +369,10 @@ export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
           )}
         </Card>
 
-        <Card title="2. Vehicle from stock">
-          {!w.party_id && <p className="mb-3 text-sm text-slate-500">Select or add the customer first, then choose the vehicle.</p>}
-          <div className={`grid gap-3 md:grid-cols-2 ${w.party_id ? "" : "pointer-events-none opacity-50"}`}>
+        <Card title={booking ? "2. Vehicle" : "2. Vehicle from stock"}>
+          {booking && !booking.vehicle_id && <p className="mb-3 text-sm text-slate-600">No vehicle was booked yet: choose the one the customer takes.</p>}
+          {!booking && !w.party_id && <p className="mb-3 text-sm text-slate-500">Select or add the customer first, then choose the vehicle.</p>}
+          <div className={`grid gap-3 md:grid-cols-2 ${booking || w.party_id ? "" : "pointer-events-none opacity-50"}`}>
             <Field label="Vehicle type">
               <NativeSelect className={inputCls} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
                 <option value="">All types</option>
@@ -318,7 +386,7 @@ export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
                 onOpen={() => setVehicleListOpened(true)}
                 loading={vehicles.loading}
                 placeholder="Search by chassis, model or brand..."
-                options={(vehicles.data ?? []).filter((v) => !typeFilter || v.vehicle_type === typeFilter).map((v) => ({ value: String(v.id), label: `${v.chassis_no} - ${[v.brand, v.model, v.year].filter(Boolean).join(" ")}${investorMode ? (v.status === "in_stock" ? " · In stock" : " · Sold") : ""}`, hint: [nameOf(v.vehicle_type), v.engine_no].join(" · ") }))}
+                options={allVehicles.filter((v) => !typeFilter || v.vehicle_type === typeFilter).map((v) => ({ value: String(v.id), label: `${v.chassis_no} - ${[v.brand, v.model, v.year].filter(Boolean).join(" ")}${investorMode ? (v.status === "in_stock" ? " · In stock" : " · Sold") : ""}`, hint: [nameOf(v.vehicle_type), v.engine_no].join(" · ") }))}
               />
             </Field>
           </div>
@@ -339,12 +407,22 @@ export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
           )}
         </Card>
 
-        <Card title="3. Sale">
+        <Card title="3. Sale" actions={!booking && (advanceOpen || advance > 0
+          ? <Button variant="outline" onClick={removeAdvance}>Remove advance</Button>
+          : <Button variant="outline" onClick={() => setAdvanceOpen(true)}><Plus className="size-4" /> Advance</Button>)}>
           <div className="grid gap-3 md:grid-cols-2">
-            <Field required label="Sale date" error={errors.sale_date?.message}><Input type="date" className={inputCls} {...register("sale_date")} /></Field>
+            <Field required label="Sale date" error={errors.sale_date?.message}><Input type="date" min={booking?.booked_on} max={todayStr()} className={inputCls} {...register("sale_date")} /></Field>
             <Field required label="Sale price" error={errors.sale_price?.message}>
               <Input type="number" step="0.01" className={inputCls} {...register("sale_price")} />
             </Field>
+            {!booking && (advanceOpen || advance > 0) && (
+              <>
+                <Field label="Advance amount" error={errors.advance_amount?.message}>
+                  <Input type="number" step="0.01" min="0" className={inputCls} value={w.advance_amount} placeholder="0" onChange={(e) => changeAdvance(e.target.value)} />
+                </Field>
+                <Field label="Advance date" error={errors.advance_date?.message}><Input type="date" max={w.sale_date || todayStr()} className={inputCls} {...register("advance_date")} /></Field>
+              </>
+            )}
             {!investorMode && <Field required label="Payment type" error={errors.payment_type?.message}>
               <NativeSelect className={inputCls} {...register("payment_type")}>
                 <option value="cash">Cash (paid in full)</option>
@@ -358,16 +436,41 @@ export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
               </NativeSelect>
             </Field>
             {type !== "cash" && (
-              <Field required label="Down payment" error={errors.down_payment?.message}><Input type="number" step="0.01" className={inputCls} {...register("down_payment")} /></Field>
+              advance > 0 ? (
+                <Field required label="Down payment (without the advance)" error={errors.down_payment?.message}>
+                  <Input
+                    type="number" step="0.01" min="0" className={inputCls}
+                    value={String(Math.max(Number(w.down_payment || 0) - advance, 0) || "")}
+                    placeholder="0"
+                    onChange={(e) => setValue("down_payment", String(advance + Number(e.target.value || 0)), { shouldValidate: true })}
+                  />
+                </Field>
+              ) : (
+                <Field required label="Down payment" error={errors.down_payment?.message}><Input type="number" step="0.01" className={inputCls} {...register("down_payment")} /></Field>
+              )
             )}
             {type !== "cash" && (
               <Field label="Guarantor mobile (optional)" error={errors.guarantor_phone?.message}><Input type="tel" className={inputCls} {...register("guarantor_phone")} /></Field>
             )}
           </div>
-          {num(w.sale_price) && (
+          {advance > 0 && (
+            <>
+              <dl className={`mt-3 grid gap-2 rounded-md border border-emerald-100 bg-emerald-50/50 p-3 text-sm grid-cols-2 sm:grid-cols-4`}>
+                <div><dt className="text-xs text-slate-500">Sale price</dt><dd className="font-semibold text-slate-800">{money(salePrice)}</dd></div>
+                <div><dt className="text-xs text-slate-500">Advance · {fmtDate(advanceDate)}</dt><dd className="font-semibold text-violet-800">{money(advance)}</dd></div>
+                <div><dt className="text-xs text-slate-500">Down payment</dt><dd className="font-semibold text-slate-800">{money(Math.max(paidNow - advance, 0))}</dd></div>
+                <div>
+                  <dt className="text-xs text-slate-500">Due amount</dt>
+                  <dd className={`text-base font-bold ${dueNow > 0 ? "text-amber-700" : "text-emerald-700"}`}>{money(dueNow)}</dd>
+                </div>
+              </dl>
+              <p className="mt-2 text-xs text-slate-600">Total received (advance and down payment): <b>{money(paidNow)}</b>.</p>
+            </>
+          )}
+          {advance <= 0 && (
             <dl className="mt-3 grid grid-cols-3 gap-2 rounded-md border border-emerald-100 bg-emerald-50/50 p-3 text-sm">
               <div><dt className="text-xs text-slate-500">Sale price</dt><dd className="font-semibold text-slate-800">{money(salePrice)}</dd></div>
-              <div><dt className="text-xs text-slate-500">{type === "cash" ? "Paid" : "Down payment"}</dt><dd className="font-semibold text-slate-800">{money(paidNow)}</dd></div>
+              <div><dt className="text-xs text-slate-500">Down payment</dt><dd className="font-semibold text-slate-800">{money(paidNow)}</dd></div>
               <div>
                 <dt className="text-xs text-slate-500">Due amount</dt>
                 <dd className={`text-base font-bold ${dueNow > 0 ? "text-amber-700" : "text-emerald-700"}`}>{money(dueNow)}</dd>
@@ -450,7 +553,8 @@ export function SaleForm({ investorMode = false }: { investorMode?: boolean }) {
 
         {investorMode && calcOpen && <ProfitCalculator key={w.investor_id} open name={chosenInvestor.data?.name} investorId={chosenInvestor.data?.id} canSave saved={chosenInvestor.data} onSaved={(rate) => { chosenInvestor.reload(); setValue("investor_share_mode", "percent"); setValue("investor_rate", String(rate), { shouldValidate: true }); setCalcOpen(false); }} onApply={(rate) => { setValue("investor_share_mode", "percent"); setValue("investor_rate", String(rate), { shouldValidate: true }); }} onClose={() => setCalcOpen(false)} />}
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={saveDraft} disabled={savingDraft || isSubmitting}>{savingDraft ? "Saving..." : draftId ? "Update draft" : "Save as draft"}</Button>
+          <Button variant="outline" onClick={resetForm} disabled={isSubmitting}><RotateCcw className="size-4" /> Reset</Button>
+          {!booking && <Button variant="outline" onClick={saveDraft} disabled={savingDraft || isSubmitting}>{savingDraft ? "Saving..." : draftId ? "Update draft" : "Save as draft"}</Button>}
           <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Saving..." : "Create sale"}</Button>
         </div>
       </form>

@@ -126,6 +126,10 @@ class PurchaseService
                 throw new BusinessRuleException('This purchase settled part of a customer\'s due and cannot be deleted.');
             }
 
+            if ($vehicle->status === 'booked') {
+                throw new BusinessRuleException('This vehicle is booked. Cancel the booking first.');
+            }
+
             if ($purchase->payments()->exists()) {
                 throw new BusinessRuleException('Payments were recorded against this purchase, so it cannot be deleted.');
             }

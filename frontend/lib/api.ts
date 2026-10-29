@@ -9,7 +9,7 @@ export type ApiEnvelope<T> = {
   success: boolean;
   message: string;
   data: T;
-  meta?: PageMeta & { unread_count?: number; total_amount?: number; type_counts?: Record<string, number>; due_count?: number; permissions?: PermissionT[]; categories?: VehicleCategory[] };
+  meta?: PageMeta & { unread_count?: number; total_amount?: number; type_counts?: Record<string, number>; due_count?: number; status_counts?: Record<string, number>; permissions?: PermissionT[]; categories?: VehicleCategory[] };
   errors?: Record<string, string[]>;
 };
 

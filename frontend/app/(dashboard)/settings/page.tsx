@@ -59,6 +59,8 @@ export default function SettingsPage() {
   const { hidden, setHidden } = useHiddenMenu();
   const dash = useHiddenDashboard();
   const [recallDays, setRecallDays] = useState<number | null>(null); // saved on its own, apart from the settings table
+  const [fromCustomer, setFromCustomer] = useState<boolean | null>(null); // what was just saved, until the settings are fetched again
+  const [booking, setBooking] = useState<Partial<{ days: number; on_cancel: string; on_expire: string }>>({}); // what was just saved, until the settings are fetched again
   const menuItems = allowedNav(user?.role, can);
   const { categories } = useCategories();
   const [saving, setSaving] = useState(false);
@@ -233,6 +235,47 @@ export default function SettingsPage() {
             {[3, 7, 10, 15, 30, 60, 90, 180, 360].map((d) => <option key={d} value={d}>{d} days</option>)}
           </NativeSelect>
         </Field>
+      </Card>
+      <Card title="Buying from customers" className="mb-4">
+        <p className="mb-3 text-xs text-slate-500">When on, the Buy vehicle page has a "From customer (second hand)" tab to buy a vehicle back from a customer. Turn it off if this shop only buys from suppliers.</p>
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" className="size-4 accent-emerald-600" checked={fromCustomer ?? settings.data.purchase?.from_customer ?? true} onChange={async (e) => {
+            const value = e.target.checked;
+            try {
+              await api("/settings", { method: "PUT", body: { purchase: { from_customer: value } } });
+              setFromCustomer(value);
+              toast.success("Saved");
+            } catch (err) {
+              toast.error(err instanceof ApiError ? err.message : "Failed to save");
+            }
+          }} />
+          Buy vehicles from customers (second hand)
+        </label>
+      </Card>
+      <Card title="Bookings" className="mb-4">
+        <p className="mb-3 text-xs text-slate-500">A booking holds a vehicle for a customer who paid an advance. When it is cancelled or its deadline passes, the vehicle goes back in stock and the advance is handled as set here. Staff can still change the refund when they cancel.</p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {([
+            ["days", "Hold a booking for", settings.data.booking?.days ?? 7, [1, 3, 7, 10, 15, 30, 60].map((d) => [String(d), `${d} days`])],
+            ["on_cancel", "When cancelled, the advance is", settings.data.booking?.on_cancel ?? "refund", [["refund", "Refunded in full"], ["keep", "Kept by the shop"]]],
+            ["on_expire", "When expired, the advance is", settings.data.booking?.on_expire ?? "refund", [["refund", "Refunded in full"], ["keep", "Kept by the shop"]]],
+          ] as [keyof typeof booking, string, string | number, string[][]][]).map(([key, text, current, options]) => (
+            <Field key={key} label={text}>
+              <NativeSelect className={inputCls} value={String(booking[key] ?? current)} onChange={async (e) => {
+                const value = key === "days" ? Number(e.target.value) : e.target.value;
+                try {
+                  await api("/settings", { method: "PUT", body: { booking: { [key]: value } } });
+                  setBooking((b) => ({ ...b, [key]: value }));
+                  toast.success("Saved");
+                } catch (err) {
+                  toast.error(err instanceof ApiError ? err.message : "Failed to save");
+                }
+              }}>
+                {options.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+              </NativeSelect>
+            </Field>
+          ))}
+        </div>
       </Card>
       <Card title="Menu" className="mb-4">
         <p className="mb-3 text-xs text-slate-500">Choose which items show in the side menu.</p>

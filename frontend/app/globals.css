@@ -187,3 +187,15 @@
     display: none !important;
   }
 }
+
+
+/* number fields have no up/down arrows: amounts are typed, and a stray scroll or touch must never change them */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

@@ -21,6 +21,7 @@ export function SearchSelect({
   onCreate,
   createLabel = "Add new",
   onOpen,
+  minChars = 0,
 }: {
   options: Option[];
   value: string;
@@ -35,6 +36,8 @@ export function SearchSelect({
   createLabel?: string;
   /** Called each time the field is focused, so a list can be fetched only once someone reaches for it. */
   onOpen?: () => void;
+  /** The dropdown stays closed until this many characters are typed. */
+  minChars?: number;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -53,6 +56,7 @@ export function SearchSelect({
   }, []);
 
   const q = query.trim().toLowerCase();
+  const listed = open && q.length >= minChars;
   const shown = onQueryChange || !q ? options : options.filter((o) => `${o.label} ${o.hint ?? ""}`.toLowerCase().includes(q));
 
   const clear = () => {
@@ -84,7 +88,7 @@ export function SearchSelect({
         }}
         onKeyDown={(e) => {
           if (e.key === "Escape") setOpen(false);
-          if (e.key === "Enter" && open) {
+          if (e.key === "Enter" && listed) {
             e.preventDefault();
             if (shown[0]) choose(shown[0]);
           }
@@ -97,7 +101,7 @@ export function SearchSelect({
         </button>
       )}
       <ChevronsUpDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-      {open && (
+      {listed && (
         <ul className="absolute z-30 mt-1 max-h-60 w-full overflow-y-auto rounded-lg bg-white py-1 text-sm shadow-lg ring-1 ring-emerald-100">
           {shown.map((o) => (
             <li key={o.value}>

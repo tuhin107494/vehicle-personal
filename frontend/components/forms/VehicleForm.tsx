@@ -8,7 +8,7 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiError, applyServerErrors } from "@/lib/api";
 import { useFetch } from "@/lib/hooks";
-import { toPayload, savedMsg } from "@/lib/format";
+import { toPayload, savedMsg, todayStr } from "@/lib/format";
 import { DEFAULT_FIELDS, useCategories, useTypeDefaults, VehicleCategory } from "@/lib/categories";
 import type { Vehicle } from "@/lib/types";
 import { Button, Field, inputCls, Modal } from "@/components/app-ui";
@@ -29,7 +29,7 @@ export const vehicleFields = {
   fuel_type: z.string(),
 };
 export const detailFields = {
-  registration_date: z.string().refine((v) => v === "" || v <= new Date().toISOString().slice(0, 10), "Registration date cannot be in the future."),
+  registration_date: z.string().refine((v) => v === "" || v <= todayStr(), "Registration date cannot be in the future."),
   tax_token_expiry: z.string(),
   fitness_expiry: z.string(),
   insurance_expiry: z.string(),

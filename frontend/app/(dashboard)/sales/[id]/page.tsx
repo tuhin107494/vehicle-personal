@@ -115,13 +115,28 @@ export default function SaleDetailPage() {
         <KV items={[
           ["Vehicle", <Link key="v" className="underline" href={`/vehicles/${sale.vehicle_id}`}>{sale.vehicle?.chassis_no}</Link>],
           ["Buyer", <Link key="b" className="underline" href={`/customers/${sale.customer_id}`}>{sale.customer?.name}</Link>],
-          ["Sale date", fmtDate(sale.sale_date)], ["Sale price", money(sale.sale_price)], ["Down payment", money(sale.down_payment)],
+          ["Sale date", fmtDate(sale.sale_date)], ["Sale price", money(sale.sale_price)], ["Down payment", money(Number(sale.down_payment) - Number(sale.advance?.amount ?? 0))],
           ["Type", <Badge key="t" tone="blue">{sale.payment_type}</Badge>], ["Status", <StatusBadge key="s" status={sale.status} />],
+          ...(sale.advance ? [[sale.advance.booking_id ? "Booking advance" : "Advance", `${money(sale.advance.amount)} received on ${fmtDate(sale.advance.date)} (${sale.advance.method})`] as [string, React.ReactNode]] : []),
           ...(sale.guarantor_phone ? [["Guarantor", <a key="g" className="underline" href={`tel:${sale.guarantor_phone}`}>{sale.guarantor_phone}</a>] as [string, React.ReactNode]] : []),
           ...(sale.investor ? [["Investor", <Link key="i" className="underline" href={`/investors/${sale.investor.id}`}>{sale.investor.name}</Link>] as [string, React.ReactNode]] : []),
           ...(sale.plan ? [["Plan", `${money(sale.plan.principal)} + ${sale.plan.interest_rate}% = ${money(sale.plan.total_payable)}`] as [string, React.ReactNode]] : []),
         ]} />
       </Card>
+
+      {sale.booking && (
+        <Card title={`Booking history · #${sale.booking.id}`} className="mb-4">
+          <KV items={[
+            ["Booked on", fmtDate(sale.booking.booked_on)],
+            ["Booked price", sale.booking.agreed_price ? money(sale.booking.agreed_price) : "Not fixed"],
+            ["Advance", `${money(sale.booking.advance_amount)} (${label(sale.booking.advance_method)})`],
+            ["Held until", sale.booking.expires_on ? fmtDate(sale.booking.expires_on) : "No deadline"],
+            ["Converted to sale", fmtDate(sale.sale_date)],
+            ...(sale.booking.booked_by ? [["Booked by", sale.booking.booked_by] as [string, React.ReactNode]] : []),
+            ...(sale.booking.note ? [["Note", sale.booking.note] as [string, React.ReactNode]] : []),
+          ]} />
+        </Card>
+      )}
 
       <Card title="Registration" className="mb-4"><Stepper sale={sale} onChanged={reload} /></Card>
 

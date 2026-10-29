@@ -48,7 +48,7 @@ td.k{width:30%;background:#f3f4f6;font-weight:600}th{background:#ecfdf5;font-siz
 </div>
 
 <h2>Payment</h2>
-<table>${rows([["Payment type", cap(sale.payment_type)], ["Sale price", money(sale.sale_price)], ["Down payment", money(sale.down_payment)], ["Total payable", money(sale.grand_total)], ["Paid so far", money(sale.total_paid)]])}
+<table>${rows([["Payment type", cap(sale.payment_type)], ["Sale price", money(sale.sale_price)], ["Down payment", money(Number(sale.down_payment) - Number(sale.advance?.amount ?? 0))], [sale.advance?.booking_id ? "Booking advance" : "Advance", sale.advance ? `${money(sale.advance.amount)} received on ${pdate(sale.advance.date)}` : null], ["Total payable", money(sale.grand_total)], ["Paid so far", money(sale.total_paid)]])}
 <tr class="total"><td class="k">Balance due</td><td>${esc(money(sale.due_amount))}</td></tr></table>
 
 ${installments.length ? `<h2>Installment schedule</h2><table><tr><th>#</th><th>Due date</th><th class="r">Amount</th><th class="r">Paid</th><th class="r">Remaining</th></tr>${installments.map((i) => `<tr><td>${esc(i.seq_no)}</td><td>${esc(pdate(i.due_date))}</td><td class="r">${esc(money(i.amount))}</td><td class="r">${esc(money(i.paid_amount))}</td><td class="r">${esc(money(i.amount - i.paid_amount))}</td></tr>`).join("")}</table>` : ""}

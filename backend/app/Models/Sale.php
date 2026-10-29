@@ -91,6 +91,12 @@ class Sale extends Model
     }
 
     /** @return HasOne<InstallmentPlan, $this> */
+    /** The booking this sale completed, if it came from one. */
+    public function booking(): HasOne
+    {
+        return $this->hasOne(Booking::class);
+    }
+
     public function plan(): HasOne
     {
         return $this->hasOne(InstallmentPlan::class);
