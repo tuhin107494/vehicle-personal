@@ -21,7 +21,7 @@ function Vehicles() {
   const params = useSearchParams();
   const wanted = params.get("status"); // e.g. /vehicles?status=in_stock
   // opened from the menu the list starts on what is in stock; ?status=sold or ?status=all opens another view
-  const [status, setStatus] = useState(wanted === "sold" ? "sold" : wanted === "all" ? "" : "in_stock");
+  const [status, setStatus] = useState(wanted === "sold" ? "sold" : wanted === "all" ? "" : "stock"); // "stock" is in stock plus booked, the booked ones marked
   const [type, setType] = useState("");
   const [registration, setRegistration] = useState(REGISTRATION_STEPS.includes(params.get("registration") ?? "") ? params.get("registration")! : ""); // e.g. ?registration=pending
   const { can } = useAuth();
@@ -58,6 +58,12 @@ function Vehicles() {
           {row.original.status === "in_stock" && can("sales.create") && (
             <Link className="inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-1.5 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 md:flex-none md:gap-1.5 md:px-2.5 md:py-1.5 md:text-xs" href={`/sales/new?vehicle=${row.original.id}`} title="Sell"><ArrowUpRight className="size-3 shrink-0 md:size-4" /> <span>Sell</span></Link>
           )}
+          {row.original.status === "booked" && row.original.booking_id && can("sales.create") && (
+            <Link className="inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-yellow-400 bg-yellow-100 px-1.5 py-1 text-[11px] font-medium text-yellow-900 hover:bg-yellow-200 md:flex-none md:gap-1.5 md:px-2.5 md:py-1.5 md:text-xs" href={`/sales/new?booking=${row.original.booking_id}`} title="Sell"><HandCoins className="size-3 shrink-0 md:size-4" /> <span>Convert to sale</span></Link>
+          )}
+          {row.original.status === "booked" && !row.original.booking_id && row.original.draft_id && can("sales.create") && (
+            <Link className="inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-yellow-400 bg-yellow-100 px-1.5 py-1 text-[11px] font-medium text-yellow-900 hover:bg-yellow-200 md:flex-none md:gap-1.5 md:px-2.5 md:py-1.5 md:text-xs" href={`/sales/new?resume=${row.original.draft_id}`} title="Resume sale"><ArrowUpRight className="size-3 shrink-0 md:size-4" /> <span>Resume sale</span></Link>
+          )}
           {row.original.status === "sold" && (row.original.sale_due ?? 0) > 0 && can("payments.collect") && (
             <Link className="inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-sky-200 px-1.5 py-1 text-[11px] md:py-1.5 md:text-xs md:flex-none md:gap-1.5 md:px-2.5 font-medium text-sky-700 hover:bg-sky-50" href={`/due-collection?vehicle_id=${row.original.id}`} title="Due collection"><HandCoins className="size-3 shrink-0 md:size-4" /> <span>Due</span></Link>
           )}
@@ -81,7 +87,8 @@ function Vehicles() {
             <Field label="Status">
               <NativeSelect className={`${inputCls} w-full lg:w-40`} value={status} onChange={(e) => setStatus(e.target.value)}>
                 <option value="">All status</option>
-                <option value="in_stock">In stock</option>
+                <option value="stock">In stock</option>
+                <option value="in_stock">Available</option>
                 <option value="sold">Sold</option>
                 <option value="booked">Booked</option>
               </NativeSelect>

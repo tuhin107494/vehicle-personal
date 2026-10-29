@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { Phone } from "lucide-react";
 import { api, applyServerErrors } from "@/lib/api";
 import { fmtDate, money, todayStr, toPayload } from "@/lib/format";
-import { useFetch } from "@/lib/hooks";
+import { useDebounced, useFetch } from "@/lib/hooks";
 import type { AccountSummary } from "@/lib/types";
 import { Button, Card, Field, inputCls, Pagination } from "@/components/app-ui";
 import { usePaging } from "@/lib/paging";
@@ -51,11 +51,7 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
   // Or start from the vehicle: choosing one fills in its customer.
   const [found, setFound] = useState<{ party: string } | null>(null);
   const [vq, setVq] = useState("");
-  const [vqD, setVqD] = useState("");
-  useEffect(() => {
-    const t = setTimeout(() => setVqD(vq), 250);
-    return () => clearTimeout(t);
-  }, [vq]);
+  const vqD = useDebounced(vq);
   // Opened from a vehicle row: fill in its customer and select it.
   const fromVehicle = useFetch<Sale[]>(side === "customer" && vehicleId ? `/sales?due=1&vehicle_id=${vehicleId}` : null);
   useEffect(() => {
@@ -155,19 +151,19 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
                 </div>
 
                 <div className={`grid gap-2 ${side === "customer" ? "grid-cols-3" : "grid-cols-1"}`}>
-                  <div className="rounded-md border border-amber-200 bg-white p-2">
+                  <div className="rounded-md border border-emerald-200 bg-white p-2">
                     <div className="text-xs text-slate-500">{side === "customer" ? "Total due" : "We owe the supplier"}</div>
-                    <div className="text-lg font-bold text-amber-700">{money(due)}</div>
+                    <div className="text-lg font-bold text-emerald-700">{money(due)}</div>
                   </div>
                   {side === "customer" && (
                     <>
-                      <div className="rounded-md border border-sky-200 bg-white p-2">
+                      <div className="rounded-md border border-emerald-200 bg-white p-2">
                         <div className="text-xs text-slate-500">Current due (now)</div>
-                        <div className={`text-lg font-bold ${current > 0 ? "text-sky-700" : "text-emerald-700"}`}>{money(current)}</div>
+                        <div className="text-lg font-bold text-emerald-700">{money(current)}</div>
                       </div>
-                      <div className="rounded-md border border-violet-200 bg-white p-2">
+                      <div className="rounded-md border border-emerald-200 bg-white p-2">
                         <div className="text-xs text-slate-500">Delay</div>
-                        <div className={`text-lg font-bold ${late > 0 ? "text-violet-700" : "text-emerald-700"}`}>{late > 0 ? `${late} day${late === 1 ? "" : "s"}` : "On time"}</div>
+                        <div className="text-lg font-bold text-emerald-700">{late > 0 ? `${late} day${late === 1 ? "" : "s"}` : "On time"}</div>
                       </div>
                     </>
                   )}
@@ -176,8 +172,8 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
                   const b = summary.data.person;
                   const rows: [string, string | null | undefined][] = [["Bank", b.bank_name], ["Branch", b.bank_branch], ["Account name", b.bank_account_name], ["Account no", b.bank_account_no], ["Other", b.bank_info]];
                   return rows.some(([, v]) => v) ? (
-                    <div className="rounded-md border border-sky-200 bg-white p-2 text-xs">
-                      <div className="mb-1 font-semibold uppercase tracking-wide text-sky-700">Bank details</div>
+                    <div className="rounded-md border border-emerald-200 bg-white p-2 text-xs">
+                      <div className="mb-1 font-semibold uppercase tracking-wide text-emerald-700">Bank details</div>
                       <dl className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
                         {rows.filter(([, v]) => v).map(([k, v]) => <div key={k}><dt className="text-slate-500">{k}</dt><dd className="break-all font-medium text-slate-800">{v}</dd></div>)}
                       </dl>
@@ -208,9 +204,9 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
                             ))}
                           </dl>
                           <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 border-t border-slate-100 pt-2 text-xs">
-                            <span className="text-slate-500">Due <b className="text-amber-700">{money(i.due)}</b></span>
-                            {i.current_due !== undefined && <span className="text-slate-500">Now <b className="text-sky-700">{money(i.current_due)}</b></span>}
-                            {i.days_late !== undefined && (i.days_late > 0 ? <span className="font-semibold text-violet-700">{i.days_late} days late</span> : i.next_date ? <span className="text-slate-500">Next date <b className="text-slate-800">{fmtDate(i.next_date)}</b></span> : null)}
+                            <span className="text-slate-500">Due <b className="text-emerald-700">{money(i.due)}</b></span>
+                            {i.current_due !== undefined && <span className="text-slate-500">Now <b className="text-emerald-700">{money(i.current_due)}</b></span>}
+                            {i.days_late !== undefined && (i.days_late > 0 ? <span className="font-semibold text-emerald-700">{i.days_late} days late</span> : i.next_date ? <span className="text-slate-500">Next date <b className="text-slate-800">{fmtDate(i.next_date)}</b></span> : null)}
                           </div>
                         </div>
                       );

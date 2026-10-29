@@ -5,7 +5,17 @@ import { api, PageMeta } from "@/lib/api";
 import type { VehicleCategory } from "@/lib/categories";
 import type { PermissionT } from "@/lib/types";
 
-type Meta = PageMeta & { unread_count?: number; total_amount?: number; type_counts?: Record<string, number>; due_count?: number; permissions?: PermissionT[]; categories?: VehicleCategory[] };
+type Meta = PageMeta & { unread_count?: number; total_amount?: number; type_counts?: Record<string, number>; due_count?: number; status_counts?: Record<string, number>; drafts?: import("@/lib/types").DraftT[]; permissions?: PermissionT[]; categories?: VehicleCategory[] };
+
+/** The value, but only after it has stopped changing for `delay` ms, so typing in a search box does not fire a request per key. */
+export function useDebounced<T>(value: T, delay = 300): T {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setSettled(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return settled;
+}
 
 export function useFetch<T>(path: string | null) {
   // what the last finished request returned, and which request (path + reload count) that was
@@ -25,11 +35,13 @@ export function useFetch<T>(path: string | null) {
   }, [key, path]);
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
+  // change what is on screen without a request (a row that was just saved, for example); the next reload brings the server's own answer
+  const mutate = useCallback((change: (data: T | null, meta: Meta | null) => { data: T | null; meta: Meta | null }) => setResult((prev) => ({ ...prev, ...change(prev.data, prev.meta) })), []);
   // loading until the request for the current path has answered; the previous data stays on screen meanwhile
   const loading = key !== null && result.key !== key;
   // no path means nothing is wanted (a selection was cleared): show nothing, not the last answer
-  if (path === null) return { data: null, meta: null, loading: false, error: null, reload };
-  return { data: result.data, meta: result.meta, loading, error: result.error, reload };
+  if (path === null) return { data: null, meta: null, loading: false, error: null, reload, mutate };
+  return { data: result.data, meta: result.meta, loading, error: result.error, reload, mutate };
 }
 
 const noSubscribe = () => () => {};

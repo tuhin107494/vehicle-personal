@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\CollectionController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\DashboardController;
@@ -121,7 +122,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('purchases/{purchase}/payments', [PayableController::class, 'purchasePayments']);
         Route::get('advances', [PayableController::class, 'advances']);
         Route::post('advances', [PayableController::class, 'storeAdvance']);
-        Route::apiResource('sales', SaleController::class)->only(['index', 'store', 'show']);
+        Route::apiResource('sales', SaleController::class)->only(['index', 'store', 'show', 'update']);
+        Route::apiResource('bookings', BookingController::class)->only(['index', 'store', 'show', 'update']);
+        Route::post('bookings/{booking}/cancel', [BookingController::class, 'cancel']);
         Route::post('sales/{sale}/payments', [PaymentController::class, 'store']);
         Route::get('promises', [PromiseController::class, 'index']);
         Route::post('sales/{sale}/promises', [PromiseController::class, 'store']);

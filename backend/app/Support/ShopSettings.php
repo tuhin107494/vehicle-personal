@@ -13,11 +13,18 @@ class ShopSettings
     {
         // A price only makes sense for a vehicle type, so prices and field presets are all keyed by type.
         return [
-            'purchase' => ['vehicle_type' => self::primaryType('purchase'), 'prices' => (object) self::prices('purchase')],
+            'purchase' => ['vehicle_type' => self::primaryType('purchase'), 'prices' => (object) self::prices('purchase'), 'from_customer' => self::purchaseFromCustomer()],
             'sale' => ['vehicle_type' => self::primaryType('sale'), 'prices' => (object) self::prices('sale')],
             'type_defaults' => (object) self::typeDefaults(),
             'collections' => ['recall_days' => self::recallDays()],
+            'booking' => ['days' => self::bookingDays(), 'on_cancel' => self::bookingPolicy('on_cancel'), 'on_expire' => self::bookingPolicy('on_expire')],
         ];
+    }
+
+    /** Whether the shop buys second-hand vehicles back from customers (on unless the shop turned it off). */
+    public static function purchaseFromCustomer(): bool
+    {
+        return ShopSetting::where('key', 'purchase.from_customer')->value('value') !== '0';
     }
 
     public const DEFAULT_RECALL_DAYS = 7;
@@ -26,6 +33,20 @@ class ShopSettings
     public static function recallDays(): int
     {
         return (int) (ShopSetting::where('key', 'collections.recall_days')->value('value') ?: self::DEFAULT_RECALL_DAYS);
+    }
+
+    public const DEFAULT_BOOKING_DAYS = 7;
+
+    /** A new booking is held for this many days unless the staff set another deadline. */
+    public static function bookingDays(): int
+    {
+        return (int) (ShopSetting::where('key', 'booking.days')->value('value') ?: self::DEFAULT_BOOKING_DAYS);
+    }
+
+    /** What happens to a booking's advance when it is cancelled or expires: "refund" it all, or "keep" it all (staff can still change the amount). */
+    public static function bookingPolicy(string $when): string
+    {
+        return ShopSetting::where('key', "booking.$when")->value('value') === 'keep' ? 'keep' : 'refund';
     }
 
     /** The vehicle type a form starts on (the Buy vehicle form preselects it, the New sale form filters by it). */
@@ -67,6 +88,16 @@ class ShopSettings
         DB::transaction(function () use ($input) {
             if (isset($input['collections']['recall_days'])) {
                 ShopSetting::updateOrCreate(['key' => 'collections.recall_days'], ['value' => $input['collections']['recall_days']]);
+            }
+
+            if (isset($input['purchase']['from_customer'])) {
+                ShopSetting::updateOrCreate(['key' => 'purchase.from_customer'], ['value' => $input['purchase']['from_customer'] ? '1' : '0']);
+            }
+
+            foreach (['days', 'on_cancel', 'on_expire'] as $field) {
+                if (isset($input['booking'][$field])) {
+                    ShopSetting::updateOrCreate(['key' => "booking.$field"], ['value' => $input['booking'][$field]]);
+                }
             }
 
             foreach ($input['type_defaults'] ?? [] as $type => $fields) {

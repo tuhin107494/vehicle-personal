@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useFetch } from "@/lib/hooks";
+import { useDebounced, useFetch } from "@/lib/hooks";
 import type { Customer, Investor, Supplier } from "@/lib/types";
 import { Button, Field } from "@/components/app-ui";
 import { CustomerForm } from "@/components/forms/CustomerForm";
@@ -12,23 +12,18 @@ import { SearchSelect } from "@/components/SearchSelect";
 /** Search and pick a customer; `allowCreate` adds a "+ New" to add one on the spot, `filter` is the optional look used in report filters. */
 export function CustomerSelect({ label = "Customer", value, onChange, error, allowCreate = true, selectedLabel, filter }: { label?: string; value: string; onChange: (id: string) => void; error?: string; allowCreate?: boolean; selectedLabel?: string; filter?: boolean }) {
   const [search, setSearch] = useState("");
-  const [debounced, setDebounced] = useState("");
   const [creating, setCreating] = useState(false);
   const [typed, setTyped] = useState(""); // what was typed in the search when "+ Add new" was chosen
-  const [opened, setOpened] = useState(false); // the list is fetched when the field is first used (or when a value is already chosen and needs its name)
 
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(search), 250);
-    return () => clearTimeout(t);
-  }, [search]);
+  const debounced = useDebounced(search);
 
-  const list = useFetch<Customer[]>(opened || value ? `/customers?per_page=30${debounced ? `&search=${encodeURIComponent(debounced)}` : ""}` : null);
+  const list = useFetch<Customer[]>(debounced || value ? `/customers?per_page=30${debounced ? `&search=${encodeURIComponent(debounced)}` : ""}` : null);
   const options = (list.data ?? []).map((p) => ({ value: String(p.id), label: p.name, hint: [[p.phone, p.alt_phone].filter(Boolean).join(" / "), p.nid ? `NID ${p.nid}` : ""].filter(Boolean).join(" · ") }));
 
   return (
     <Field required={!filter} label={label} error={error}>
       <div className="flex gap-2">
-        <SearchSelect options={options} value={value} onChange={(id) => onChange(id)} onQueryChange={setSearch} onOpen={() => setOpened(true)} loading={list.loading} fallbackLabel={selectedLabel} placeholder="Search by name or phone..."
+        <SearchSelect options={options} value={value} onChange={(id) => onChange(id)} onQueryChange={setSearch} minChars={1} loading={list.loading} fallbackLabel={selectedLabel} placeholder="Search by name or phone..."
           onCreate={allowCreate ? (text) => { setTyped(text); setCreating(true); } : undefined} createLabel="Add new customer" />
         {allowCreate && <Button variant="outline" onClick={() => { setTyped(""); setCreating(true); }}>+ New</Button>}
       </div>
@@ -45,15 +40,11 @@ export function CustomerSelect({ label = "Customer", value, onChange, error, all
 /** Search and pick a supplier; `allowCreate` adds a "+ New" to add one on the spot, `filter` is the optional look used in report filters. */
 export function SupplierSelect({ label = "Supplier", value, onChange, error, allowCreate = true, selectedLabel, filter }: { label?: string; value: string; onChange: (id: string) => void; error?: string; allowCreate?: boolean; selectedLabel?: string; filter?: boolean }) {
   const [search, setSearch] = useState("");
-  const [debounced, setDebounced] = useState("");
   const [creating, setCreating] = useState(false);
   const [typed, setTyped] = useState(""); // what was typed in the search when "+ Add new" was chosen
   const [opened, setOpened] = useState(false); // the list is fetched when the field is first used (or when a value is already chosen and needs its name)
 
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(search), 250);
-    return () => clearTimeout(t);
-  }, [search]);
+  const debounced = useDebounced(search);
 
   const list = useFetch<Supplier[]>(opened || value ? `/suppliers?per_page=30${debounced ? `&search=${encodeURIComponent(debounced)}` : ""}` : null);
   const options = (list.data ?? []).map((p) => ({ value: String(p.id), label: p.name, hint: [[p.phone, p.alt_phone].filter(Boolean).join(" / "), p.nid ? `NID ${p.nid}` : ""].filter(Boolean).join(" · ") }));

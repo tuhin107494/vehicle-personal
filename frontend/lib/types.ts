@@ -24,7 +24,7 @@ export type Vehicle = {
   registration_date: string | null; tax_token_expiry: string | null; fitness_expiry: string | null; insurance_expiry: string | null;
   papers_received: boolean; mileage: number | null; condition_notes: string | null;
   status: "in_stock" | "sold" | "booked"; current_sale_id?: number | null; current_purchase?: Purchase; current_sale?: Sale;
-  days_in_stock?: number | null; sale_due?: number | null; registration_status?: string | null;
+  days_in_stock?: number | null; sale_due?: number | null; booking_id?: number | null; draft_id?: number | null; registration_status?: string | null;
 };
 export type Installment = {
   id: number; plan_id: number; seq_no: number; due_date: string; amount: number; paid_amount: number;
@@ -53,6 +53,8 @@ export type Sale = {
   payment_status: "paid" | "partial" | "unpaid"; status: "active" | "cancelled"; cancel_reason: string | null;
   registration_status: string; vehicle?: Vehicle; customer?: Customer; investor?: Investor; plan?: Plan;
   payments?: Payment[]; promises?: Promise_[]; registration_logs?: RegLog[];
+  booking?: { id: number; advance_amount: number; advance_method: string; booked_on: string; expires_on: string | null; agreed_price: number | null; note: string | null; booked_by: string | null } | null; // the booking this sale completed
+  advance?: { amount: number; date: string; method: string; booking_id: number | null } | null; // received before the sale: a booking's advance or an advance payment
 };
 export type Settlement = {
   id: number; investor_id: number; type: string; amount: number; date: string; note: string | null;
@@ -90,6 +92,7 @@ export type DraftData = {
 };
 export type DraftT = {
   id: number; type: "purchase" | "sale"; label: string | null; data: DraftData;
+  expires_on?: string | null; vehicle_id?: number | null; vehicle?: { id: number; chassis_no: string; brand: string | null; model: string | null; year: number | null; vehicle_type: string } | null; customer?: { id: number; name: string; phone: string; alt_phone: string | null } | null; // the vehicle it holds and the customer chosen so far (in the booking list)
   saved_by: string | null; updated_at: string;
 };
 
@@ -97,4 +100,14 @@ export type AccountSummary = {
   person: { id: number; name: string; phone: string; alt_phone: string | null; bank_name?: string | null; bank_branch?: string | null; bank_account_name?: string | null; bank_account_no?: string | null; bank_info?: string | null };
   total_due: number; advance_available: number; current_due?: number; days_late?: number;
   items: { kind: "sale" | "purchase"; id: number; date: string; vehicle: string; due: number; vehicle_name?: string; engine_no?: string | null; memo_no?: string | null; payment_type?: string; current_due?: number; days_late?: number; next_date?: string | null }[];
+};
+
+export type Booking = {
+  id: number; vehicle_id: number | null; customer_id: number; agreed_price: string | null; advance_amount: string; advance_method: "cash" | "bank" | "mobile";
+  booked_on: string; expires_on: string | null; status: "active" | "completed" | "cancelled" | "expired"; sale_id: number | null;
+  refund_amount: string; kept_amount: string; closed_on: string | null; note: string | null; close_note: string | null;
+  balance: number | null; days_left: number | null;
+  booked_by?: string | null;
+  vehicle?: { id: number; chassis_no: string; engine_no: string; brand: string | null; model: string | null; year: number | null; vehicle_type: string; status: string };
+  customer?: { id: number; name: string; phone: string; alt_phone: string | null };
 };

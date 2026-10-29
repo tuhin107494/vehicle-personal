@@ -8,6 +8,7 @@ use App\Http\Resources\PurchaseResource;
 use App\Http\Resources\SaleResource;
 use App\Http\Resources\VehicleResource;
 use App\Models\Advance;
+use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Investor;
 use App\Models\InvestorSettlement;
@@ -317,8 +318,17 @@ class ReportController extends Controller implements HasMiddleware
         $sales = Sale::with(['vehicle:id,chassis_no,brand,model', 'customer:id,name,phone', 'plan', 'payments'])->whereDate('sale_date', $date)->where('status', 'active')->orderBy('id')->get()
             ->map(fn (Sale $s) => [
                 'id' => $s->id, 'vehicle' => $s->vehicle->chassis_no, 'vehicle_name' => $name($s->vehicle), 'name' => $s->customer->name, 'phone' => $s->customer->phone,
-                'payment_type' => $s->payment_type, 'total' => $s->grandTotal(), 'received' => (float) $s->down_payment, 'due' => Money::add($s->grandTotal(), -$s->down_payment),
+                'payment_type' => $s->payment_type, 'total' => $s->grandTotal(), 'received' => Money::add($s->down_payment, -Money::sum($s->payments->where('note', 'Advance'), 'amount')), 'due' => Money::add($s->grandTotal(), -$s->down_payment),
             ]);
+
+        // a sale made from a booking: its advance was already counted as cash on the day of the booking
+        $fromBooking = Booking::whereIn('sale_id', $sales->pluck('id'))->pluck('advance_amount', 'sale_id');
+        $sales = $sales->map(fn ($s) => $fromBooking->has($s['id']) ? [...$s, 'received' => Money::add($s['received'], -$fromBooking[$s['id']])] : $s);
+
+        $bookingAdvances = Booking::with(['vehicle:id,chassis_no,brand,model', 'customer:id,name,phone'])->whereDate('booked_on', $date)->where('advance_amount', '>', 0)->orderBy('id')->get()
+            ->map(fn (Booking $b) => ['id' => $b->id, 'name' => $b->customer->name, 'phone' => $b->customer->phone, 'vehicle' => $b->vehicle?->chassis_no, 'method' => $b->advance_method, 'amount' => (float) $b->advance_amount, 'status' => $b->status]);
+        $bookingRefunds = Booking::with(['vehicle:id,chassis_no,brand,model', 'customer:id,name,phone'])->whereDate('closed_on', $date)->where('refund_amount', '>', 0)->orderBy('id')->get()
+            ->map(fn (Booking $b) => ['id' => $b->id, 'name' => $b->customer->name, 'phone' => $b->customer->phone, 'vehicle' => $b->vehicle?->chassis_no, 'method' => $b->advance_method, 'amount' => (float) $b->refund_amount, 'status' => $b->status]);
 
         $purchases = Purchase::with(['vehicle:id,chassis_no,brand,model', 'supplier:id,name,phone', 'customer:id,name,phone', 'payments'])->whereDate('purchase_date', $date)->orderBy('id')->get()
             ->map(fn (Purchase $p) => [
@@ -354,6 +364,8 @@ class ReportController extends Controller implements HasMiddleware
         $paidInvestors = Money::sum($investorRows->where('direction', 'out'), 'amount');
 
         $receivedAtSale = Money::sum($sales, 'received');
+        $advancesTaken = Money::sum($bookingAdvances, 'amount');
+        $advancesRefunded = Money::sum($bookingRefunds, 'amount');
         $collected = Money::sum($collections, 'amount');
         $paidAtPurchase = Money::sum($purchases, 'paid');
         $paidSuppliers = Money::sum($supplierPayments, 'amount');
@@ -363,13 +375,15 @@ class ReportController extends Controller implements HasMiddleware
             'sales' => ['rows' => $sales, 'count' => $sales->count(), 'total' => Money::sum($sales, 'total'), 'received' => $receivedAtSale, 'due' => Money::sum($sales, 'due')],
             'purchases' => ['rows' => $purchases, 'count' => $purchases->count(), 'total' => Money::sum($purchases, 'total'), 'paid' => $paidAtPurchase, 'due' => Money::sum($purchases, 'due')],
             'collections' => ['rows' => $collections, 'count' => $collections->count(), 'total' => $collected],
+            'booking_advances' => ['rows' => $bookingAdvances, 'count' => $bookingAdvances->count(), 'total' => $advancesTaken],
+            'booking_refunds' => ['rows' => $bookingRefunds, 'count' => $bookingRefunds->count(), 'total' => $advancesRefunded],
             'supplier_payments' => ['rows' => $supplierPayments, 'count' => $supplierPayments->count(), 'total' => $paidSuppliers],
             'investor_received' => ['rows' => $investorRows->where('direction', 'in')->values(), 'count' => $investorRows->where('direction', 'in')->count(), 'total' => $investedIn],
             'investor_paid' => ['rows' => $investorRows->where('direction', 'out')->values(), 'count' => $investorRows->where('direction', 'out')->count(), 'total' => $paidInvestors],
             'cash' => [
-                'in' => Money::add($receivedAtSale, $collected, $investedIn),
-                'out' => Money::add($paidAtPurchase, $paidSuppliers, $paidInvestors),
-                'net' => Money::add($receivedAtSale, $collected, $investedIn, -$paidAtPurchase, -$paidSuppliers, -$paidInvestors),
+                'in' => Money::add($receivedAtSale, $collected, $investedIn, $advancesTaken),
+                'out' => Money::add($paidAtPurchase, $paidSuppliers, $paidInvestors, $advancesRefunded),
+                'net' => Money::add($receivedAtSale, $collected, $investedIn, $advancesTaken, -$paidAtPurchase, -$paidSuppliers, -$paidInvestors, -$advancesRefunded),
             ],
         ]);
     }
