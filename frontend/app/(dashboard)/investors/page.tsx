@@ -6,7 +6,7 @@ import { usePagedList } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
 import { money } from "@/lib/format";
 import type { Investor } from "@/lib/types";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { toast } from "sonner";
 import { Badge, Button, inputCls, PageHeader, Pagination } from "@/components/app-ui";
 import { Avatar } from "@/components/Avatar";
@@ -43,8 +43,8 @@ export default function InvestorsPage() {
         const res = await api<{ investor: Investor; summary: { invested: number; profit_earned: number } }>(`/investors/${inv.id}/portfolio`);
         init = { amount: res.data.summary.invested, profit: res.data.summary.profit_earned };
         saved = res.data.investor;
-      } catch {
-        toast.error("Could not load this investor's figures.");
+      } catch (e) {
+        toast.error(e instanceof ApiError ? e.message : "Could not load this investor's figures.");
       }
     }
     setCalcFor(inv?.name);

@@ -86,11 +86,16 @@ async function send<T>(path: string, options: { method?: string; body?: unknown 
       window.location.href = "/login";
     }
     // 403: the server refused this user; say so plainly
-    const message = res.status === 403 ? "You don't have permission to do this." : (json?.message ?? "Something went wrong");
+    const message = res.status === 403 ? "You don't have permission to do this." : (res.status === 422 ? firstError(json?.errors) : null) ?? json?.message ?? "Something went wrong";
     throw new ApiError(message, res.status, json?.errors);
   }
 
   return json;
+}
+
+/** The first field message of a Laravel 422, so a toast says what is wrong instead of "Validation failed". */
+function firstError(errors?: Record<string, string[]>): string | null {
+  return Object.values(errors ?? {})[0]?.[0] ?? null;
 }
 
 /** Map Laravel 422 errors onto react-hook-form fields (the API names its fields the same as the forms do). */
@@ -100,8 +105,10 @@ export function applyServerErrors<T extends FieldValues>(
 ): string {
   if (error instanceof ApiError) {
     if (error.errors) {
+      let focus = true;
       for (const [field, messages] of Object.entries(error.errors)) {
-        setError(field as Path<T>, { message: messages[0] });
+        setError(field as Path<T>, { type: "server", message: messages.join(" ") }, { shouldFocus: focus });
+        focus = false;
       }
     }
     return error.message;

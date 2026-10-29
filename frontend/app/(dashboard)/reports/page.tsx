@@ -2,7 +2,7 @@
 
 import { viewCol } from "@/components/ViewLink";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { openSaleMemo } from "@/components/SaleMemo";
 import { printVoucher } from "@/components/TransactionVoucher";
@@ -214,8 +214,8 @@ function SalesReport() {
     viewCol<NonNullable<typeof data>["sales"][number]>((x) => `/sales/${x.id}`, async (x) => {
       try {
         openSaleMemo((await api<Sale>(`/sales/${x.id}`)).data, user?.shop?.name ?? "Vehicle Hub"); // the memo needs the full sale: plan and payments
-      } catch {
-        toast.error("Could not load the sale.");
+      } catch (e) {
+        toast.error(e instanceof ApiError ? e.message : "Could not load the sale.");
       }
     }),
   ];
