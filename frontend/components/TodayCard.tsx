@@ -10,8 +10,8 @@ export type TodayFigures = { sales_count: number; sales_total: number; purchases
 export function TodayCard({ today }: { today: TodayFigures }) {
   const { t } = useT();
   const rows: [string, string, string][] = [
-    ["Sold today", `${money(today.sales_total)} (${today.sales_count})`, "text-emerald-700"],
-    ["Bought today", `${money(today.purchases_total)} (${today.purchases_count})`, "text-blue-700"],
+    ["Today sales", `${money(today.sales_total)} (${today.sales_count})`, "text-emerald-700"],
+    ["Today purchase", `${money(today.purchases_total)} (${today.purchases_count})`, "text-blue-700"],
   ];
   return (
     <Card className="h-full gap-2 py-3" title="Today" actions={<Link className="text-sm font-medium text-emerald-700 underline" href="/daily-report">View all</Link>}>
