@@ -220,7 +220,7 @@ export default function SettingsPage() {
         <p className="mt-1 text-xs text-slate-500">Applies at once, on this device.</p>
       </Card>
       <Card title="Call follow-up" className="mb-4">
-        <p className="mb-3 text-xs text-slate-500">On the Due alert page, a row marked "Call done" is hidden and comes back for another call after this many days.</p>
+        <p className="mb-3 text-xs text-slate-500">A "Call done" row on Due alert returns for another call after this many days.</p>
         <Field label="Call again after">
           <NativeSelect className={inputCls} value={recallDays ?? settings.data.collections?.recall_days ?? 7} onChange={async (e) => {
             const days = Number(e.target.value);
@@ -237,7 +237,7 @@ export default function SettingsPage() {
         </Field>
       </Card>
       <Card title="Buying from customers" className="mb-4">
-        <p className="mb-3 text-xs text-slate-500">When on, the Buy vehicle page has a "From customer (second hand)" tab to buy a vehicle back from a customer. Turn it off if this shop only buys from suppliers.</p>
+        <p className="mb-3 text-xs text-slate-500">Show a "From customer" tab on Buy vehicle. Off if you buy only from suppliers.</p>
         <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" className="size-4 accent-emerald-600" checked={fromCustomer ?? settings.data.purchase?.from_customer ?? true} onChange={async (e) => {
             const value = e.target.checked;
@@ -253,7 +253,7 @@ export default function SettingsPage() {
         </label>
       </Card>
       <Card title="Bookings" className="mb-4">
-        <p className="mb-3 text-xs text-slate-500">A booking holds a vehicle for a customer who paid an advance. When it is cancelled or its deadline passes, the vehicle goes back in stock and the advance is handled as set here. Staff can still change the refund when they cancel.</p>
+        <p className="mb-3 text-xs text-slate-500">On cancel or expiry the vehicle returns to stock and the advance follows this rule. Staff can change the refund when cancelling.</p>
         <div className="grid gap-3 sm:grid-cols-3">
           {([
             ["days", "Hold a booking for", settings.data.booking?.days ?? 7, [1, 3, 7, 10, 15, 30, 60].map((d) => [String(d), `${d} days`])],
