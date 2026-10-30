@@ -23,6 +23,7 @@ class AccountRequest extends ApiRequest
                 'method' => ['required', Rule::in(['cash', 'bank', 'mobile'])],
                 'paid_at' => ['nullable', 'date', 'before_or_equal:today'],
                 'reference' => ['nullable', 'string', 'max:255'],
+                'memo_no' => ['nullable', 'string', 'max:100'], // customers only: the shop's own memo number for the collection
                 'note' => ['nullable', 'string', 'max:1000'],
             ];
         }

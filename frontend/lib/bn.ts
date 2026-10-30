@@ -233,4 +233,5 @@ export const BN: Record<string, string> = {
   "Payment forms": "পেমেন্ট ফর্ম",
   "After a payment, keep the chosen customer, supplier and vehicle selected on Due collection and Supplier payment.": "পেমেন্টের পর বাকি আদায় ও সাপ্লায়ারকে পরিশোধ ফর্মে বাছাই করা কাস্টমার, সাপ্লায়ার ও গাড়ি রেখে দিন।",
   "Keep the selection after a payment": "পেমেন্টের পর বাছাই রেখে দিন",
+  "Memo no. (optional)": "মেমো নং (ঐচ্ছিক)",
 };

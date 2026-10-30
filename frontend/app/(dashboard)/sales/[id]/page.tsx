@@ -82,6 +82,7 @@ export default function SaleDetailPage() {
     { header: "Method", accessorKey: "method" },
     { header: "Installment", cell: ({ row }) => (row.original.installment_id ? `#${installments.find((i) => i.id === row.original.installment_id)?.seq_no ?? ""}` : "-") },
     { header: "Reference", cell: ({ row }) => row.original.reference ?? "-" },
+    { header: "Memo no.", cell: ({ row }) => row.original.memo_no ?? "-" },
     { header: "Received by", cell: ({ row }) => row.original.receiver?.name ?? "-" },
     { header: "Note", cell: ({ row }) => row.original.note ?? "-" },
   ];

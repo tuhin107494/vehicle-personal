@@ -316,7 +316,8 @@ class VehicleFlowTest extends TestCase
         // one vehicle only: limited to that vehicle's due
         $sale2 = Sale::where('vehicle_id', $v2->id)->first();
         $this->postJson('/api/accounts', ['side' => 'customer', 'customer_id' => $buyer->id, 'sale_id' => $sale2->id, 'amount' => 30001, 'method' => 'cash'])->assertStatus(409);
-        $this->postJson('/api/accounts', ['side' => 'customer', 'customer_id' => $buyer->id, 'sale_id' => $sale2->id, 'amount' => 10000, 'method' => 'cash'])->assertCreated();
+        $this->postJson('/api/accounts', ['side' => 'customer', 'customer_id' => $buyer->id, 'sale_id' => $sale2->id, 'amount' => 10000, 'method' => 'cash', 'memo_no' => 'M-77'])->assertCreated();
+        $this->assertDatabaseHas('payments', ['sale_id' => $sale2->id, 'amount' => 10000, 'memo_no' => 'M-77']);
         $this->assertDatabaseHas('sales', ['vehicle_id' => $v2->id, 'due_amount' => 20000]);
         $this->getJson("/api/reports/person-transactions?side=customer&customer_id={$buyer->id}")->assertOk()
             ->assertJsonPath('data.closing_balance', 20000)->assertJsonPath('data.total_charge', 200000);
