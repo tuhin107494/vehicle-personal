@@ -67,7 +67,6 @@ In that case, also set `APP_URL` and `FRONTEND_URL` in `backend/.env` to match, 
 
 | Role | Email | Can do |
 | --- | --- | --- |
-| Super Admin | `beaconsoftltd@gmail.com` | Manage shops and the permission catalog. Cannot see any shop's data. |
 | Shop Owner | `owner@example.com` | Everything in the shop **Demo Motors**, plus users and role permissions |
 | Admin | `admin@example.com` | Whatever the shop owner grants the `admin` role |
 | Moderator | `moderator@example.com` | Whatever the shop owner grants the `moderator` role |
