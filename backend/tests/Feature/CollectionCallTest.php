@@ -75,6 +75,13 @@ class CollectionCallTest extends TestCase
         $this->putJson('/api/settings', ['collections' => ['keep_selection' => false]])->assertOk()->assertJsonPath('data.collections.keep_selection', false);
     }
 
+    public function test_the_auto_date_setting_is_off_until_a_shop_turns_it_on(): void
+    {
+        $this->getJson('/api/settings')->assertOk()->assertJsonPath('data.forms.auto_date', false);
+
+        $this->putJson('/api/settings', ['forms' => ['auto_date' => true]])->assertOk()->assertJsonPath('data.forms.auto_date', true);
+    }
+
     public function test_the_recall_days_setting_changes_when_a_row_comes_back(): void
     {
         $this->putJson('/api/settings', ['collections' => ['recall_days' => 15]])->assertOk()->assertJsonPath('data.collections.recall_days', 15);

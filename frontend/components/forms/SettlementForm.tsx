@@ -1,5 +1,6 @@
 "use client";
 
+import { useAutoDate, useFillDate } from "@/lib/settings";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -26,17 +27,19 @@ const schema = z.object({
 type Values = z.infer<typeof schema>;
 
 const TITLE: Record<SettlementMode, string> = { invest: "Add investment", pay: "Pay investor installment", other: "Record settlement" };
-const blank = (mode: SettlementMode, d?: { principal?: number; profit?: number }): Values => ({ type: mode === "invest" ? "investment" : "withdrawal", amount: "", principal: d?.principal ? String(d.principal) : "", profit: d?.profit ? String(d.profit) : "", date: todayStr(), note: "" });
+const blank = (mode: SettlementMode, d?: { principal?: number; profit?: number }): Values => ({ type: mode === "invest" ? "investment" : "withdrawal", amount: "", principal: d?.principal ? String(d.principal) : "", profit: d?.profit ? String(d.profit) : "", date: "", note: "" });
 
 export function SettlementForm({ open, investorId, mode = "other", name, outstanding, planId, defaults, onClose, onSaved }: { open: boolean; investorId: number; mode?: SettlementMode; name?: string; outstanding?: number; planId?: number; defaults?: { principal?: number; profit?: number }; onClose: () => void; onSaved: () => void }) {
-  const { register, handleSubmit, reset, setError, watch, formState: { errors, isSubmitting } } = useForm<Values>({
+  const autoDate = useAutoDate();
+  const { register, handleSubmit, reset, setValue, getValues, setError, watch, formState: { errors, isSubmitting } } = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: blank(mode, defaults),
   });
+  useFillDate(autoDate, () => !getValues("date"), (d) => setValue("date", d));
 
   useEffect(() => {
-    if (open) reset(blank(mode, defaults));
-  }, [open, mode, reset, defaults]);
+    if (open) reset({ ...blank(mode, defaults), date: autoDate });
+  }, [open, mode, reset, defaults, autoDate]);
 
   const w = watch();
   const total = Number(w.principal || 0) + Number(w.profit || 0);

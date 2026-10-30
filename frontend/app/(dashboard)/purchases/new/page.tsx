@@ -20,7 +20,7 @@ import { purchaseVoucher } from "@/lib/purchaseVoucher";
 import { useAuth } from "@/lib/auth";
 import { SearchSelect } from "@/components/SearchSelect";
 import { DEFAULT_FIELDS, useCategories, useTypeDefaults } from "@/lib/categories";
-import { useSettings } from "@/lib/settings";
+import { useAutoDate, useFillDate, useSettings } from "@/lib/settings";
 import { blankDetails, blankVehicle, detailFields, detailsFrom, VehicleDetailFields, VehicleFields, vehicleFields } from "@/components/forms/VehicleForm";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
@@ -49,7 +49,7 @@ const vehicleValuesFrom = (v: Vehicle) => ({
   ...detailsFrom(v),
 });
 
-const blankForm = (chassis = ""): Values => ({ ...blankVehicle, ...blankDetails, chassis_no: chassis, payment_method: "", payment_reference: "", party_id: "", memo_no: "", purchase_date: todayStr(), price: "", paid_amount: "", cost_extra: "", notes: "" });
+const blankForm = (chassis = ""): Values => ({ ...blankVehicle, ...blankDetails, chassis_no: chassis, payment_method: "", payment_reference: "", party_id: "", memo_no: "", purchase_date: "", price: "", paid_amount: "", cost_extra: "", notes: "" });
 
 function PurchaseForm() {
   const { user } = useAuth();
@@ -64,6 +64,8 @@ function PurchaseForm() {
   });
 
   const settings = useSettings();
+  const autoDate = useAutoDate();
+  useFillDate(autoDate, () => !getValues("purchase_date"), (d) => setValue("purchase_date", d));
   const { defaultsFor, ready: defaultsReady } = useTypeDefaults();
   const { nameOf } = useCategories();
 
@@ -287,7 +289,7 @@ function PurchaseForm() {
       toast.success("Vehicle added successfully");
       // stay on this page: clear the form and offer the voucher
       setCreated(res.data);
-      reset(blankForm());
+      reset({ ...blankForm(), purchase_date: autoDate });
       setVehicle(null);
       setPicked("");
       resetAdjust();
