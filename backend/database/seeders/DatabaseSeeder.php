@@ -13,7 +13,12 @@ class DatabaseSeeder extends Seeder
         $this->call(PermissionSeeder::class);
         $this->call(VehicleCategorySeeder::class);
 
-        User::create(['name' => 'Super Admin', 'email' => 'superadmin@example.com', 'password' => 'password', 'role' => 'super_admin']);
+        // the old demo super admin is replaced by the real one; set SUPER_ADMIN_PASSWORD in .env (the fallback is for local use only)
+        User::where('email', 'superadmin@example.com')->delete();
+        User::updateOrCreate(
+            ['email' => 'beaconsoftltd@gmail.com'],
+            ['name' => 'Super Admin', 'password' => env('SUPER_ADMIN_PASSWORD') ?: 'password', 'role' => 'super_admin'],
+        );
 
         $shop = $shops->create(
             ['name' => 'Demo Motors', 'phone' => '01700000000'],
