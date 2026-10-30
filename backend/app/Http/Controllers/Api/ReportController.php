@@ -229,7 +229,7 @@ class ReportController extends Controller implements HasMiddleware
                 // a refund gives money back, so it adds to what they owe again
                 $out[] = $this->entry($sale->customer_id, $pay->paid_at->toDateString(), 1, $pay->id, 'payment', $label, $vehicle, $pay->amount < 0 ? abs($pay->amount) : 0, $pay->amount > 0 ? $pay->amount : 0, $pay->reference, 'CP-'.$pay->id, [
                     ['Vehicle', $name ?: null], ['Chassis', $vehicle], ['Sale', "#{$sale->id}"], ['Method', ucfirst($pay->method)],
-                    ['Installment', $pay->installment ? "#{$pay->installment->seq_no}" : null], ['Received by', $pay->receiver?->name], ['Note', $pay->note],
+                    ['Installment', $pay->installment ? "#{$pay->installment->seq_no}" : null], ['Received by', $pay->receiver?->name], ['Memo no.', $pay->memo_no], ['Note', $pay->note],
                 ]);
             }
 

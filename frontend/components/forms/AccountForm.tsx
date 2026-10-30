@@ -34,10 +34,11 @@ const schema = z.object({
   method: z.enum(["cash", "bank", "mobile"]),
   paid_at: z.string().refine((v) => v <= todayStr(), "Date cannot be in the future."),
   reference: z.string(),
+  memo_no: z.string(),
   note: z.string(),
 });
 type Values = z.infer<typeof schema>;
-const blank: Values = { side: "supplier", party_id: "", amount: "", method: "cash", paid_at: todayStr(), reference: "", note: "" };
+const blank: Values = { side: "supplier", party_id: "", amount: "", method: "cash", paid_at: todayStr(), reference: "", memo_no: "", note: "" };
 
 export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleId?: string | null; partyId?: string | null }) {
   const { register, handleSubmit, reset, setValue, setError, watch, formState: { errors, isSubmitting } } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: { ...blank, side } });
@@ -254,8 +255,10 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
                 <NativeSelect className={inputCls} {...register("method")}><option value="cash">Cash</option><option value="bank">Bank</option><option value="mobile">Mobile</option></NativeSelect>
               </Field>
               <Field label="Reference" error={errors.reference?.message}><Input className={inputCls} {...register("reference")} /></Field>
+              {side === "customer" && <Field label="Memo no. (optional)" error={errors.memo_no?.message}><Input className={inputCls} {...register("memo_no")} /></Field>}
+              {side === "customer" && <Field label="Note" error={errors.note?.message}><Input className={inputCls} {...register("note")} /></Field>}
             </div>
-            <Field label="Note" error={errors.note?.message}><Input className={inputCls} {...register("note")} /></Field>
+            {side === "supplier" && <Field label="Note" error={errors.note?.message}><Input className={inputCls} {...register("note")} /></Field>}
 
             <div className="flex justify-end gap-2">
               {keepSelection && <Button type="button" variant="outline" onClick={clearAll}>Reset</Button>}

@@ -41,6 +41,7 @@ class PaymentService
                 'method' => $data['method'] ?? 'cash',
                 'paid_at' => $paidAt,
                 'reference' => $data['reference'] ?? null,
+                'memo_no' => $data['memo_no'] ?? null,
                 'received_by' => $user->id,
                 'note' => $data['note'] ?? null,
             ];

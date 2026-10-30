@@ -37,7 +37,7 @@ class AccountController extends Controller
         $side = $request->input('side');
         $party = $this->person($request);
         $amount = Money::paisa($request->input('amount')); // all of this is worked out in paisa
-        $data = $request->safe()->only(['method', 'paid_at', 'reference', 'note']);
+        $data = $request->safe()->only(array_merge(['method', 'paid_at', 'reference', 'note'], $side === 'customer' ? ['memo_no'] : []));
 
         $vouchers = []; // numbers of the ledger entries this payment created, as the reports print them
 

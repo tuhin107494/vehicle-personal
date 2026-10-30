@@ -37,7 +37,7 @@ export type Plan = {
 };
 export type Payment = {
   id: number; sale_id: number; installment_id: number | null; amount: number; method: string;
-  paid_at: string; reference: string | null; note: string | null; receiver?: { id: number; name: string };
+  paid_at: string; reference: string | null; memo_no?: string | null; note: string | null; receiver?: { id: number; name: string };
 };
 export type Promise_ = {
   id: number; sale_id: number; promised_date: string; promised_amount: number;

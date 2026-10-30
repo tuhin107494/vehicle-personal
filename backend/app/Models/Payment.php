@@ -22,6 +22,7 @@ class Payment extends Model
         'method',
         'paid_at',
         'reference',
+        'memo_no',
         'received_by',
         'note',
     ];
