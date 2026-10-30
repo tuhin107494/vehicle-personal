@@ -9,7 +9,7 @@ import { Phone } from "lucide-react";
 import { api, applyServerErrors } from "@/lib/api";
 import { fmtDate, money, todayStr, toPayload } from "@/lib/format";
 import { useDebounced, useFetch } from "@/lib/hooks";
-import { useSettings } from "@/lib/settings";
+import { useAutoDate, useFillDate, useSettings } from "@/lib/settings";
 import type { AccountSummary } from "@/lib/types";
 import { Button, Card, Field, inputCls, Pagination } from "@/components/app-ui";
 import { usePaging } from "@/lib/paging";
@@ -32,19 +32,21 @@ const schema = z.object({
   party_id: z.string().min(1, "Select the supplier or customer."),
   amount: z.string().min(1, "Enter the amount.").refine((v) => Number(v) > 0, "Amount must be greater than zero."),
   method: z.enum(["cash", "bank", "mobile"]),
-  paid_at: z.string().refine((v) => v <= todayStr(), "Date cannot be in the future."),
+  paid_at: z.string().min(1, "Date is required.").refine((v) => v <= todayStr(), "Date cannot be in the future."),
   reference: z.string(),
   memo_no: z.string(),
   note: z.string(),
 });
 type Values = z.infer<typeof schema>;
-const blank: Values = { side: "supplier", party_id: "", amount: "", method: "cash", paid_at: todayStr(), reference: "", memo_no: "", note: "" };
+const blank: Values = { side: "supplier", party_id: "", amount: "", method: "cash", paid_at: "", reference: "", memo_no: "", note: "" };
 
 export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleId?: string | null; partyId?: string | null }) {
-  const { register, handleSubmit, reset, setValue, setError, watch, formState: { errors, isSubmitting } } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: { ...blank, side } });
+  const { register, handleSubmit, reset, setValue, getValues, setError, watch, formState: { errors, isSubmitting } } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: { ...blank, side } });
   const w = watch();
   const text = SIDES[side];
   const { user } = useAuth();
+  const autoDate = useAutoDate();
+  useFillDate(autoDate, () => !getValues("paid_at"), (d) => setValue("paid_at", d));
   const keepSelection = useSettings().data?.collections?.keep_selection ?? false; // a shop setting: stay on the same customer or supplier after a payment
   const [vouchers, setVouchers] = useState<VoucherTx[]>([]); // the receipts shown after a payment (one per purchase or installment it paid)
 
@@ -88,7 +90,7 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
   const tooMuch = side === "customer" && !!summary.data && amount > due;
 
   const clearAll = () => {
-    reset({ ...blank, side }); // the whole form clears, including the person
+    reset({ ...blank, side, paid_at: autoDate }); // the whole form clears, including the person
     setSaleId("");
     setFound(null);
     setVq("");

@@ -17,6 +17,7 @@ class ShopSettings
             'sale' => ['vehicle_type' => self::primaryType('sale'), 'prices' => (object) self::prices('sale')],
             'type_defaults' => (object) self::typeDefaults(),
             'collections' => ['recall_days' => self::recallDays(), 'keep_selection' => self::keepSelection()],
+            'forms' => ['auto_date' => self::autoDate()],
             'booking' => ['days' => self::bookingDays(), 'on_cancel' => self::bookingPolicy('on_cancel'), 'on_expire' => self::bookingPolicy('on_expire')],
         ];
     }
@@ -39,6 +40,12 @@ class ShopSettings
     public static function keepSelection(): bool
     {
         return ShopSetting::where('key', 'collections.keep_selection')->value('value') === '1';
+    }
+
+    /** Whether entry forms start with today's date filled in (off unless the shop turned it on: the date then starts empty). */
+    public static function autoDate(): bool
+    {
+        return ShopSetting::where('key', 'forms.auto_date')->value('value') === '1';
     }
 
     public const DEFAULT_BOOKING_DAYS = 7;
@@ -98,6 +105,10 @@ class ShopSettings
 
             if (isset($input['collections']['keep_selection'])) {
                 ShopSetting::updateOrCreate(['key' => 'collections.keep_selection'], ['value' => $input['collections']['keep_selection'] ? '1' : '0']);
+            }
+
+            if (isset($input['forms']['auto_date'])) {
+                ShopSetting::updateOrCreate(['key' => 'forms.auto_date'], ['value' => $input['forms']['auto_date'] ? '1' : '0']);
             }
 
             if (isset($input['purchase']['from_customer'])) {

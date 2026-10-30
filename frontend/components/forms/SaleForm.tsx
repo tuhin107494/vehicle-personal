@@ -19,7 +19,7 @@ import { openSaleMemo } from "@/components/SaleMemo";
 import { useAuth } from "@/lib/auth";
 import { CustomerSelect, InvestorSelect } from "@/components/Selects";
 import { SearchSelect } from "@/components/SearchSelect";
-import { useSettings } from "@/lib/settings";
+import { useAutoDate, useFillDate, useSettings } from "@/lib/settings";
 import { useCategories } from "@/lib/categories";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -127,7 +127,7 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
   const { categories, nameOf } = useCategories();
 
   const blank = (vehicleId: string): Values => ({
-      vehicle_id: booking?.vehicle_id ? String(booking.vehicle_id) : vehicleId, party_id: booking ? String(booking.customer_id) : "", sale_date: todayStr(), sale_price: booking?.agreed_price ? String(Number(booking.agreed_price)) : "", payment_type: investorMode ? "installment" : "cash", down_payment: booking ? String(Number(booking.advance_amount)) : "", // from a booking this is the total received at the sale: the advance, plus what is paid now (typed apart from it)
+      vehicle_id: booking?.vehicle_id ? String(booking.vehicle_id) : vehicleId, party_id: booking ? String(booking.customer_id) : "", sale_date: "", sale_price: booking?.agreed_price ? String(Number(booking.agreed_price)) : "", payment_type: investorMode ? "installment" : "cash", down_payment: booking ? String(Number(booking.advance_amount)) : "", // from a booking this is the total received at the sale: the advance, plus what is paid now (typed apart from it)
       method: "cash", advance_amount: "", advance_date: "", promised_date: "", promise_note: "", investor_id: "", guarantor_phone: "", installment_count: "24", first_due_date: addDays(30),
       frequency: "monthly", interest_rate: "0", interest_mode: "percent", interest_amount: "", investor_share_percent: "0", investor_share_mode: "percent", investor_share_amount: "", investor_rate: "",
   });
@@ -138,6 +138,8 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
   });
 
   const settings = useSettings();
+  const autoDate = useAutoDate();
+  useFillDate(autoDate, () => !getValues("sale_date"), (d) => setValue("sale_date", d));
 
   // The vehicle list starts on the shop's primary type for sales (Settings); "All types" shows everything.
   const [typeFilter, setTypeFilter] = useState("");
@@ -241,7 +243,7 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
   // Drafts: the form as typed, kept for later. Saving one creates no sale and takes nothing out of stock.
   // back to an empty form (a booking's own details stay); a draft that was open is left saved but no longer the one being updated
   const resetForm = () => {
-    reset(blank(""));
+    reset({ ...blank(""), sale_date: autoDate });
     setAdvanceOpen(false);
     setPromiseChoice("");
     setDraftId(null);
@@ -335,7 +337,7 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
       const full = await api<Sale>(`/sales/${res.data.id}`).then((r) => r.data).catch(() => res.data);
       if (onSold) return void onSold(full); // made from a booking: go on to the sale itself
       setCreated(full);
-      reset(blank(""));
+      reset({ ...blank(""), sale_date: autoDate });
       setAdvanceOpen(false);
       setDraftId(null);
       vehicles.reload();

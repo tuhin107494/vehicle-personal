@@ -1,5 +1,6 @@
 "use client";
 
+import { useAutoDate } from "@/lib/settings";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -28,19 +29,20 @@ export function CollectPaymentModal({ open, sale, onClose, onDone }: { open: boo
       .refine((v) => Number(v) <= sale.due_amount, `Amount cannot be more than the due amount (${money(sale.due_amount)}).`),
     installment_id: z.string(),
     method: z.enum(["cash", "bank", "mobile"]),
-    paid_at: z.string().refine((v) => v <= todayStr(), "Payment date cannot be in the future."),
+    paid_at: z.string().min(1, "Payment date is required.").refine((v) => v <= todayStr(), "Payment date cannot be in the future."),
     reference: z.string(),
     note: z.string(),
   });
   type Values = z.infer<typeof schema>;
+  const autoDate = useAutoDate();
   const { register, handleSubmit, reset, setError, formState: { errors, isSubmitting } } = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { amount: "", installment_id: "", method: "cash", paid_at: todayStr(), reference: "", note: "" },
+    defaultValues: { amount: "", installment_id: "", method: "cash", paid_at: autoDate, reference: "", note: "" },
   });
 
   useEffect(() => {
-    if (open) reset({ amount: "", installment_id: "", method: "cash", paid_at: todayStr(), reference: "", note: "" });
-  }, [open, reset]);
+    if (open) reset({ amount: "", installment_id: "", method: "cash", paid_at: autoDate, reference: "", note: "" });
+  }, [open, reset, autoDate]);
 
   const unpaid = (sale.plan?.installments ?? []).filter((i) => !["paid", "cancelled"].includes(i.status));
 
