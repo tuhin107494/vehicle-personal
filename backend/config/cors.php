@@ -20,7 +20,7 @@ return [
     'allowed_methods' => ['*'],
 
     // FRONTEND_URL may list several origins, comma separated (e.g. https://garibecho.com,https://www.garibecho.com)
-    'allowed_origins' => array_map('trim', explode(',', env('FRONTEND_URL', 'http://localhost:3000'))),
+    'allowed_origins' => array_map('trim', explode(',', env('FRONTEND_URL', 'http://localhost:3000,https://garibecho.com,https://www.garibecho.com'))),
 
     'allowed_origins_patterns' => [],
 
