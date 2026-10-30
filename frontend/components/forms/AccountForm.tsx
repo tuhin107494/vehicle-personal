@@ -9,6 +9,7 @@ import { Phone } from "lucide-react";
 import { api, applyServerErrors } from "@/lib/api";
 import { fmtDate, money, todayStr, toPayload } from "@/lib/format";
 import { useDebounced, useFetch } from "@/lib/hooks";
+import { useSettings } from "@/lib/settings";
 import type { AccountSummary } from "@/lib/types";
 import { Button, Card, Field, inputCls, Pagination } from "@/components/app-ui";
 import { usePaging } from "@/lib/paging";
@@ -43,6 +44,7 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
   const w = watch();
   const text = SIDES[side];
   const { user } = useAuth();
+  const keepSelection = useSettings().data?.collections?.keep_selection ?? false; // a shop setting: stay on the same customer or supplier after a payment
   const [vouchers, setVouchers] = useState<VoucherTx[]>([]); // the receipts shown after a payment (one per purchase or installment it paid)
 
   const summary = useFetch<AccountSummary>(w.party_id ? `/accounts?side=${side}&${side === "customer" ? "customer_id" : "supplier_id"}=${w.party_id}` : null);
@@ -84,6 +86,13 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
   const amount = Number(w.amount || 0);
   const tooMuch = side === "customer" && !!summary.data && amount > due;
 
+  const clearAll = () => {
+    reset({ ...blank, side }); // the whole form clears, including the person
+    setSaleId("");
+    setFound(null);
+    setVq("");
+  };
+
   const onSubmit = async (v: Values) => {
     if (tooMuch) {
       setError("amount", { message: `${picked ? "This vehicle has" : "This customer owes"} ${money(due)}${picked ? " due" : ""}.` });
@@ -99,10 +108,13 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
           .then((r) => setVouchers(r.data.rows.filter((x) => nos.includes(x.no) && x.person_id === Number(v.party_id))))
           .catch(() => {});
       }
-      reset({ ...blank, side: v.side }); // the whole form clears, including the person
-      setSaleId("");
-      setFound(null);
-      setVq("");
+      if (keepSelection) {
+        // stay on the same person and vehicle: only what was typed for this payment clears, and their dues are fetched again
+        reset({ ...blank, side: v.side, party_id: v.party_id, method: v.method, paid_at: v.paid_at });
+        summary.reload();
+      } else {
+        clearAll();
+      }
     } catch (e) {
       toast.error(applyServerErrors(e, setError));
     }
@@ -245,7 +257,8 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
             </div>
             <Field label="Note" error={errors.note?.message}><Input className={inputCls} {...register("note")} /></Field>
 
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              {keepSelection && <Button type="button" variant="outline" onClick={clearAll}>Reset</Button>}
               <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Saving..." : text.done}</Button>
             </div>
           </div>

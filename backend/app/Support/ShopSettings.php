@@ -16,7 +16,7 @@ class ShopSettings
             'purchase' => ['vehicle_type' => self::primaryType('purchase'), 'prices' => (object) self::prices('purchase'), 'from_customer' => self::purchaseFromCustomer()],
             'sale' => ['vehicle_type' => self::primaryType('sale'), 'prices' => (object) self::prices('sale')],
             'type_defaults' => (object) self::typeDefaults(),
-            'collections' => ['recall_days' => self::recallDays()],
+            'collections' => ['recall_days' => self::recallDays(), 'keep_selection' => self::keepSelection()],
             'booking' => ['days' => self::bookingDays(), 'on_cancel' => self::bookingPolicy('on_cancel'), 'on_expire' => self::bookingPolicy('on_expire')],
         ];
     }
@@ -33,6 +33,12 @@ class ShopSettings
     public static function recallDays(): int
     {
         return (int) (ShopSetting::where('key', 'collections.recall_days')->value('value') ?: self::DEFAULT_RECALL_DAYS);
+    }
+
+    /** Whether the due collection and supplier payment forms keep the chosen customer or supplier (and vehicle) after a payment (off unless the shop turned it on). */
+    public static function keepSelection(): bool
+    {
+        return ShopSetting::where('key', 'collections.keep_selection')->value('value') === '1';
     }
 
     public const DEFAULT_BOOKING_DAYS = 7;
@@ -88,6 +94,10 @@ class ShopSettings
         DB::transaction(function () use ($input) {
             if (isset($input['collections']['recall_days'])) {
                 ShopSetting::updateOrCreate(['key' => 'collections.recall_days'], ['value' => $input['collections']['recall_days']]);
+            }
+
+            if (isset($input['collections']['keep_selection'])) {
+                ShopSetting::updateOrCreate(['key' => 'collections.keep_selection'], ['value' => $input['collections']['keep_selection'] ? '1' : '0']);
             }
 
             if (isset($input['purchase']['from_customer'])) {

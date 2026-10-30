@@ -230,4 +230,7 @@ export const BN: Record<string, string> = {
   "Nothing falls due in this period.": "এই সময়ে কোনো ডিউ নেই।",
   "Pay due ·": "পরিশোধ করুন ·",
   "Show a \"From customer\" tab on Buy vehicle. Off if you buy only from suppliers.": "গাড়ি কেনায় \"কাস্টমার থেকে\" ট্যাব দেখান। শুধু সাপ্লায়ার থেকে কিনলে বন্ধ রাখুন।",
+  "Payment forms": "পেমেন্ট ফর্ম",
+  "After a payment, keep the chosen customer, supplier and vehicle selected on Due collection and Supplier payment.": "পেমেন্টের পর বাকি আদায় ও সাপ্লায়ারকে পরিশোধ ফর্মে বাছাই করা কাস্টমার, সাপ্লায়ার ও গাড়ি রেখে দিন।",
+  "Keep the selection after a payment": "পেমেন্টের পর বাছাই রেখে দিন",
 };
