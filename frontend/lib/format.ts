@@ -8,12 +8,14 @@ export const fmtDate = (v?: string | null) =>
 
 export const label = (v?: string | null) => (v ? v.replace(/_/g, " ") : "-");
 
-export const todayStr = () => new Date().toISOString().slice(0, 10);
+// the shop's own calendar day (the server runs on the same time zone), not UTC: between midnight and 6am in Dhaka UTC is still yesterday
+const dayOf = (d: Date) => d.toLocaleDateString("en-CA");
+export const todayStr = () => dayOf(new Date());
 
 export const addDays = (days: number) => {
   const d = new Date();
   d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return dayOf(d);
 };
 
 /** Turn form strings into API payload: "" becomes undefined, numeric fields become numbers. */

@@ -143,8 +143,8 @@ export default function CollectionsPage() {
       cell: ({ row }) => (
         <div className="flex flex-col items-end gap-1 md:items-start" onClick={(e) => e.stopPropagation()}>
           <div className="flex flex-wrap items-center justify-end gap-1.5 md:flex-nowrap md:justify-start">
-          <Link className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-emerald-200 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50" href={`/sales/${row.original.sale_id}`}><Eye className="size-4" /> Open sale</Link>
-          <button type="button" onClick={() => showHistory(row.original)} className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-sky-300 bg-sky-50 px-3 py-1.5 text-sm font-medium text-sky-700 hover:bg-sky-100"><History className="size-4" /> History</button>
+          <Link className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-emerald-200 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50" href={`/sales/${row.original.sale_id}`}><Eye className="size-4" /> Sales details</Link>
+          <button type="button" onClick={() => showHistory(row.original)} className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-sky-300 bg-sky-50 px-3 py-1.5 text-sm font-medium text-sky-700 hover:bg-sky-100"><History className="size-4" /> Call history</button>
           {row.original.called_until ? (
             <button type="button" onClick={() => mark(row.original, false)} className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-700 hover:bg-rose-100"><Undo2 className="size-4" /> Undo</button>
           ) : (

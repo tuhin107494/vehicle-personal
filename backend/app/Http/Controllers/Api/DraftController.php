@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\DraftRequest;
 use App\Models\Draft;
+use App\Services\DraftService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -13,6 +14,8 @@ class DraftController extends Controller
 {
     private const PERMISSION = ['purchase' => 'purchases.create', 'sale' => 'sales.create'];
 
+    public function __construct(private DraftService $drafts) {}
+
     public function index(Request $request): JsonResponse
     {
         $type = $request->validate(['type' => ['required', 'in:purchase,sale']])['type'];
@@ -20,32 +23,32 @@ class DraftController extends Controller
 
         $drafts = Draft::with('creator:id,name')->where('type', $type)->latest('updated_at')->get();
 
-        return $this->success($drafts->map(fn (Draft $d) => $this->present($d)));
+        return $this->success($drafts->map(fn (Draft $d) => $d->present()));
     }
 
     public function store(DraftRequest $request): JsonResponse
     {
         $this->authorizeType($request->type);
 
-        $draft = Draft::create($request->safe()->only(['type', 'label', 'data']) + ['created_by' => $request->user()->id]);
+        $draft = $this->drafts->save($request->safe()->only(['type', 'label', 'data']), $request->user());
 
-        return $this->success($this->present($draft->load('creator:id,name')), 'Draft saved', 201);
+        return $this->success($draft->load('creator:id,name')->present(), 'Draft saved', 201);
     }
 
     public function update(DraftRequest $request, Draft $draft): JsonResponse
     {
         $this->authorizeType($draft->type);
 
-        $draft->update($request->safe()->only(['label', 'data']));
+        $draft = $this->drafts->save($request->safe()->only(['label', 'data']), $request->user(), $draft);
 
-        return $this->success($this->present($draft->load('creator:id,name')), 'Draft saved');
+        return $this->success($draft->load('creator:id,name')->present(), 'Draft saved');
     }
 
     public function destroy(Draft $draft): JsonResponse
     {
         $this->authorizeType($draft->type);
 
-        $draft->delete();
+        $this->drafts->delete($draft);
 
         return $this->success(null, 'Draft deleted');
     }
@@ -53,13 +56,5 @@ class DraftController extends Controller
     private function authorizeType(string $type): void
     {
         abort_unless(auth()->user()->hasPermission(self::PERMISSION[$type]), 403, 'You do not have permission to do this.');
-    }
-
-    private function present(Draft $d): array
-    {
-        return [
-            'id' => $d->id, 'type' => $d->type, 'label' => $d->label, 'data' => $d->data,
-            'saved_by' => $d->creator?->name, 'updated_at' => $d->updated_at?->toIso8601String(),
-        ];
     }
 }

@@ -10,7 +10,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { api, ApiError, applyServerErrors } from "@/lib/api";
 import { fmtDate, money, todayStr, toPayload } from "@/lib/format";
-import { useFetch } from "@/lib/hooks";
+import { useDebounced, useFetch } from "@/lib/hooks";
 import type { Customer, DraftT, Purchase, Sale, Vehicle } from "@/lib/types";
 import { DraftsBar, draftValues } from "@/components/DraftsBar";
 import { Button, Card, Field, inputCls, KV, Modal, PageHeader, StatusBadge } from "@/components/app-ui";
@@ -105,11 +105,7 @@ function PurchaseForm() {
   };
   // Quick find: one search box for customer name, phone, engine or chassis number.
   const [findText, setFindText] = useState("");
-  const [findQuery, setFindQuery] = useState("");
-  useEffect(() => {
-    const t = setTimeout(() => setFindQuery(findText.trim()), 300);
-    return () => clearTimeout(t);
-  }, [findText]);
+  const findQuery = useDebounced(findText).trim();
   const found = useFetch<Sale[]>(source === "customer" && findQuery.length >= 2 ? `/vehicles/owned?search=${encodeURIComponent(findQuery)}` : null);
   const chooseFound = (saleId: string) => {
     const sale = found.data?.find((s) => String(s.id) === saleId);
@@ -235,6 +231,8 @@ function PurchaseForm() {
   // Drafts: the form as typed, kept for later. Saving one changes nothing in stock or money.
   const [draftId, setDraftId] = useState<number | null>(null);
   const [draftsKey, setDraftsKey] = useState(0);
+  const [showDrafts, setShowDrafts] = useState(false); // the Drafts tab lists the saved purchases instead of the form
+  const drafts = useFetch<DraftT[]>(`/drafts?type=purchase&k=${draftsKey}`);
   const [savingDraft, setSavingDraft] = useState(false);
 
   const saveDraft = async () => {
@@ -255,12 +253,13 @@ function PurchaseForm() {
   };
 
   const resumeDraft = (d: DraftT) => {
-    setSource(d.data.source ?? "supplier");
+    setSource(d.data.source === "customer" && settings.data?.purchase?.from_customer === false ? "supplier" : d.data.source ?? "supplier");
     setVehicle(null);
     resetAdjust();
     reset(draftValues(d.data.values, getValues())); // the chassis lookup below then reloads the vehicle and customer on its own
     setPicked(d.data.picked ?? "");
     setDraftId(d.id);
+    setShowDrafts(false);
     toast.success("Draft opened");
   };
 
@@ -302,22 +301,27 @@ function PurchaseForm() {
   return (
     <>
       <PageHeader title="Buy vehicle" />
-      <DraftsBar type="purchase" refreshKey={draftsKey} activeId={draftId} onResume={resumeDraft} onDeleted={(id) => id === draftId && setDraftId(null)} />
-      <div role="tablist" className="mb-4 inline-flex gap-1 rounded-xl bg-white p-1 ring-1 ring-emerald-300">
-        {([["supplier", "From supplier"], ["customer", "From customer (second hand)"]] as const).map(([key, text]) => (
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+      <div role="tablist" className="inline-flex gap-1 rounded-xl bg-white p-1 ring-1 ring-emerald-300">
+        {([["supplier", "From supplier"], ["customer", "From customer (second hand)"]] as const).filter(([key]) => key === "supplier" || settings.data?.purchase?.from_customer !== false).map(([key, text]) => (
           <button
             key={key}
             type="button"
             role="tab"
-            aria-selected={source === key}
-            onClick={() => { if (source !== key) { setSource(key); setValue("party_id", ""); setPicked(""); if (vehicle) resetVehicleFields(); else clearVehicle(); resetAdjust(); } }}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition ${source === key ? "bg-gradient-to-r from-emerald-600 to-green-600 text-white shadow" : "text-emerald-800 hover:bg-emerald-50"}`}
+            aria-selected={!showDrafts && source === key}
+            onClick={() => { setShowDrafts(false); if (source !== key) { setSource(key); setValue("party_id", ""); setPicked(""); if (vehicle) resetVehicleFields(); else clearVehicle(); resetAdjust(); } }}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition ${!showDrafts && source === key ? "bg-gradient-to-r from-emerald-600 to-green-600 text-white shadow" : "text-emerald-800 hover:bg-emerald-50"}`}
           >
             {text}
           </button>
         ))}
       </div>
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+        <button type="button" aria-pressed={showDrafts} onClick={() => setShowDrafts(true)} className={`ml-auto flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition ${showDrafts ? "bg-gradient-to-r from-emerald-600 to-green-600 text-white shadow" : "bg-white text-emerald-800 ring-1 ring-emerald-300 hover:bg-emerald-50"}`}>
+          Drafts <span className={`rounded-full px-2 text-xs ${showDrafts ? "bg-white/25" : "bg-emerald-100 text-emerald-800"}`}>{drafts.data?.length ?? 0}</span>
+        </button>
+      </div>
+      {showDrafts && <DraftsBar drafts={drafts.data ?? []} loading={drafts.loading} activeId={draftId} onResume={resumeDraft} onChanged={(id) => { if (id === draftId) setDraftId(null); drafts.reload(); }} />}
+      <form onSubmit={handleSubmit(onSubmit)} className={`space-y-4${showDrafts ? " hidden" : ""}`} noValidate>
         {source === "customer" && (
           <>
             <Card title="1. Customer (seller)">

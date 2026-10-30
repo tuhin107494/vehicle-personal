@@ -15,7 +15,7 @@ const RULES: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept?|Oct|Nov|Dec)$/, (m) => MONTHS[m[1]]],
   [/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept?|Oct|Nov|Dec) (Sales|Purchases|Collected) ([\d,.]+)$/, (m) => `${MONTHS[m[1]]} · ${BN[m[2]] ?? m[2]} ${m[3]}`],
   [/^([\d.]+)(Cr|L|k)$/, (m) => `${bnNum(m[1])}${m[2] === "Cr" ? " কোটি" : m[2] === "L" ? " লাখ" : " হাজার"}`],
-  [/^Purchase and sale chain \((\d+)\)$/, (m) => `ক্রয় ও বিক্রয়ের ধারা (${bnNum(m[1])})`],
+  [/^Purchase, booking and sale chain \((\d+)\)$/, (m) => `ক্রয়, বুকিং ও বিক্রয়ের ধারা (${bnNum(m[1])})`],
   [/^Paid ([\d,.]+) · Unpaid now ([\d,.]+)$/, (m) => `পরিশোধিত ${m[1]} · এখন অপরিশোধিত ${m[2]}`],
   [/^Received ([\d,.]+) · Due ([\d,.]+)$/, (m) => `প্রাপ্ত ${m[1]} · বাকি ${m[2]}`],
   [/^Remove (.+)$/, (m) => `বাদ দিন: ${BN[m[1]] ?? m[1]}`],
@@ -37,10 +37,25 @@ const RULES: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^Installment #(\d+)$/, (m) => `কিস্তি #${bnNum(m[1])}`],
   [/^New (customer|supplier|investor|shop|user|category|permission)$/i, (m) => `নতুন ${BN[m[1][0].toUpperCase() + m[1].slice(1)] ?? m[1]}`],
   [/^Edit (customer|supplier|investor|shop|user|category|permission|vehicle)$/i, (m) => `${BN[m[1][0].toUpperCase() + m[1].slice(1)] ?? m[1]} এডিট`],
-  [/^(Customer|Supplier|Investor|Vehicle|Shop|User|Category|Permission|Sale) (added|updated|deleted) successfully$/, (m) => `${BN[m[1]] ?? m[1]} ${m[2] === "added" ? "যোগ করা হয়েছে" : m[2] === "updated" ? "হালনাগাদ হয়েছে" : "মুছে ফেলা হয়েছে"}`],
+  [/^(Customer|Supplier|Investor|Vehicle|Shop|User|Category|Permission|Sale) (added|updated|deleted) successfully$/, (m) => `${BN[m[1]] ?? m[1]} ${m[2] === "added" ? "যোগ করা হয়েছে" : m[2] === "updated" ? "হালনাগাদ হয়েছে" : "ডিলিট হয়েছে"}`],
   [/^Vehicle added successfully$/, () => "গাড়ি সফলভাবে যোগ করা হয়েছে"],
   [/^Sale #(\d+)$/, (m) => `বিক্রয় #${bnNum(m[1])}`],
-  [/^Draft opened$/, () => "খসড়া খোলা হয়েছে"],
+  // bookings: the deadline hints, and what happened to the advance
+  [/^(\d+) days left$/, (m) => `${bnNum(m[1])} দিন বাকি`],
+  [/^(\d+) days late$/, (m) => `${bnNum(m[1])} দিন দেরি`],
+  [/^until (\d{1,2}) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept?|Oct|Nov|Dec) (\d{4})$/, (m) => `${bnNum(m[1])} ${MONTHS[m[2]]} ${bnNum(m[3])} পর্যন্ত`],
+  [/^Auto-deleted (\d{1,2}) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept?|Oct|Nov|Dec) (\d{4})$/, (m) => `${bnNum(m[1])} ${MONTHS[m[2]]} ${bnNum(m[3])} তারিখে নিজে ডিলিট হবে`],
+  [/^Refunded ([\d,.]+) · Kept ([\d,.]+)$/, (m) => `ফেরত ${m[1]} · রাখা হয়েছে ${m[2]}`],
+  [/^([\d,.]+) received on (\d{1,2}) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept?|Oct|Nov|Dec) (\d{4}) \((cash|bank|mobile)\)$/, (m) => `${m[1]}, ${bnNum(m[2])} ${MONTHS[m[3]]} ${bnNum(m[4])} তারিখে পাওয়া (${m[5] === "cash" ? "নগদ" : m[5] === "bank" ? "ব্যাংক" : "মোবাইল"})`],
+  [/^Advance · (\d{1,2}) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept?|Oct|Nov|Dec) (\d{4})$/, (m) => `অগ্রিম · ${bnNum(m[1])} ${MONTHS[m[2]]} ${bnNum(m[3])}`],
+  [/^\((\d{1,2}) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept?|Oct|Nov|Dec) (\d{4})\) is already received: total received$/, (m) => `(${bnNum(m[1])} ${MONTHS[m[2]]} ${bnNum(m[3])}) আগেই পাওয়া গেছে: মোট পাওয়া`],
+  [/^(.+) · by (.+)$/, (m) => `${BN[m[1]] ?? m[1]} · ${m[2]} করেছেন`],
+  [/^Draft opened$/, () => "ড্রাফট খোলা হয়েছে"],
+  [/^Sales details #(\d+)$/, (m) => `বিক্রয়ের বিবরণ #${bnNum(m[1])}`],
+  // due alert: the message after "Call done", and the hint in its form
+  [/^Marked done\. Call again on (\d{1,2}) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept?|Oct|Nov|Dec) (\d{4})\.$/, (m) => `সম্পন্ন চিহ্নিত হয়েছে। আবার কল করুন ${bnNum(m[1])} ${MONTHS[m[2]]} ${bnNum(m[3])}।`],
+  [/^Marked done\. Call again in (\d+) days\.$/, (m) => `সম্পন্ন চিহ্নিত হয়েছে। ${bnNum(m[1])} দিন পর আবার কল করুন।`],
+  [/^Leave the date empty to call again after (\d+) days\.$/, (m) => `তারিখ খালি রাখলে ${bnNum(m[1])} দিন পর আবার কল করার কথা থাকবে।`],
 ];
 
 export function translateText(text: string): string | null {

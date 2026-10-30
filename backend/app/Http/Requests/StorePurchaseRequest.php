@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests;
 
+use App\Support\ShopSettings;
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Validation\Rule;
 
 class StorePurchaseRequest extends ApiRequest
@@ -44,6 +46,15 @@ class StorePurchaseRequest extends ApiRequest
             'payment_reference' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:2000'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $v) {
+            if ($this->input('source') === 'customer' && ! ShopSettings::purchaseFromCustomer()) {
+                $v->errors()->add('source', 'Buying from customers is turned off in Settings.');
+            }
+        });
     }
 
     public function messages(): array

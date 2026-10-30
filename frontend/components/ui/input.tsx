@@ -5,13 +5,18 @@ import { cn } from "@/lib/utils"
 // Fields that have a picker (calendar or clock): a click anywhere in the field opens it, not only the small icon.
 const PICKER_TYPES = ["date", "datetime-local", "month", "week", "time"]
 
-function Input({ className, type, onClick, ...props }: React.ComponentProps<"input">) {
+function Input({ className, type, onClick, onWheel, ...props }: React.ComponentProps<"input">) {
   const opensPicker = !!type && PICKER_TYPES.includes(type)
 
   return (
     <InputPrimitive
       type={type}
       data-slot="input"
+      // scrolling over a focused number field (mouse wheel or touchpad) would change its value: leave the field instead, so the page just scrolls
+      onWheel={(e) => {
+        onWheel?.(e)
+        if (type === "number") e.currentTarget.blur()
+      }}
       onClick={(e) => {
         onClick?.(e)
         if (!opensPicker || e.defaultPrevented) return

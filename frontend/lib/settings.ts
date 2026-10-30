@@ -6,9 +6,10 @@ export type TypeDefaults = { brand?: string; model?: string; color?: string; cc?
 
 export type Settings = {
   type_defaults: Record<string, TypeDefaults>;
-  purchase: { vehicle_type: string | null; prices: Record<string, number> };
+  purchase: { vehicle_type: string | null; prices: Record<string, number>; from_customer: boolean };
   sale: { vehicle_type: string | null; prices: Record<string, number> };
   collections: { recall_days: number };
+  booking: { days: number; on_cancel: "refund" | "keep"; on_expire: "refund" | "keep" };
 };
 
 /** The shop's primary form values (what the purchase and sale forms start with). */

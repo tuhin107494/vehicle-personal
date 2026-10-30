@@ -68,7 +68,7 @@ export function Modal({ open, title: rawTitle, onClose, children, wide, compact 
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className={cn("max-h-[90vh] gap-4 overflow-y-auto p-6 sm:max-w-lg", compact && "max-sm:gap-2 max-sm:p-3", wide && "sm:max-w-2xl")}>
         <DialogHeader>
-          <DialogTitle className={cn("bg-gradient-to-r from-emerald-600 to-green-600 bg-clip-text text-lg font-semibold text-transparent", compact && "max-sm:text-sm")}>{title}</DialogTitle>
+          <DialogTitle className={cn("text-lg font-semibold text-emerald-700", compact && "max-sm:text-sm")}>{title}</DialogTitle>
         </DialogHeader>
         {children}
       </DialogContent>
@@ -89,7 +89,7 @@ const TONES: Record<string, string> = {
 const STATUS_TONE: Record<string, string> = {
   paid: "green", kept: "green", active: "green", in_stock: "blue", document_provided: "green", registration_complete: "green",
   overdue: "red", broken: "red", cancelled: "gray", unpaid: "red", partial: "yellow", open: "yellow", pending: "gray",
-  sold: "slate", booked: "yellow", installment_overdue: "red", promise_broken: "red",
+  sold: "slate", booked: "yellow", draft: "gray", completed: "blue", expired: "red", installment_overdue: "red", promise_broken: "red",
   installment_upcoming: "yellow", promise_upcoming: "yellow",
   bank_chalan_done: "blue", file_received: "blue", file_processing: "yellow",
 };
@@ -149,7 +149,7 @@ export function PageHeader({ title, actions, titleClass }: { title: string; acti
     <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
       <div className="flex min-w-0 items-center gap-2">
         <BackButton />
-        <h1 className={cn("min-w-0 bg-gradient-to-r from-emerald-700 via-green-600 to-green-500 bg-clip-text text-2xl font-bold tracking-tight text-transparent sm:text-3xl", titleClass)}>{t(title)}</h1>
+        <h1 className={cn("min-w-0 text-2xl font-bold tracking-tight text-emerald-700 sm:text-3xl", titleClass)}>{t(title)}</h1>
       </div>
       <div className="ml-auto flex max-w-full flex-wrap justify-end gap-1.5 max-sm:[&_a]:px-2.5 max-sm:[&_a]:py-1.5 max-sm:[&_a]:text-xs max-sm:[&_button]:h-8 max-sm:[&_button]:gap-1 max-sm:[&_button]:px-2.5 max-sm:[&_button]:text-xs sm:gap-2">{actions}</div>
     </div>

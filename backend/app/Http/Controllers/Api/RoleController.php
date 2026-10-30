@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\RolePermissionsRequest;
+use App\Http\Resources\PermissionResource;
 use App\Models\Permission;
 use App\Support\PermissionCatalog;
 use Illuminate\Http\JsonResponse;
@@ -22,7 +23,10 @@ class RoleController extends Controller
             'permissions' => DB::table('role_permissions')
                 ->join('permissions', 'permissions.id', '=', 'role_permissions.permission_id')
                 ->where('shop_id', $shopId)->where('role', $role)->pluck('permissions.key')->all(),
-        ])->values());
+        ])->values(), 'OK', 200, [
+            // every permission there is, so the page lists them from this one response
+            'permissions' => PermissionResource::collection(Permission::orderBy('group')->orderBy('id')->get())->resolve(),
+        ]);
     }
 
     public function update(RolePermissionsRequest $request, string $role): JsonResponse

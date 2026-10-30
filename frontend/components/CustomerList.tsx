@@ -12,6 +12,7 @@ import { Avatar } from "@/components/Avatar";
 import { Col, DataTable } from "@/components/DataTable";
 import { CustomerForm } from "@/components/forms/CustomerForm";
 import { Input } from "@/components/ui/input";
+import { PhoneChips } from "@/components/PhoneChips";
 
 /** The customers list: who we sell to, what each still owes, and the shortcut to collect it. */
 export function CustomerList() {
@@ -23,7 +24,7 @@ export function CustomerList() {
   const columns: Col<Customer>[] = [
     { header: "Name", cell: ({ row }) => <span className="flex items-center gap-2 font-medium"><Avatar name={row.original.name} url={row.original.photo_url} /> {row.original.name}</span> },
     { header: "Father's name", cell: ({ row }) => row.original.father_name ?? "-" },
-    { header: "Phone", cell: ({ row }) => [row.original.phone, row.original.alt_phone].filter(Boolean).join(" / ") },
+    { header: "Phone", cell: ({ row }) => <PhoneChips phone={row.original.phone} alt={row.original.alt_phone} /> },
     { header: "NID", cell: ({ row }) => row.original.nid ?? "-" },
     { header: "Address", cell: ({ row }) => row.original.address ?? "-" },
     {

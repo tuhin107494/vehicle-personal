@@ -12,7 +12,8 @@ type RoleRow = { role: string; label: string; permissions: string[] };
 
 export default function RolesPage() {
   const roles = useFetch<RoleRow[]>("/roles");
-  const perms = useFetch<PermissionT[]>("/permissions");
+  // the list of all permissions comes with the roles (meta), so the page makes one request
+  const permissions = roles.meta?.permissions;
   const [active, setActive] = useState("admin");
   const [selected, setSelected] = useState<Record<string, Set<string>>>({});
   const [saving, setSaving] = useState(false);
@@ -24,11 +25,11 @@ export default function RolesPage() {
     setSelected(Object.fromEntries(roles.data.map((r) => [r.role, new Set(r.permissions)])));
   }
 
-  if ((roles.loading || perms.loading) && !roles.data) return <Loading />;
-  if (roles.error || perms.error || !roles.data || !perms.data) return <ErrorText message={roles.error ?? perms.error ?? "Failed to load"} />;
+  if (roles.loading && !roles.data) return <Loading />;
+  if (roles.error || !roles.data || !permissions) return <ErrorText message={roles.error ?? "Failed to load"} />;
 
   const current = selected[active] ?? new Set<string>();
-  const groups = perms.data.reduce<Record<string, PermissionT[]>>((acc, p) => ((acc[p.group] ??= []).push(p), acc), {});
+  const groups = permissions.reduce<Record<string, PermissionT[]>>((acc, p) => ((acc[p.group] ??= []).push(p), acc), {});
   const original = new Set(roles.data.find((r) => r.role === active)?.permissions ?? []);
   const dirty = current.size !== original.size || [...current].some((k) => !original.has(k));
 

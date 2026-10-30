@@ -20,6 +20,8 @@ type Daily = {
   sales: { rows: Sale[]; count: number; total: number; received: number; due: number };
   purchases: { rows: Purchase[]; count: number; total: number; paid: number; due: number };
   collections: { rows: Collection[]; count: number; total: number };
+  booking_advances: { count: number; total: number };
+  booking_refunds: { count: number; total: number };
   supplier_payments: { rows: SupplierPay[]; count: number; total: number };
   investor_received: { rows: InvestorTx[]; count: number; total: number };
   investor_paid: { rows: InvestorTx[]; count: number; total: number };
@@ -129,7 +131,7 @@ export default function DailyReportPage() {
             {([
               { tone: "sales", title: "Sales", count: data.sales.count, main: money(data.sales.total), lines: [["Received", money(data.sales.received)], ["Due", money(data.sales.due)]] },
               { tone: "purchases", title: "Purchases", count: data.purchases.count, main: money(data.purchases.total), lines: [["Paid", money(data.purchases.paid)], ["Unpaid now", money(data.purchases.due)]] },
-              { tone: "collection", title: "Due collection", count: data.collections.count, main: money(data.collections.total), lines: [] },
+              { tone: "collection", title: "Due collection", count: data.collections.count, main: money(data.collections.total), lines: [...(data.booking_advances.count ? [["Booking advance received", money(data.booking_advances.total)]] : []), ...(data.booking_refunds.count ? [["Booking advance refunded", money(data.booking_refunds.total)]] : [])] as [string, string][] },
               { tone: "supplier", title: "Supplier transactions (paid)", count: data.supplier_payments.count, main: money(data.supplier_payments.total), lines: [] },
               { tone: "investor", title: "Received from investor", count: data.investor_received.count, main: money(data.investor_received.total), lines: [] },
               { tone: "investor_paid", title: "Paid to investor", count: data.investor_paid.count, main: money(data.investor_paid.total), lines: [] },

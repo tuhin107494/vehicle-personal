@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import { fmtDate, money } from "@/lib/format";
 import { useCategories } from "@/lib/categories";
 import { useFetch } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
-import type { Payment, Purchase, Sale, Vehicle } from "@/lib/types";
+import type { Booking, Payment, Purchase, Sale, Vehicle } from "@/lib/types";
 import { DataTable, type Col } from "@/components/DataTable";
 import { Badge, Button, Card, ErrorText, KV, Loading, PageHeader, StatusBadge } from "@/components/app-ui";
 
@@ -19,21 +19,22 @@ export default function VehicleDetailPage() {
   const { can } = useAuth();
   const { nameOf } = useCategories();
   // View opens the vehicle's details; History (?tab=history) opens its purchase and sale chain
-  const router = useRouter();
   const history = useSearchParams().get("tab") === "history";
   const [open, setOpen] = useState<Record<string, boolean>>({}); // which chain steps are expanded
-  const { data, loading, error } = useFetch<{ vehicle: Vehicle; sales: Sale[]; purchases: Purchase[]; timeline: Event[] }>(`/vehicles/${id}/history`);
+  const { data, loading, error } = useFetch<{ vehicle: Vehicle; sales: Sale[]; purchases: Purchase[]; timeline: Event[]; bookings: Booking[] }>(`/vehicles/${id}/history`);
 
   if (loading && !data) return <Loading />;
   if (error || !data) return <ErrorText message={error ?? "Not found"} />;
-  const { vehicle: v, timeline, sales, purchases } = data;
+  const { vehicle: v, timeline, sales, purchases, bookings = [] } = data;
 
-  // Purchases and sales in the order they happened: bought, sold, returned (bought back), sold again...
-  type Step = { kind: "purchase"; at: string; id: number; p: Purchase } | { kind: "sale"; at: string; id: number; s: Sale };
+  // Purchases, bookings and sales in the order they happened: bought, booked, sold, returned (bought back), sold again...
+  type Step = { kind: "purchase"; at: string; id: number; p: Purchase } | { kind: "sale"; at: string; id: number; s: Sale } | { kind: "booking"; at: string; id: number; b: Booking };
+  const RANK = { purchase: 0, booking: 1, sale: 2 }; // on the same day: bought first, then booked, then sold
   const steps: Step[] = [
     ...purchases.map((p): Step => ({ kind: "purchase", at: p.purchase_date, id: p.id, p })),
     ...sales.map((x): Step => ({ kind: "sale", at: x.sale_date, id: x.id, s: x })),
-  ].sort((a, b) => a.at.localeCompare(b.at) || (a.kind === b.kind ? a.id - b.id : a.kind === "purchase" ? -1 : 1));
+    ...bookings.map((b): Step => ({ kind: "booking", at: b.booked_on, id: b.id, b })),
+  ].sort((a, b) => a.at.localeCompare(b.at) || (a.kind === b.kind ? a.id - b.id : RANK[a.kind] - RANK[b.kind]));
 
   const paymentCols: Col<Payment>[] = [
     { header: "Date", cell: ({ row }) => fmtDate(row.original.paid_at) },
@@ -61,8 +62,8 @@ export default function VehicleDetailPage() {
         actions={v.status === "sold" ? !can("purchases.create") ? null : <Link className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-green-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:from-emerald-500 hover:to-green-500" href={`/purchases/new?chassis=${encodeURIComponent(v.chassis_no)}`}>Repurchase</Link> : v.status === "in_stock" ? !can("sales.create") ? null : <Link className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-green-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:from-emerald-500 hover:to-green-500" href={`/sales/new?vehicle=${v.id}`}>Sell</Link> : null}
       />
       <div className="mb-4 flex gap-2">
-        <Button variant={history ? "outline" : "primary"} onClick={() => router.replace(`/vehicles/${id}`)}>Details</Button>
-        <Button variant={history ? "primary" : "outline"} onClick={() => router.replace(`/vehicles/${id}?tab=history`)}>History</Button>
+        <Button variant={history ? "outline" : "primary"} onClick={() => window.history.replaceState(null, "", `/vehicles/${id}`)}>Details</Button>
+        <Button variant={history ? "primary" : "outline"} onClick={() => window.history.replaceState(null, "", `/vehicles/${id}?tab=history`)}>History</Button>
       </div>
       <Card className="mb-4">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
@@ -88,13 +89,46 @@ export default function VehicleDetailPage() {
       </Card>
         </>
       )}
-      {history && <Card title={`Purchase and sale chain (${steps.length})`} className="mb-4">
+      {history && <Card title={`Purchase, booking and sale chain (${steps.length})`} className="mb-4">
         {!steps.length && <p className="text-sm text-gray-500">No purchases or sales yet.</p>}
         <ol>
           {steps.map((st, i) => {
             const key = `${st.kind}-${st.id}`;
             const isOpen = !!open[key];
             const last = i === steps.length - 1;
+            if (st.kind === "booking") {
+              const b = st.b;
+              return (
+                <li key={key} className="relative flex gap-3 pb-4">
+                  {!last && <span className="absolute left-[13px] top-7 h-[calc(100%-1.75rem)] w-0.5 bg-emerald-200" />}
+                  <span className="z-10 flex size-7 shrink-0 items-center justify-center rounded-full bg-yellow-500 text-xs font-bold text-white">{i + 1}</span>
+                  <div className="min-w-0 flex-1 rounded-lg border-2 border-yellow-300 bg-yellow-50/40 p-3 text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge tone="yellow">Booking #{b.id}</Badge>
+                          <span className="text-gray-500">{fmtDate(b.booked_on)}</span>
+                          <StatusBadge status={b.status} />
+                        </div>
+                        <div className="mt-1 truncate">Booked by <b>{b.customer?.name ?? "-"}</b></div>
+                      </div>
+                      <b className="shrink-0 text-base">{money(b.advance_amount)}</b>
+                    </div>
+                    <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 border-t border-yellow-200 pt-2 sm:grid-cols-5">
+                      {([
+                        ["Booked price", b.agreed_price ? money(b.agreed_price) : "Not fixed"],
+                        ["Advance", money(b.advance_amount)],
+                        ["Held until", b.expires_on ? fmtDate(b.expires_on) : "No deadline"],
+                        ...(b.status === "active" ? [] : b.status === "completed" ? [["Sold", b.sale_id ? <Link key="s" className="underline" href={`/sales/${b.sale_id}`}>Sale #{b.sale_id}</Link> : "-"]] : [["Refunded", money(b.refund_amount)], ["Kept", money(b.kept_amount)]]),
+                        ...(b.booked_by ? [["Booked by", b.booked_by]] : []),
+                      ] as [string, React.ReactNode][]).map(([k, val]) => (
+                        <div key={k}><dt className="text-xs text-gray-500">{k}</dt><dd className="font-semibold text-slate-800">{val}</dd></div>
+                      ))}
+                    </dl>
+                  </div>
+                </li>
+              );
+            }
             const isReturn = st.kind === "purchase" && st.p.source === "customer";
             const tone = st.kind === "sale" ? "bg-green-600" : isReturn ? "bg-amber-500" : "bg-blue-500";
             const label = st.kind === "sale" ? "Sale" : isReturn ? "Return" : "Purchase";
@@ -171,7 +205,7 @@ export default function VehicleDetailPage() {
                               </ul>
                             </div>
                           )}
-                          <Link className="inline-block text-xs underline" href={`/sales/${st.id}`}>Open sale #{st.id}</Link>
+                          <Link className="inline-block text-xs underline" href={`/sales/${st.id}`}>Sales details #{st.id}</Link>
                         </>
                       )}
                     </div>

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\SignupController;
 use App\Models\Shop;
+use App\Services\DraftService;
 use App\Support\SignupConfirmation;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -22,4 +23,10 @@ Artisan::command('signups:prune', function () {
     $this->info("Deleted {$shops->count()} unconfirmed sign-up(s).");
 })->purpose('Delete email sign-ups never confirmed within '.SignupConfirmation::PRUNE_AFTER_DAYS.' days');
 
+// Sale drafts past their date: deleted, and the vehicle each held goes back in stock.
+Artisan::command('drafts:expire', function () {
+    $this->info('Deleted '.app(DraftService::class)->expireDue().' expired draft(s).');
+})->purpose('Delete sale drafts past their date and free the vehicles they held');
+
 Schedule::command('signups:prune')->daily();
+Schedule::command('drafts:expire')->daily();

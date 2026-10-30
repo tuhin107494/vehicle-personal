@@ -12,6 +12,7 @@ import { Avatar } from "@/components/Avatar";
 import { Col, DataTable } from "@/components/DataTable";
 import { SupplierForm } from "@/components/forms/SupplierForm";
 import { Input } from "@/components/ui/input";
+import { PhoneChips } from "@/components/PhoneChips";
 
 /** The suppliers list: who we buy from, what we still owe each, and the shortcut to pay it. */
 export function SupplierList() {
@@ -22,7 +23,7 @@ export function SupplierList() {
 
   const columns: Col<Supplier>[] = [
     { header: "Name", cell: ({ row }) => <span className="flex items-center gap-2 font-medium"><Avatar name={row.original.name} url={row.original.photo_url} /> {row.original.name}</span> },
-    { header: "Phone", cell: ({ row }) => [row.original.phone, row.original.alt_phone].filter(Boolean).join(" / ") },
+    { header: "Phone", cell: ({ row }) => <PhoneChips phone={row.original.phone} alt={row.original.alt_phone} /> },
     { header: "NID", cell: ({ row }) => row.original.nid ?? "-" },
     { header: "Address", cell: ({ row }) => row.original.address ?? "-" },
     {

@@ -5,14 +5,18 @@ namespace App\Http\Controllers\Api;
 use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\VehicleRequest;
+use App\Http\Resources\BookingResource;
 use App\Http\Resources\PurchaseResource;
 use App\Http\Resources\SaleResource;
 use App\Http\Resources\VehicleResource;
+use App\Models\Booking;
+use App\Models\Draft;
 use App\Models\Payment;
 use App\Models\RegistrationLog;
 use App\Models\Sale;
 use App\Models\Vehicle;
 use App\Models\VehicleCategory;
+use App\Services\BookingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -31,8 +35,13 @@ class VehicleController extends Controller implements HasMiddleware
 
     public function index(Request $request): JsonResponse
     {
+        app(BookingService::class)->expireDue();
+
         $base = Vehicle::query()
-            ->when($request->status, fn ($q, $s) => $q->where('status', $s))
+            // "stock" is everything still in the shop: in stock and booked for a customer
+            ->when($request->status, fn ($q, $s) => $s === 'stock' ? $q->whereIn('status', ['in_stock', 'booked']) : $q->where(fn ($q) => $q->where('status', $s)
+                // the vehicle a sale draft holds still shows in that draft's own vehicle list
+                ->when($s === 'in_stock' && $request->draft_id, fn ($q) => $q->orWhereIn('id', Draft::whereKey($request->draft_id)->whereNotNull('vehicle_id')->select('vehicle_id')))))
             // where the registration of the vehicle's current sale stands
             ->when($request->registration_status, fn ($q, $s) => $q->whereIn('current_sale_id', Sale::where('registration_status', $s)->select('id')))
             ->when($request->search, fn ($q, $s) => $q->where(fn ($q) => $q
@@ -51,6 +60,11 @@ class VehicleController extends Controller implements HasMiddleware
         // where each sold vehicle's registration stands (the sale's step)
         $steps = Sale::whereIn('id', $vehicles->getCollection()->pluck('current_sale_id')->filter())->pluck('registration_status', 'id');
         $vehicles->getCollection()->each(fn (Vehicle $v) => $v->setAttribute('registration_status', $steps[$v->current_sale_id] ?? null));
+
+        // a booked vehicle carries its active booking, so the list can sell it from there
+        $bookings = Booking::where('status', 'active')->whereIn('vehicle_id', $vehicles->getCollection()->pluck('id'))->pluck('id', 'vehicle_id');
+        $drafts = Draft::where('type', 'sale')->whereIn('vehicle_id', $vehicles->getCollection()->pluck('id'))->pluck('id', 'vehicle_id');
+        $vehicles->getCollection()->each(fn (Vehicle $v) => $v->setAttribute('booking_id', $bookings[$v->id] ?? null)->setAttribute('draft_id', $drafts[$v->id] ?? null));
 
         return $this->success(VehicleResource::collection($vehicles->getCollection()), 'OK', 200, [
             'current_page' => $vehicles->currentPage(),
@@ -174,6 +188,8 @@ class VehicleController extends Controller implements HasMiddleware
             'vehicle' => VehicleResource::make($vehicle),
             'sales' => SaleResource::collection($sales),
             'purchases' => PurchaseResource::collection($purchases),
+            // every booking this vehicle was held for, whatever became of it
+            'bookings' => BookingResource::collection(Booking::where('vehicle_id', $vehicle->id)->with(['customer:id,name,phone,alt_phone', 'creator:id,name'])->orderByDesc('id')->get()),
             'timeline' => $events->sortBy('sort')->values()->map(fn ($e) => collect($e)->except('sort')->all()),
         ]);
     }
