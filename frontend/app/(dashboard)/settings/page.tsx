@@ -59,6 +59,7 @@ export default function SettingsPage() {
   const { hidden, setHidden } = useHiddenMenu();
   const dash = useHiddenDashboard();
   const [recallDays, setRecallDays] = useState<number | null>(null); // saved on its own, apart from the settings table
+  const [keepSelection, setKeepSelection] = useState<boolean | null>(null); // same, for the payment forms
   const [fromCustomer, setFromCustomer] = useState<boolean | null>(null); // what was just saved, until the settings are fetched again
   const [booking, setBooking] = useState<Partial<{ days: number; on_cancel: string; on_expire: string }>>({}); // what was just saved, until the settings are fetched again
   const menuItems = allowedNav(user?.role, can);
@@ -250,6 +251,23 @@ export default function SettingsPage() {
             }
           }} />
           Buy vehicles from customers (second hand)
+        </label>
+      </Card>
+      <Card title="Payment forms" className="mb-4">
+        <p className="mb-3 text-xs text-slate-500">After a payment, keep the chosen customer, supplier and vehicle selected on Due collection and Supplier payment.</p>
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" className="size-4 accent-emerald-600" checked={keepSelection ?? settings.data.collections?.keep_selection ?? false} onChange={async (e) => {
+            const value = e.target.checked;
+            try {
+              await api("/settings", { method: "PUT", body: { collections: { keep_selection: value } } });
+              setKeepSelection(value);
+              settings.reload();
+              toast.success("Saved");
+            } catch (err) {
+              toast.error(err instanceof ApiError ? err.message : "Failed to save");
+            }
+          }} />
+          Keep the selection after a payment
         </label>
       </Card>
       <Card title="Bookings" className="mb-4">

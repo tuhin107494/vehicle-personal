@@ -8,7 +8,7 @@ export type Settings = {
   type_defaults: Record<string, TypeDefaults>;
   purchase: { vehicle_type: string | null; prices: Record<string, number>; from_customer: boolean };
   sale: { vehicle_type: string | null; prices: Record<string, number> };
-  collections: { recall_days: number };
+  collections: { recall_days: number; keep_selection: boolean };
   booking: { days: number; on_cancel: "refund" | "keep"; on_expire: "refund" | "keep" };
 };
 
