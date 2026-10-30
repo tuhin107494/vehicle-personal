@@ -86,6 +86,7 @@ export default function LoginPage() {
           </form>
         </CardContent>
       </Card>
+      <p className="mt-3 text-center text-xs text-slate-500"><Link className="hover:text-emerald-700 hover:underline" href="/privacy">Privacy policy</Link> · <Link className="hover:text-emerald-700 hover:underline" href="/terms">Terms of service</Link></p>
       </div>
     </main>
   );

@@ -111,6 +111,7 @@ export default function SignupPage() {
         <Button type="submit" disabled={isSubmitting} className="w-full">{isSubmitting ? "Creating..." : "Create account"}</Button>
         <p className="text-center text-xs text-slate-500">{googleOn ? "With Google you start right away. With email, we send you a link to confirm it first." : "We will email you a link to confirm your email and sign in."}</p>
       </form>
+      <p className="text-center text-xs text-slate-500">By creating an account you agree to our <Link className="underline hover:text-emerald-700" href="/terms">Terms of Service</Link> and <Link className="underline hover:text-emerald-700" href="/privacy">Privacy Policy</Link>.</p>
       <p className="text-center text-sm text-slate-600">Already have an account? <Link className="font-medium text-emerald-700 underline" href="/login">Sign in</Link></p>
     </AuthShell>
   );
