@@ -19,6 +19,7 @@ class Payment extends Model
         'sale_id',
         'installment_id',
         'sale_charge_id',
+        'batch_no',
         'amount',
         'method',
         'paid_at',
@@ -46,6 +47,12 @@ class Payment extends Model
     public function installment(): BelongsTo
     {
         return $this->belongsTo(Installment::class);
+    }
+
+    /** @return BelongsTo<SaleCharge, $this> */
+    public function charge(): BelongsTo
+    {
+        return $this->belongsTo(SaleCharge::class, 'sale_charge_id');
     }
 
     /** @return BelongsTo<User, $this> */
