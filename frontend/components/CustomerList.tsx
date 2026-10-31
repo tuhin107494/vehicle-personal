@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Eye, HandCoins, Pencil, Plus } from "lucide-react";
+import { Eye, HandCoins, Pencil, Plus, Upload } from "lucide-react";
 import { usePagedList } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
 import { money } from "@/lib/format";
@@ -11,6 +11,7 @@ import { Button, inputCls, PageHeader, Pagination } from "@/components/app-ui";
 import { Avatar } from "@/components/Avatar";
 import { Col, DataTable } from "@/components/DataTable";
 import { CustomerForm } from "@/components/forms/CustomerForm";
+import { CustomerImportDialog } from "@/components/forms/CustomerImportDialog";
 import { Input } from "@/components/ui/input";
 import { PhoneChips } from "@/components/PhoneChips";
 
@@ -20,6 +21,7 @@ export function CustomerList() {
   const list = usePagedList<Customer>("/customers");
   const [editing, setEditing] = useState<Customer | null>(null);
   const [open, setOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   const columns: Col<Customer>[] = [
     { header: "Name", cell: ({ row }) => <span className="flex items-center gap-2 font-medium"><Avatar name={row.original.name} url={row.original.photo_url} /> {row.original.name}</span> },
@@ -48,11 +50,12 @@ export function CustomerList() {
 
   return (
     <>
-      <PageHeader title="Customers" actions={can("parties.create") && <Button onClick={() => { setEditing(null); setOpen(true); }}><Plus className="size-4" /> New customer</Button>} />
+      <PageHeader title="Customers" actions={can("parties.create") && <div className="flex gap-2"><Button variant="outline" onClick={() => setImporting(true)}><Upload className="size-4" /> Import CSV</Button><Button onClick={() => { setEditing(null); setOpen(true); }}><Plus className="size-4" /> New customer</Button></div>} />
       <Input className={`${inputCls} mb-3 max-w-xs`} placeholder="Search name, phone, NID" value={list.search} onChange={(e) => list.setSearch(e.target.value)} />
       <DataTable serverPaged columns={columns} data={list.rows} loading={list.loading} empty="No customers yet." />
       <Pagination meta={list.meta} onPage={list.setPage} />
       <CustomerForm open={open} customer={editing} onClose={() => setOpen(false)} onSaved={() => (editing ? list.reload() : list.showFirst())} />
+      <CustomerImportDialog open={importing} onClose={() => setImporting(false)} onImported={() => list.showFirst()} />
     </>
   );
 }
