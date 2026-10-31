@@ -15,6 +15,7 @@ use App\Services\PaymentService;
 use App\Support\Money;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Accounts payable (suppliers) and receivable (customers) in one place: see what a party is owed or owes,
@@ -39,6 +40,7 @@ class AccountController extends Controller
         $amount = Money::paisa($request->input('amount')); // all of this is worked out in paisa
         $data = $request->safe()->only(array_merge(['method', 'paid_at', 'reference', 'note'], $side === 'customer' ? ['memo_no'] : []));
 
+        $data['batch_no'] = (string) Str::uuid(); // everything this payment touches is one invoice, whichever sales or installments it is spread over
         $vouchers = []; // numbers of the ledger entries this payment created, as the reports print them
 
         DB::transaction(function () use ($side, $party, $amount, $data, $request, &$vouchers) {
@@ -61,9 +63,8 @@ class AccountController extends Controller
                     }
 
                     $take = min($left, Money::paisa($sale->due_amount));
-                    foreach ($this->payments->collect($sale, ['amount' => Money::taka($take)] + $data, $request->user()) as $payment) {
-                        $vouchers[] = 'CP-'.$payment->id;
-                    }
+                    $created = $this->payments->collect($sale, ['amount' => Money::taka($take)] + $data, $request->user());
+                    $vouchers[] = 'CP-'.collect($created)->min('id'); // one invoice per sale: numbered by its first row
                     $left -= $take;
                 }
 

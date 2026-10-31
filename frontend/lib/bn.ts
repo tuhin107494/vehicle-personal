@@ -282,4 +282,6 @@ export const BN: Record<string, string> = {
   "Charge added": "চার্জ যোগ হয়েছে",
   "Charge updated": "চার্জ আপডেট হয়েছে",
   "Charge deleted": "চার্জ ডিলিট হয়েছে",
+  "Covers": "যে মাস কভার করে",
+  "Split": "ভাগ",
 };

@@ -212,10 +212,30 @@ class ReportController extends Controller implements HasMiddleware
         return compact('person_id', 'date', 'order', 'id', 'kind', 'description', 'vehicle', 'charge', 'paid', 'reference', 'no', 'details', 'tx');
     }
 
+    /**
+     * How one collection was spread: the months it covers (from the installments it paid) and the amount on each part.
+     *
+     * @param  \Illuminate\Support\Collection<int,\App\Models\Payment>  $rows
+     * @return array<int,array{0:string,1:?string}>
+     */
+    private function splitOf($rows): array
+    {
+        $parts = $rows->sortBy('id')->map(function ($p) {
+            $label = $p->installment
+                ? '#'.$p->installment->seq_no.' ('.$p->installment->due_date->format('M Y').')'
+                : ($p->charge ? $p->charge->purpose : 'Payment');
+
+            return $label.': '.number_format((float) $p->amount, 2);
+        });
+        $months = $rows->map(fn ($p) => $p->installment?->due_date->format('M Y'))->filter()->unique()->values();
+
+        return [['Covers', $months->isNotEmpty() ? $months->implode(', ') : null], ['Split', $parts->implode(' · ')]];
+    }
+
     private function customerEntries(?int $customerId = null): array
     {
         $out = [];
-        $sales = Sale::with(['vehicle:id,chassis_no,brand,model,engine_no', 'plan', 'charges', 'payments.receiver:id,name', 'payments.installment:id,seq_no'])->when($customerId, fn ($q) => $q->where('customer_id', $customerId))->get();
+        $sales = Sale::with(['vehicle:id,chassis_no,brand,model,engine_no', 'plan', 'charges', 'payments.receiver:id,name', 'payments.installment:id,seq_no,due_date', 'payments.charge:id,purpose'])->when($customerId, fn ($q) => $q->where('customer_id', $customerId))->get();
 
         foreach ($sales as $sale) {
             $vehicle = $sale->vehicle->chassis_no;
@@ -226,12 +246,17 @@ class ReportController extends Controller implements HasMiddleware
                 ['Sale price', number_format($sale->sale_price, 2)], ['Down payment', number_format($sale->down_payment, 2)],
             ]);
 
-            foreach ($sale->payments as $pay) {
-                $label = $pay->amount < 0 ? 'Refund' : ($pay->method === 'adjustment' ? 'Adjusted against purchase' : 'Payment received ('.$pay->method.')');
+            // the rows of one collection (spread over several installments or charges) are one invoice
+            foreach ($sale->payments->groupBy(fn ($p) => $p->batch_no ?? 'row-'.$p->id) as $rows) {
+                $pay = $rows->sortBy('id')->first();
+                $total = Money::sum($rows, 'amount');
+                $label = $total < 0 ? 'Refund' : ($pay->method === 'adjustment' ? 'Adjusted against purchase' : 'Payment received ('.$pay->method.')');
+                $split = $rows->count() > 1 ? $this->splitOf($rows) : [];
                 // a refund gives money back, so it adds to what they owe again
-                $out[] = $this->entry($sale->customer_id, $pay->paid_at->toDateString(), 1, $pay->id, 'payment', $label, $vehicle, $pay->amount < 0 ? abs($pay->amount) : 0, $pay->amount > 0 ? $pay->amount : 0, $pay->reference, 'CP-'.$pay->id, [
+                $out[] = $this->entry($sale->customer_id, $pay->paid_at->toDateString(), 1, $pay->id, 'payment', $label, $vehicle, $total < 0 ? abs($total) : 0, $total > 0 ? $total : 0, $pay->reference, 'CP-'.$pay->id, [
                     ['Vehicle', $name ?: null], ['Chassis', $vehicle], ['Sale', "#{$sale->id}"], ['Method', ucfirst($pay->method)],
-                    ['Installment', $pay->installment ? "#{$pay->installment->seq_no}" : null], ['Received by', $pay->receiver?->name], ['Memo no.', $pay->memo_no], ['Note', $pay->note],
+                    ['Installment', $rows->count() === 1 && $pay->installment ? "#{$pay->installment->seq_no}" : null], ...$split,
+                    ['Received by', $pay->receiver?->name], ['Memo no.', $pay->memo_no], ['Note', $pay->note],
                 ], TransactionService::tx($pay));
             }
 
@@ -349,10 +374,13 @@ class ReportController extends Controller implements HasMiddleware
             // money paid when the vehicle was sold is counted with the sale, not as a collection
             ->where(fn ($q) => $q->whereNull('note')->orWhereNotIn('note', ['Full payment at sale', 'Down payment']))
             ->orderBy('id')->get()
+            // one collection spread over several installments is one line
+            ->groupBy(fn (Payment $p) => $p->batch_no ? $p->sale_id.'|'.$p->batch_no : 'row-'.$p->id)
+            ->map(fn ($rows) => $rows->first())
             ->map(fn (Payment $p) => [
                 'id' => $p->id, 'sale_id' => $p->sale_id, 'name' => $p->sale->customer->name, 'phone' => $p->sale->customer->phone, 'vehicle' => $p->sale->vehicle->chassis_no,
-                'method' => $p->method, 'amount' => (float) $p->amount, 'note' => $p->note,
-            ]);
+                'method' => $p->method, 'amount' => $p->batch_no ? Money::sum(Payment::where('sale_id', $p->sale_id)->where('batch_no', $p->batch_no)->whereDate('paid_at', $date)->get(), 'amount') : (float) $p->amount, 'note' => $p->note,
+            ])->values();
 
         $supplierPayments = collect()
             ->concat(PurchasePayment::with(['purchase.supplier:id,name,phone', 'purchase.customer:id,name,phone', 'purchase.vehicle:id,chassis_no'])->whereDate('paid_at', $date)->where('method', '!=', 'advance')->orderBy('id')->get()

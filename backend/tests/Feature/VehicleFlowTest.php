@@ -253,6 +253,29 @@ class VehicleFlowTest extends TestCase
         $this->assertDatabaseCount('installments', 2);
     }
 
+    public function test_one_payment_spread_over_installments_is_a_single_invoice_with_its_months(): void
+    {
+        $v = $this->stockVehicle('INV-1');
+        $plan = ['installment_count' => 4, 'first_due_date' => today()->addMonth()->toDateString(), 'interest_rate' => 0];
+        $sale = $this->postJson('/api/sales', $this->saleData($v, ['payment_type' => 'installment', 'down_payment' => 600000] + $plan))->assertCreated()->json('data'); // 4 x 100,000
+        $this->postJson('/api/accounts', ['side' => 'customer', 'customer_id' => $sale['customer_id'], 'amount' => 250000, 'method' => 'cash', 'note' => 'Advance'])->assertCreated()
+            ->assertJsonCount(1, 'data.vouchers');
+        $this->assertDatabaseCount('installments', 4);
+        $this->assertSame(3, \App\Models\Payment::where('sale_id', $sale['id'])->whereNotNull('installment_id')->count()); // still three rows underneath
+
+        $rows = collect($this->getJson("/api/reports/person-transactions?side=customer&customer_id={$sale['customer_id']}")->assertOk()->json('data.rows'))->where('kind', 'payment')->where('paid', 250000);
+        $this->assertCount(1, $rows);
+        $details = collect($rows->first()['details'])->pluck(1, 0);
+        $this->assertStringContainsString(today()->addMonth()->format('M Y'), $details['Covers']);
+        $this->assertStringContainsString('#3', $details['Split']);
+
+        // details change on every row; the amount of a spread payment is fixed
+        $tx = $rows->first()['tx'];
+        $this->putJson("/api/transactions/{$tx['type']}/{$tx['id']}", ['paid_at' => today()->toDateString(), 'method' => 'bank'])->assertOk();
+        $this->assertSame(3, \App\Models\Payment::where('sale_id', $sale['id'])->whereNotNull('installment_id')->where('method', 'bank')->count());
+        $this->putJson("/api/transactions/{$tx['type']}/{$tx['id']}", ['amount' => 200000, 'paid_at' => today()->toDateString(), 'method' => 'bank'])->assertStatus(409);
+    }
+
     public function test_a_cancelled_sale_cannot_be_edited(): void
     {
         $v = $this->stockVehicle('EDIT-3');

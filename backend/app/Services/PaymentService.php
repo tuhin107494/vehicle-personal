@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Support\Money;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class PaymentService
 {
@@ -38,6 +39,7 @@ class PaymentService
 
             $paidAt = isset($data['paid_at']) ? Carbon::parse($data['paid_at']) : now();
             $base = [
+                'batch_no' => $data['batch_no'] ?? (string) Str::uuid(), // the rows of one collection are shown as one invoice
                 'sale_id' => $sale->id,
                 'method' => $data['method'] ?? 'cash',
                 'paid_at' => $paidAt,
