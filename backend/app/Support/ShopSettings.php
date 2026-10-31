@@ -17,7 +17,7 @@ class ShopSettings
             'sale' => ['vehicle_type' => self::primaryType('sale'), 'prices' => (object) self::prices('sale')],
             'type_defaults' => (object) self::typeDefaults(),
             'collections' => ['recall_days' => self::recallDays(), 'keep_selection' => self::keepSelection()],
-            'forms' => ['auto_date' => self::autoDate()],
+            'forms' => ['auto_date' => self::autoDate(), 'memo_no' => self::memoNo()],
             'booking' => ['days' => self::bookingDays(), 'on_cancel' => self::bookingPolicy('on_cancel'), 'on_expire' => self::bookingPolicy('on_expire')],
         ];
     }
@@ -46,6 +46,12 @@ class ShopSettings
     public static function autoDate(): bool
     {
         return ShopSetting::where('key', 'forms.auto_date')->value('value') === '1';
+    }
+
+    /** Whether the Sale and Due collection forms show the optional memo number field (on unless the shop turned it off). */
+    public static function memoNo(): bool
+    {
+        return ShopSetting::where('key', 'forms.memo_no')->value('value') !== '0';
     }
 
     public const DEFAULT_BOOKING_DAYS = 7;
@@ -105,6 +111,10 @@ class ShopSettings
 
             if (isset($input['collections']['keep_selection'])) {
                 ShopSetting::updateOrCreate(['key' => 'collections.keep_selection'], ['value' => $input['collections']['keep_selection'] ? '1' : '0']);
+            }
+
+            if (isset($input['forms']['memo_no'])) {
+                ShopSetting::updateOrCreate(['key' => 'forms.memo_no'], ['value' => $input['forms']['memo_no'] ? '1' : '0']);
             }
 
             if (isset($input['forms']['auto_date'])) {

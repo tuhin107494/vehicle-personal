@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CancelSaleRequest;
 use App\Http\Requests\StoreSaleRequest;
+use App\Http\Requests\UpdateSaleRequest;
 use App\Http\Resources\SaleResource;
 use App\Models\Sale;
 use App\Services\SaleService;
@@ -20,13 +21,14 @@ class SaleController extends Controller implements HasMiddleware
         return [
             new Middleware('permission:sales.view', only: ['index', 'show']),
             new Middleware('permission:sales.create', only: ['store']),
+            new Middleware('permission:sales.edit', only: ['update']),
             new Middleware('permission:sales.cancel', only: ['cancel']),
         ];
     }
 
     private const DETAIL = [
         'vehicle', 'customer', 'investor', 'purchase', 'creator', 'plan.installments',
-        'payments.receiver', 'promises', 'registrationLogs.user', 'booking.creator:id,name',
+        'payments.receiver', 'promises', 'registrationLogs.user', 'booking.creator:id,name', 'edits.user:id,name',
     ];
 
     public function __construct(private SaleService $sales) {}
@@ -63,6 +65,13 @@ class SaleController extends Controller implements HasMiddleware
     public function show(Sale $sale): JsonResponse
     {
         return $this->success(SaleResource::make($sale->load(self::DETAIL)));
+    }
+
+    public function update(UpdateSaleRequest $request, Sale $sale): JsonResponse
+    {
+        $sale = $this->sales->update($sale, $request->validated(), $request->user());
+
+        return $this->success(SaleResource::make($sale->load(self::DETAIL)), 'Sale updated');
     }
 
     public function cancel(CancelSaleRequest $request, Sale $sale): JsonResponse

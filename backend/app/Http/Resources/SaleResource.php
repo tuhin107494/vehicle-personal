@@ -31,6 +31,7 @@ class SaleResource extends JsonResource
             'plan' => InstallmentPlanResource::make($this->whenLoaded('plan')),
             'payments' => PaymentResource::collection($this->whenLoaded('payments')),
             'promises' => DuePromiseResource::collection($this->whenLoaded('promises')),
+            'edits' => $this->whenLoaded('edits', fn () => $this->edits->map(fn ($e) => ['id' => $e->id, 'by' => $e->user?->name, 'at' => $e->created_at->toIso8601String(), 'changes' => $e->changes])),
             'registration_logs' => RegistrationLogResource::collection($this->whenLoaded('registrationLogs')),
             'creator' => $this->whenLoaded('creator', fn () => $this->creator->only(['id', 'name'])),
         ];

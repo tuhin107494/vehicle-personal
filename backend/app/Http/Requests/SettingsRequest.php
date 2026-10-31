@@ -20,6 +20,7 @@ class SettingsRequest extends ApiRequest
             'collections.recall_days' => ['nullable', 'integer', 'min:1', 'max:360'],
             'collections.keep_selection' => ['nullable', 'boolean'],
             'forms.auto_date' => ['nullable', 'boolean'],
+            'forms.memo_no' => ['nullable', 'boolean'],
             'booking.days' => ['nullable', 'integer', 'min:1', 'max:365'],
             'booking.on_cancel' => ['nullable', 'in:refund,keep'],
             'booking.on_expire' => ['nullable', 'in:refund,keep'],

@@ -9,7 +9,7 @@ import { Phone } from "lucide-react";
 import { api, applyServerErrors } from "@/lib/api";
 import { fmtDate, money, todayStr, toPayload } from "@/lib/format";
 import { useDebounced, useFetch } from "@/lib/hooks";
-import { useAutoDate, useFillDate, useSettings } from "@/lib/settings";
+import { useAutoDate, useFillDate, useMemoField, useSettings } from "@/lib/settings";
 import type { AccountSummary } from "@/lib/types";
 import { Button, Card, Field, inputCls, Pagination } from "@/components/app-ui";
 import { usePaging } from "@/lib/paging";
@@ -46,6 +46,7 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
   const text = SIDES[side];
   const { user } = useAuth();
   const autoDate = useAutoDate();
+  const showMemo = useMemoField();
   useFillDate(autoDate, () => !getValues("paid_at"), (d) => setValue("paid_at", d));
   const keepSelection = useSettings().data?.collections?.keep_selection ?? false; // a shop setting: stay on the same customer or supplier after a payment
   const [vouchers, setVouchers] = useState<VoucherTx[]>([]); // the receipts shown after a payment (one per purchase or installment it paid)
@@ -257,10 +258,10 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
                 <NativeSelect className={inputCls} {...register("method")}><option value="cash">Cash</option><option value="bank">Bank</option><option value="mobile">Mobile</option></NativeSelect>
               </Field>
               <Field label="Reference" error={errors.reference?.message}><Input className={inputCls} {...register("reference")} /></Field>
-              {side === "customer" && <Field label="Memo no. (optional)" error={errors.memo_no?.message}><Input className={inputCls} {...register("memo_no")} /></Field>}
-              {side === "customer" && <Field label="Note" error={errors.note?.message}><Input className={inputCls} {...register("note")} /></Field>}
+              {side === "customer" && showMemo && <Field label="Memo no. (optional)" error={errors.memo_no?.message}><Input className={inputCls} {...register("memo_no")} /></Field>}
+              {side === "customer" && showMemo && <Field label="Note" error={errors.note?.message}><Input className={inputCls} {...register("note")} /></Field>}
             </div>
-            {side === "supplier" && <Field label="Note" error={errors.note?.message}><Input className={inputCls} {...register("note")} /></Field>}
+            {!(side === "customer" && showMemo) && <Field label="Note" error={errors.note?.message}><Input className={inputCls} {...register("note")} /></Field>}
 
             <div className="flex justify-end gap-2">
               {keepSelection && <Button type="button" variant="outline" onClick={clearAll}>Reset</Button>}

@@ -40,10 +40,10 @@ td.k{width:30%;background:#f3f4f6;font-weight:600}th{background:#ecfdf5;font-siz
 @media print{body{margin:14mm}}
 </style></head><body>
 <div class="head"><div><h1>${esc(shop)}</h1><div>Sales memo</div>${sale.status === "cancelled" ? '<div class="stamp">CANCELLED</div>' : ""}</div>
-<div class="meta"><b>Memo no. SALE-${esc(sale.id)}</b>Date: ${esc(pdate(sale.sale_date))}</div></div>
+<div class="meta"><b>Memo no. ${esc(sale.memo_no || `SALE-${sale.id}`)}</b>Date: ${esc(pdate(sale.sale_date))}</div></div>
 
 <div class="two">
-<div><h2>Customer</h2><table>${rows([["Name", p?.name], ["Father's name", p?.father_name], ["Mobile", [p?.phone, p?.alt_phone].filter(Boolean).join(" / ")], ["NID", p?.nid], ["Address", p?.address], ["Guarantor mobile", sale.guarantor_phone]])}</table></div>
+<div><h2>Customer</h2><table>${rows([["Name", p?.name], ["Father's name", p?.father_name], ["Mobile", [p?.phone, p?.alt_phone].filter(Boolean).join(" / ")], ["NID", p?.nid], ["Address", p?.address], ["Guarantor name", sale.guarantor_name], ["Guarantor mobile", sale.guarantor_phone]])}</table></div>
 <div><h2>Vehicle</h2><table>${rows([["Vehicle", vehicleName], ["Type", cap(v?.vehicle_type)], ["Chassis no.", v?.chassis_no], ["Engine no.", v?.engine_no], ["Reg. no.", v?.registration_no], ["Color", v?.color]])}</table></div>
 </div>
 

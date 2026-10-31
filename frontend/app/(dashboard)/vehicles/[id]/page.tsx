@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Pencil } from "lucide-react";
 import { fmtDate, money } from "@/lib/format";
 import { useCategories } from "@/lib/categories";
 import { useFetch } from "@/lib/hooks";
@@ -11,6 +11,7 @@ import { useAuth } from "@/lib/auth";
 import type { Booking, Payment, Purchase, Sale, Vehicle } from "@/lib/types";
 import { DataTable, type Col } from "@/components/DataTable";
 import { Badge, Button, Card, ErrorText, KV, Loading, PageHeader, StatusBadge } from "@/components/app-ui";
+import { VehicleForm } from "@/components/forms/VehicleForm";
 
 type Event = { type: string; date: string; title: string; amount: number | null; ref_id: number; how?: string | null };
 
@@ -21,7 +22,8 @@ export default function VehicleDetailPage() {
   // View opens the vehicle's details; History (?tab=history) opens its purchase and sale chain
   const history = useSearchParams().get("tab") === "history";
   const [open, setOpen] = useState<Record<string, boolean>>({}); // which chain steps are expanded
-  const { data, loading, error } = useFetch<{ vehicle: Vehicle; sales: Sale[]; purchases: Purchase[]; timeline: Event[]; bookings: Booking[] }>(`/vehicles/${id}/history`);
+  const [editing, setEditing] = useState(false);
+  const { data, loading, error, reload } = useFetch<{ vehicle: Vehicle; sales: Sale[]; purchases: Purchase[]; timeline: Event[]; bookings: Booking[] }>(`/vehicles/${id}/history`);
 
   if (loading && !data) return <Loading />;
   if (error || !data) return <ErrorText message={error ?? "Not found"} />;
@@ -59,7 +61,10 @@ export default function VehicleDetailPage() {
     <>
       <PageHeader
         title={[v.brand, v.model, v.year].filter(Boolean).join(" ") || v.chassis_no}
-        actions={v.status === "sold" ? !can("purchases.create") ? null : <Link className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-green-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:from-emerald-500 hover:to-green-500" href={`/purchases/new?chassis=${encodeURIComponent(v.chassis_no)}`}>Repurchase</Link> : v.status === "in_stock" ? !can("sales.create") ? null : <Link className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-green-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:from-emerald-500 hover:to-green-500" href={`/sales/new?vehicle=${v.id}`}>Sell</Link> : null}
+        actions={<>
+          {can("vehicles.edit") && <Button variant="outline" onClick={() => setEditing(true)}><Pencil className="size-4 text-emerald-600" /> Edit</Button>}
+          {v.status === "sold" ? !can("purchases.create") ? null : <Link className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-green-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:from-emerald-500 hover:to-green-500" href={`/purchases/new?chassis=${encodeURIComponent(v.chassis_no)}`}>Repurchase</Link> : v.status === "in_stock" ? !can("sales.create") ? null : <Link className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-green-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:from-emerald-500 hover:to-green-500" href={`/sales/new?vehicle=${v.id}`}>Sell</Link> : null}
+        </>}
       />
       <div className="mb-4 flex gap-2">
         <Button variant={history ? "outline" : "primary"} onClick={() => window.history.replaceState(null, "", `/vehicles/${id}`)}>Details</Button>
@@ -216,6 +221,7 @@ export default function VehicleDetailPage() {
           })}
         </ol>
       </Card>}
+      <VehicleForm open={editing} vehicle={v} onClose={() => setEditing(false)} onSaved={reload} />
     </>
   );
 }

@@ -11,7 +11,7 @@ export type Settings = {
   purchase: { vehicle_type: string | null; prices: Record<string, number>; from_customer: boolean };
   sale: { vehicle_type: string | null; prices: Record<string, number> };
   collections: { recall_days: number; keep_selection: boolean };
-  forms: { auto_date: boolean };
+  forms: { auto_date: boolean; memo_no: boolean };
   booking: { days: number; on_cancel: "refund" | "keep"; on_expire: "refund" | "keep" };
 };
 
@@ -29,4 +29,9 @@ export function useAutoDate(): string {
 export function useFillDate(date: string, isEmpty: () => boolean, fill: (date: string) => void) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (date && isEmpty()) fill(date); }, [date]);
+}
+
+/** Whether the shop shows the optional memo number field on the Sale and Due collection forms (on unless turned off). */
+export function useMemoField(): boolean {
+  return useSettings().data?.forms?.memo_no !== false;
 }

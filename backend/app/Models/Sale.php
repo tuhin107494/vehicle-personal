@@ -37,6 +37,8 @@ class Sale extends Model
         'registration_status',
         'created_by',
         'guarantor_phone',
+        'guarantor_name',
+        'memo_no',
     ];
 
     public const REGISTRATION_STEPS = [
@@ -112,6 +114,12 @@ class Sale extends Model
     public function promises(): HasMany
     {
         return $this->hasMany(DuePromise::class);
+    }
+
+    /** @return HasMany<SaleEdit, $this> */
+    public function edits(): HasMany
+    {
+        return $this->hasMany(SaleEdit::class)->latest('id');
     }
 
     /** @return HasMany<RegistrationLog, $this> */

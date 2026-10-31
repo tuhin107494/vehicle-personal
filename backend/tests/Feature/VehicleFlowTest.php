@@ -62,6 +62,169 @@ class VehicleFlowTest extends TestCase
         ];
     }
 
+    public function test_a_sale_keeps_an_optional_memo_number_and_guarantor_name(): void
+    {
+        $v = $this->stockVehicle('MEMO-1');
+        $this->postJson('/api/sales', $this->saleData($v, ['payment_type' => 'due', 'down_payment' => 400000, 'promised_date' => today()->addDays(10)->toDateString(), 'memo_no' => 'M-12', 'guarantor_name' => 'Karim', 'guarantor_phone' => '01711111111']))
+            ->assertCreated()->assertJsonPath('data.memo_no', 'M-12')->assertJsonPath('data.guarantor_name', 'Karim');
+
+        $v2 = $this->stockVehicle('MEMO-2');
+        $this->postJson('/api/sales', $this->saleData($v2))->assertCreated()->assertJsonPath('data.memo_no', null)->assertJsonPath('data.guarantor_name', null);
+    }
+
+    private function editBody(array $sale, array $extra = []): array
+    {
+        return $extra + [
+            'customer_id' => $sale['customer_id'], 'sale_date' => $sale['sale_date'], 'sale_price' => $sale['sale_price'],
+            'payment_type' => $sale['payment_type'], 'down_payment' => $sale['down_payment'],
+        ];
+    }
+
+    public function test_a_sale_can_be_edited_and_the_edit_is_kept_in_its_history(): void
+    {
+        $v = $this->stockVehicle('EDIT-1');
+        $sale = $this->postJson('/api/sales', $this->saleData($v, ['payment_type' => 'due', 'down_payment' => 400000, 'promised_date' => today()->addDays(10)->toDateString()]))->assertCreated()->json('data');
+
+        // details only: nothing about the money changes
+        $this->putJson("/api/sales/{$sale['id']}", $this->editBody($sale, ['memo_no' => 'M-5', 'guarantor_name' => 'Karim', 'promised_date' => today()->addDays(10)->toDateString()]))
+            ->assertOk()->assertJsonPath('data.memo_no', 'M-5')->assertJsonPath('data.edits.0.changes.0.field', 'Memo no.');
+
+        // no change, no history row
+        $this->putJson("/api/sales/{$sale['id']}", $this->editBody($sale, ['memo_no' => 'M-5', 'guarantor_name' => 'Karim', 'promised_date' => today()->addDays(10)->toDateString()]))
+            ->assertOk()->assertJsonCount(1, 'data.edits');
+
+        // the money terms, before anything is collected: payments and the due are rebuilt
+        $this->putJson("/api/sales/{$sale['id']}", $this->editBody($sale, ['sale_price' => 1200000, 'down_payment' => 500000, 'memo_no' => 'M-5', 'guarantor_name' => 'Karim', 'promised_date' => today()->addDays(10)->toDateString()]))
+            ->assertOk()->assertJsonPath('data.due_amount', 700000)->assertJsonPath('data.total_paid', 500000)->assertJsonCount(2, 'data.edits');
+        $this->assertDatabaseCount('payments', 1);
+        $this->assertSame(700000.0, (float) \App\Models\DuePromise::where('sale_id', $sale['id'])->value('promised_amount'));
+    }
+
+    public function test_money_terms_are_locked_once_a_payment_is_collected_but_details_still_edit(): void
+    {
+        $v = $this->stockVehicle('EDIT-2');
+        $sale = $this->postJson('/api/sales', $this->saleData($v, ['payment_type' => 'due', 'down_payment' => 400000]))->assertCreated()->json('data');
+        $this->postJson("/api/sales/{$sale['id']}/payments", ['amount' => 100000, 'method' => 'cash'])->assertCreated();
+
+        $this->putJson("/api/sales/{$sale['id']}", $this->editBody($sale, ['sale_price' => 1100000]))->assertStatus(409);
+        $this->putJson("/api/sales/{$sale['id']}", $this->editBody($sale, ['memo_no' => 'M-9']))->assertOk()->assertJsonPath('data.memo_no', 'M-9');
+    }
+
+    public function test_an_installment_plan_is_rebuilt_when_its_terms_are_edited(): void
+    {
+        $v = $this->stockVehicle('EDIT-4');
+        $plan = ['installment_count' => 6, 'first_due_date' => today()->addMonth()->toDateString(), 'interest_rate' => 10];
+        $sale = $this->postJson('/api/sales', $this->saleData($v, ['payment_type' => 'installment', 'down_payment' => 400000] + $plan))->assertCreated()->json('data');
+        $this->assertDatabaseCount('installments', 6);
+
+        $this->putJson("/api/sales/{$sale['id']}", $this->editBody($sale, ['installment_count' => 4] + $plan))->assertOk()
+            ->assertJsonPath('data.plan.number_of_installments', 4)->assertJsonPath('data.edits.0.changes.0.field', 'Installments');
+        $this->assertDatabaseCount('installments', 4);
+        $this->assertDatabaseCount('installment_plans', 1);
+    }
+
+    public function test_a_collected_payment_can_be_edited_with_a_history_but_the_amount_stays(): void
+    {
+        $v = $this->stockVehicle('TX-1');
+        $sale = $this->postJson('/api/sales', $this->saleData($v, ['payment_type' => 'due', 'down_payment' => 400000]))->assertCreated()->json('data');
+        $this->postJson('/api/accounts', ['side' => 'customer', 'customer_id' => $sale['customer_id'], 'amount' => 100000, 'method' => 'cash'])->assertCreated();
+
+        $rows = $this->getJson("/api/reports/person-transactions?side=customer&customer_id={$sale['customer_id']}")->assertOk()->json('data.rows');
+        $payments = array_values(array_filter($rows, fn ($r) => $r['kind'] === 'payment'));
+        $collected = collect($payments)->firstWhere('paid', 100000);
+        $this->assertNotNull($collected['tx']);
+        $atSale = collect($payments)->firstWhere('paid', 400000);
+        $this->assertNotNull($atSale['tx']); // taken at the sale: its details can be edited too
+
+        $tx = $collected['tx'];
+        $this->putJson("/api/transactions/{$tx['type']}/{$tx['id']}", ['paid_at' => today()->toDateString(), 'method' => 'bank', 'reference' => 'R-1', 'memo_no' => 'M-3', 'note' => 'fixed'])
+            ->assertOk()->assertJsonPath('data.values.method', 'bank')->assertJsonPath('data.values.memo_no', 'M-3')->assertJsonCount(1, 'data.edits');
+        $this->assertDatabaseHas('payments', ['id' => $tx['id'], 'amount' => 100000, 'method' => 'bank', 'memo_no' => 'M-3']);
+
+        // the date cannot go before the sale, and a tx that cannot be edited is refused
+        $this->putJson("/api/transactions/{$tx['type']}/{$tx['id']}", ['paid_at' => today()->subDays(30)->toDateString(), 'method' => 'cash'])->assertStatus(409);
+        $adjustment = \App\Models\Payment::create(['sale_id' => $sale['id'], 'amount' => 1000, 'method' => 'adjustment', 'paid_at' => now(), 'received_by' => auth()->id() ?? 1, 'note' => 'Set off']);
+        $this->putJson("/api/transactions/customer_payment/{$adjustment->id}", ['paid_at' => today()->toDateString(), 'method' => 'cash'])->assertStatus(409);
+        $this->getJson("/api/transactions/{$tx['type']}/{$tx['id']}")->assertOk()->assertJsonPath('data.edits.0.changes.0.field', 'Method');
+    }
+
+    public function test_a_supplier_payment_and_advance_can_be_edited(): void
+    {
+        $seller = Supplier::create(['name' => 'Seller', 'phone' => '01700077777']);
+        $this->postJson('/api/purchases', ['vehicle_type' => 'motorcycle', 'chassis_no' => 'TX-S1', 'engine_no' => 'E-TX-S1', 'supplier_id' => $seller->id, 'purchase_date' => today()->subDays(5)->toDateString(), 'price' => 100000, 'paid_amount' => 0])->assertCreated();
+        $this->postJson('/api/accounts', ['side' => 'supplier', 'supplier_id' => $seller->id, 'amount' => 130000, 'method' => 'cash'])->assertCreated(); // 100,000 for the purchase, 30,000 advance
+
+        $rows = collect($this->getJson("/api/reports/person-transactions?side=supplier&supplier_id={$seller->id}")->assertOk()->json('data.rows'))->where('kind', '!=', 'purchase');
+        $payment = $rows->firstWhere('kind', 'payment')['tx'];
+        $advance = $rows->firstWhere('kind', 'advance')['tx'];
+        $this->assertSame('supplier_payment', $payment['type']);
+        $this->assertSame('supplier_advance', $advance['type']);
+
+        $this->putJson("/api/transactions/{$payment['type']}/{$payment['id']}", ['paid_at' => today()->toDateString(), 'method' => 'mobile', 'reference' => 'bKash 1'])->assertOk();
+        $this->putJson("/api/transactions/{$advance['type']}/{$advance['id']}", ['paid_at' => today()->toDateString(), 'method' => 'bank', 'note' => 'ahead'])->assertOk();
+        $this->assertDatabaseHas('purchase_payments', ['id' => $payment['id'], 'method' => 'mobile', 'reference' => 'bKash 1', 'amount' => 100000]);
+        $this->assertDatabaseHas('advances', ['id' => $advance['id'], 'method' => 'bank', 'amount' => 30000]);
+    }
+
+    public function test_a_collected_amount_can_be_changed_and_the_sale_follows(): void
+    {
+        $v = $this->stockVehicle('AMT-1');
+        $sale = $this->postJson('/api/sales', $this->saleData($v, ['payment_type' => 'due', 'down_payment' => 400000]))->assertCreated()->json('data');
+        $this->postJson('/api/accounts', ['side' => 'customer', 'customer_id' => $sale['customer_id'], 'amount' => 100000, 'method' => 'cash'])->assertCreated();
+        $pay = \App\Models\Payment::where('sale_id', $sale['id'])->whereNull('note')->first();
+
+        $this->putJson("/api/transactions/customer_payment/{$pay->id}", ['amount' => 150000, 'paid_at' => today()->toDateString(), 'method' => 'cash'])
+            ->assertOk()->assertJsonPath('data.edits.0.changes.0.field', 'Amount');
+        $this->assertDatabaseHas('sales', ['id' => $sale['id'], 'total_paid' => 550000, 'due_amount' => 450000]);
+
+        // more than the sale total is refused; the down payment's amount is changed with the sale
+        $this->putJson("/api/transactions/customer_payment/{$pay->id}", ['amount' => 700000, 'paid_at' => today()->toDateString(), 'method' => 'cash'])->assertStatus(409);
+        $down = \App\Models\Payment::where('sale_id', $sale['id'])->where('note', 'Down payment')->first();
+        $this->putJson("/api/transactions/customer_payment/{$down->id}", ['amount' => 450000, 'paid_at' => today()->toDateString(), 'method' => 'cash', 'note' => 'changed'])->assertStatus(409);
+        $this->assertDatabaseHas('payments', ['id' => $down->id, 'note' => 'Down payment', 'amount' => 400000]);
+        $this->getJson("/api/transactions/customer_payment/{$down->id}")->assertOk()->assertJsonPath('data.values.amount_lock', 'This was taken at the sale: change it with Edit sale.');
+    }
+
+    public function test_an_installment_amount_is_kept_within_its_installment(): void
+    {
+        $v = $this->stockVehicle('AMT-2');
+        $plan = ['installment_count' => 4, 'first_due_date' => today()->addMonth()->toDateString(), 'interest_rate' => 0];
+        $sale = $this->postJson('/api/sales', $this->saleData($v, ['payment_type' => 'installment', 'down_payment' => 400000] + $plan))->assertCreated()->json('data');
+        $this->postJson("/api/sales/{$sale['id']}/payments", ['amount' => 100000, 'method' => 'cash'])->assertCreated();
+        $pay = \App\Models\Payment::where('sale_id', $sale['id'])->whereNotNull('installment_id')->first();
+
+        $this->putJson("/api/transactions/customer_payment/{$pay->id}", ['amount' => 120000, 'paid_at' => today()->toDateString(), 'method' => 'cash'])->assertOk();
+        $this->assertDatabaseHas('installments', ['id' => $pay->installment_id, 'paid_amount' => 120000]);
+        $this->putJson("/api/transactions/customer_payment/{$pay->id}", ['amount' => 200000, 'paid_at' => today()->toDateString(), 'method' => 'cash'])->assertStatus(409); // installments are 150,000
+    }
+
+    public function test_a_supplier_amount_and_advance_amount_keep_the_totals_right(): void
+    {
+        $seller = Supplier::create(['name' => 'Seller', 'phone' => '01700066666']);
+        $p = $this->postJson('/api/purchases', ['vehicle_type' => 'motorcycle', 'chassis_no' => 'AMT-S1', 'engine_no' => 'E-AMT-S1', 'supplier_id' => $seller->id, 'purchase_date' => today()->subDays(5)->toDateString(), 'price' => 100000, 'paid_amount' => 0])->assertCreated()->json('data');
+        $this->postJson('/api/accounts', ['side' => 'supplier', 'supplier_id' => $seller->id, 'amount' => 60000, 'method' => 'cash'])->assertCreated();
+        $pay = \App\Models\PurchasePayment::where('purchase_id', $p['id'])->first();
+
+        $this->putJson("/api/transactions/supplier_payment/{$pay->id}", ['amount' => 80000, 'paid_at' => today()->toDateString(), 'method' => 'cash'])->assertOk();
+        $this->assertDatabaseHas('purchases', ['id' => $p['id'], 'paid_amount' => 80000, 'payment_status' => 'partial']);
+        $this->putJson("/api/transactions/supplier_payment/{$pay->id}", ['amount' => 100000, 'paid_at' => today()->toDateString(), 'method' => 'cash'])->assertOk();
+        $this->assertDatabaseHas('purchases', ['id' => $p['id'], 'paid_amount' => 100000, 'payment_status' => 'paid']);
+        $this->putJson("/api/transactions/supplier_payment/{$pay->id}", ['amount' => 100001, 'paid_at' => today()->toDateString(), 'method' => 'cash'])->assertStatus(409);
+
+        $advance = \App\Models\Advance::create(['supplier_id' => $seller->id, 'amount' => 5000, 'used' => 3000, 'method' => 'cash', 'paid_at' => today(), 'created_by' => 1]);
+        $this->putJson("/api/transactions/supplier_advance/{$advance->id}", ['amount' => 2000, 'paid_at' => today()->toDateString(), 'method' => 'cash'])->assertStatus(409);
+        $this->putJson("/api/transactions/supplier_advance/{$advance->id}", ['amount' => 7000, 'paid_at' => today()->toDateString(), 'method' => 'cash'])->assertOk();
+    }
+
+    public function test_a_cancelled_sale_cannot_be_edited(): void
+    {
+        $v = $this->stockVehicle('EDIT-3');
+        $sale = $this->postJson('/api/sales', $this->saleData($v))->assertCreated()->json('data');
+        $this->postJson("/api/sales/{$sale['id']}/cancel", ['reason' => 'test'])->assertOk();
+
+        $this->putJson("/api/sales/{$sale['id']}", $this->editBody($sale, ['memo_no' => 'X']))->assertStatus(409);
+    }
+
     public function test_cannot_buy_vehicle_that_is_in_stock(): void
     {
         $v = $this->stockVehicle();
@@ -326,7 +489,8 @@ class VehicleFlowTest extends TestCase
         $all = $this->getJson('/api/reports/transactions?side=customer')->assertOk();
         $this->assertSame(200000.0, (float) $all->json('data.total_charge'));
         $this->assertSame($buyer->id, $all->json('data.rows.0.person_id'));
-        $this->assertStringStartsWith('SALE-', $all->json('data.rows.0.no'));
+        $this->assertStringStartsWith('CP-', $all->json('data.rows.0.no')); // newest first: the latest payment, and the sale entry last
+        $this->assertStringStartsWith('SALE-', $all->json('data.rows.'.(count($all->json('data.rows')) - 1).'.no'));
         $this->assertNotEmpty($all->json('data.rows.0.details'));
         $day = $this->getJson('/api/reports/daily')->assertOk();
         $investor = Investor::create(['name' => 'Daily Inv', 'phone' => '01700099999']);

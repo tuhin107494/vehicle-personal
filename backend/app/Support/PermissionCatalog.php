@@ -34,6 +34,8 @@ class PermissionCatalog
             ...$crud('purchases', 'purchases'),
             ['sales.view', 'View sales', 'sales'],
             ['sales.create', 'Create sales', 'sales'],
+            ['sales.edit', 'Edit sales', 'sales'],
+            ['transactions.edit', 'Edit customer and supplier transactions', 'accounts'],
             ['sales.cancel', 'Cancel sales', 'sales'],
             ['payments.collect', 'Collect payments', 'collections'],
             ['promises.view', 'View due promises', 'collections'],
@@ -55,6 +57,6 @@ class PermissionCatalog
     public static function moderatorDefaults(): array
     {
         return array_values(array_filter(array_column(self::all(), 0), fn ($k) => ! str_ends_with($k, '.delete')
-            && ! in_array($k, ['sales.cancel', 'settlements.manage', 'settlements.view', 'reports.view', 'settings.manage'], true)));
+            && ! in_array($k, ['sales.edit', 'transactions.edit', 'sales.cancel', 'settlements.manage', 'settlements.view', 'reports.view', 'settings.manage'], true)));
     }
 }

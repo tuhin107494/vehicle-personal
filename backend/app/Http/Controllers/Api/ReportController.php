@@ -8,6 +8,7 @@ use App\Http\Resources\PurchaseResource;
 use App\Http\Resources\SaleResource;
 use App\Http\Resources\VehicleResource;
 use App\Models\Advance;
+use App\Services\TransactionService;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Investor;
@@ -179,11 +180,12 @@ class ReportController extends Controller implements HasMiddleware
         $inRange = $sorted->filter(fn ($e) => (! $from || $e['date'] >= $from) && (! $to || $e['date'] <= $to))->values();
 
         $balance = $opening;
+        // the balance runs oldest to newest, then the list is turned around so the latest shows first
         $rows = $inRange->map(function ($e) use (&$balance) {
             $balance = Money::add($balance, $e['charge'], -$e['paid']);
 
-            return ['date' => $e['date'], 'kind' => $e['kind'], 'description' => $e['description'], 'vehicle' => $e['vehicle'], 'reference' => $e['reference'], 'charge' => $e['charge'], 'paid' => $e['paid'], 'balance' => $balance, 'no' => $e['no'], 'details' => array_values(array_filter($e['details'], fn ($d) => $d[1] !== null && $d[1] !== ''))];
-        });
+            return ['date' => $e['date'], 'kind' => $e['kind'], 'description' => $e['description'], 'vehicle' => $e['vehicle'], 'reference' => $e['reference'], 'charge' => $e['charge'], 'paid' => $e['paid'], 'balance' => $balance, 'no' => $e['no'], 'tx' => $e['tx'], 'details' => array_values(array_filter($e['details'], fn ($d) => $d[1] !== null && $d[1] !== ''))];
+        })->reverse()->values();
 
         return $this->success([
             'person' => $party->only(['id', 'name', 'phone', 'alt_phone', 'address']),
@@ -205,9 +207,9 @@ class ReportController extends Controller implements HasMiddleware
     }
 
     /** @param array<int,array{0:string,1:?string}> $details label/value pairs shown on the transaction's voucher */
-    private function entry(int $person_id, string $date, int $order, int $id, string $kind, string $description, ?string $vehicle, float $charge, float $paid, ?string $reference = null, string $no = '', array $details = []): array
+    private function entry(int $person_id, string $date, int $order, int $id, string $kind, string $description, ?string $vehicle, float $charge, float $paid, ?string $reference = null, string $no = '', array $details = [], ?array $tx = null): array
     {
-        return compact('person_id', 'date', 'order', 'id', 'kind', 'description', 'vehicle', 'charge', 'paid', 'reference', 'no', 'details');
+        return compact('person_id', 'date', 'order', 'id', 'kind', 'description', 'vehicle', 'charge', 'paid', 'reference', 'no', 'details', 'tx');
     }
 
     private function customerEntries(?int $customerId = null): array
@@ -230,7 +232,7 @@ class ReportController extends Controller implements HasMiddleware
                 $out[] = $this->entry($sale->customer_id, $pay->paid_at->toDateString(), 1, $pay->id, 'payment', $label, $vehicle, $pay->amount < 0 ? abs($pay->amount) : 0, $pay->amount > 0 ? $pay->amount : 0, $pay->reference, 'CP-'.$pay->id, [
                     ['Vehicle', $name ?: null], ['Chassis', $vehicle], ['Sale', "#{$sale->id}"], ['Method', ucfirst($pay->method)],
                     ['Installment', $pay->installment ? "#{$pay->installment->seq_no}" : null], ['Received by', $pay->receiver?->name], ['Memo no.', $pay->memo_no], ['Note', $pay->note],
-                ]);
+                ], TransactionService::tx($pay));
             }
 
             if ($sale->status === 'cancelled') {
@@ -265,12 +267,12 @@ class ReportController extends Controller implements HasMiddleware
             foreach ($p->payments as $pay) {
                 // money taken from an advance was counted when the advance was given
                 $fromAdvance = $pay->method === 'advance';
-                $out[] = $this->entry($p->supplier_id, $pay->paid_at->toDateString(), 1, $pay->id, 'payment', $fromAdvance ? 'Paid from advance' : "Payment ({$pay->method})", $vehicle, 0, $fromAdvance ? 0 : (float) $pay->amount, $pay->reference, 'SP-'.$pay->id, [...$car, ['Purchase', "#{$p->id}"], ['Method', ucfirst($pay->method)], ['Note', $pay->note]]);
+                $out[] = $this->entry($p->supplier_id, $pay->paid_at->toDateString(), 1, $pay->id, 'payment', $fromAdvance ? 'Paid from advance' : "Payment ({$pay->method})", $vehicle, 0, $fromAdvance ? 0 : (float) $pay->amount, $pay->reference, 'SP-'.$pay->id, [...$car, ['Purchase', "#{$p->id}"], ['Method', ucfirst($pay->method)], ['Note', $pay->note]], TransactionService::tx($pay));
             }
         }
 
         foreach (Advance::query()->when($supplierId, fn ($q) => $q->where('supplier_id', $supplierId))->get() as $a) {
-            $out[] = $this->entry($a->supplier_id, $a->paid_at->toDateString(), 1, $a->id, 'advance', "Advance paid ({$a->method})", null, 0, (float) $a->amount, $a->reference, "SP-{$a->id}", [['Method', ucfirst($a->method)], ['Note', $a->note]]);
+            $out[] = $this->entry($a->supplier_id, $a->paid_at->toDateString(), 1, $a->id, 'advance', "Advance paid ({$a->method})", null, 0, (float) $a->amount, $a->reference, "SP-{$a->id}", [['Method', ucfirst($a->method)], ['Note', $a->note]], TransactionService::tx($a));
         }
 
         return $out;
@@ -397,14 +399,14 @@ class ReportController extends Controller implements HasMiddleware
         $to = $request->to;
         $entries = collect($request->side === 'customer' ? $this->customerEntries() : $this->supplierEntries())
             ->filter(fn ($e) => (! $from || $e['date'] >= $from) && (! $to || $e['date'] <= $to))
-            ->sortBy([['date', 'asc'], ['person_id', 'asc'], ['order', 'asc'], ['id', 'asc']])->values();
+            ->sortBy([['date', 'desc'], ['order', 'desc'], ['id', 'desc']])->values(); // newest first
         $model = $request->side === 'customer' ? Customer::class : Supplier::class;
         $people = $model::whereIn('id', $entries->pluck('person_id')->unique())->get(['id', 'name', 'phone'])->keyBy('id');
 
         $rows = $entries->map(fn ($e) => [
             'date' => $e['date'], 'person_id' => $e['person_id'], 'person' => $people[$e['person_id']]->name ?? '-', 'phone' => $people[$e['person_id']]->phone ?? null, 'kind' => $e['kind'],
             'description' => $e['description'], 'vehicle' => $e['vehicle'], 'reference' => $e['reference'], 'charge' => $e['charge'], 'paid' => $e['paid'],
-            'no' => $e['no'], 'details' => array_values(array_filter($e['details'], fn ($d) => $d[1] !== null && $d[1] !== '')),
+            'no' => $e['no'], 'tx' => $e['tx'], 'details' => array_values(array_filter($e['details'], fn ($d) => $d[1] !== null && $d[1] !== '')),
         ]);
 
         return $this->success([

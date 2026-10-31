@@ -19,7 +19,7 @@ import { openSaleMemo } from "@/components/SaleMemo";
 import { useAuth } from "@/lib/auth";
 import { CustomerSelect, InvestorSelect } from "@/components/Selects";
 import { SearchSelect } from "@/components/SearchSelect";
-import { useAutoDate, useFillDate, useSettings } from "@/lib/settings";
+import { useAutoDate, useFillDate, useMemoField, useSettings } from "@/lib/settings";
 import { useCategories } from "@/lib/categories";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -40,6 +40,8 @@ const schema = z.object({
   promise_note: z.string(),
   investor_id: z.string(),
   guarantor_phone: z.string(),
+  guarantor_name: z.string(),
+  memo_no: z.string(),
   installment_count: z.string(),
   first_due_date: z.string(),
   frequency: z.enum(["monthly", "weekly"]),
@@ -128,7 +130,7 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
 
   const blank = (vehicleId: string): Values => ({
       vehicle_id: booking?.vehicle_id ? String(booking.vehicle_id) : vehicleId, party_id: booking ? String(booking.customer_id) : "", sale_date: "", sale_price: booking?.agreed_price ? String(Number(booking.agreed_price)) : "", payment_type: investorMode ? "installment" : "cash", down_payment: booking ? String(Number(booking.advance_amount)) : "", // from a booking this is the total received at the sale: the advance, plus what is paid now (typed apart from it)
-      method: "cash", advance_amount: "", advance_date: "", promised_date: "", promise_note: "", investor_id: "", guarantor_phone: "", installment_count: "24", first_due_date: addDays(30),
+      method: "cash", advance_amount: "", advance_date: "", promised_date: "", promise_note: "", investor_id: "", guarantor_phone: "", guarantor_name: "", memo_no: "", installment_count: "24", first_due_date: addDays(30),
       frequency: "monthly", interest_rate: "0", interest_mode: "percent", interest_amount: "", investor_share_percent: "0", investor_share_mode: "percent", investor_share_amount: "", investor_rate: "",
   });
 
@@ -139,6 +141,7 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
 
   const settings = useSettings();
   const autoDate = useAutoDate();
+  const showMemo = useMemoField();
   useFillDate(autoDate, () => !getValues("sale_date"), (d) => setValue("sale_date", d));
 
   // The vehicle list starts on the shop's primary type for sales (Settings); "All types" shows everything.
@@ -318,7 +321,8 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
         vehicle_id: v.vehicle_id, customer_id: v.party_id, sale_date: v.sale_date, sale_price: v.sale_price, payment_type: v.payment_type, method: v.method,
         down_payment: v.payment_type === "cash" ? v.sale_price : v.down_payment,
         ...(!booking && Number(v.advance_amount) > 0 && { advance_amount: v.advance_amount, advance_date: v.advance_date }),
-        ...(v.payment_type !== "cash" && { guarantor_phone: v.guarantor_phone }),
+        ...(showMemo && { memo_no: v.memo_no }),
+        ...(v.payment_type !== "cash" && { guarantor_phone: v.guarantor_phone, guarantor_name: v.guarantor_name }),
         ...(v.payment_type === "due" && { promised_date: v.promised_date, promise_note: v.promise_note }),
         ...(v.payment_type === "installment" && {
           investor_id: v.investor_id, installment_count: v.installment_count, first_due_date: v.first_due_date, frequency: v.frequency,
@@ -437,6 +441,7 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
                 <option value="cash">Cash</option><option value="bank">Bank</option><option value="mobile">Mobile</option>
               </NativeSelect>
             </Field>
+            {showMemo && <Field label="Memo no. (optional)" error={errors.memo_no?.message}><Input className={inputCls} {...register("memo_no")} /></Field>}
             {type !== "cash" && (
               advance > 0 ? (
                 <Field required label="Down payment (without the advance)" error={errors.down_payment?.message}>
@@ -450,6 +455,9 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
               ) : (
                 <Field required label="Down payment" error={errors.down_payment?.message}><Input type="number" step="0.01" className={inputCls} {...register("down_payment")} /></Field>
               )
+            )}
+            {type !== "cash" && (
+              <Field label="Guarantor name (optional)" error={errors.guarantor_name?.message}><Input className={inputCls} {...register("guarantor_name")} /></Field>
             )}
             {type !== "cash" && (
               <Field label="Guarantor mobile (optional)" error={errors.guarantor_phone?.message}><Input type="tel" className={inputCls} {...register("guarantor_phone")} /></Field>

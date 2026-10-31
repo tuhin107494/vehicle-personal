@@ -127,7 +127,7 @@ class PaymentService
         return $allocation;
     }
 
-    private function refreshInstallment(Installment $installment, Carbon $paidAt): void
+    public function refreshInstallment(Installment $installment, Carbon $paidAt): void
     {
         if (Money::paisa($installment->paid_amount) >= Money::paisa($installment->amount)) {
             $installment->status = 'paid';

@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\ShopController;
 use App\Http\Controllers\Api\SignupController;
 use App\Http\Controllers\Api\SupplierController;
+use App\Http\Controllers\Api\TransactionController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\VehicleCategoryController;
 use App\Http\Controllers\Api\VehicleColorController;
@@ -156,5 +157,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('vehicles/{vehicle}', [VehicleController::class, 'destroy']);
         Route::delete('purchases/{purchase}', [PurchaseController::class, 'destroy']);
         Route::post('sales/{sale}/cancel', [SaleController::class, 'cancel']);
+        Route::get('transactions/{type}/{id}', [TransactionController::class, 'show']);
+        Route::put('transactions/{type}/{id}', [TransactionController::class, 'update']);
     });
 });
