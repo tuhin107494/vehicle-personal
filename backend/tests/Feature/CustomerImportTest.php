@@ -90,6 +90,7 @@ class CustomerImportTest extends TestCase
         $this->as($this->owner('A'));
         $this->import("name,mobile_x\nA,1\n")->assertStatus(409);
         $this->import("name,phone\n\xFF\xFE,0190\n")->assertStatus(409);
+        $this->import("name,phone\nA\0B,01900000001\n")->assertStatus(409); // binary content
         $this->postJson('/api/customers/import', [])->assertStatus(422);
         $this->postJson('/api/customers/import', ['file' => UploadedFile::fake()->create('a.pdf', 10, 'application/pdf')])->assertStatus(422);
     }

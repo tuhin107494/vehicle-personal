@@ -86,8 +86,8 @@ class CustomerImportService
         $contents = file_get_contents($path);
         $contents = preg_replace('/^\xEF\xBB\xBF/', '', $contents);
 
-        if (! mb_check_encoding($contents, 'UTF-8')) {
-            throw new BusinessRuleException('The file must be saved as UTF-8 (in Excel: "CSV UTF-8").');
+        if (str_contains($contents, "\0") || ! mb_check_encoding($contents, 'UTF-8')) {
+            throw new BusinessRuleException('The file must be a plain-text CSV saved as UTF-8 (in Excel: "CSV UTF-8").');
         }
 
         $first = strtok($contents, "\r\n") ?: '';
