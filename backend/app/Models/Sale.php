@@ -26,6 +26,7 @@ class Sale extends Model
         'sale_date',
         'sale_price',
         'down_payment',
+        'charges_total',
         'payment_type',
         'total_paid',
         'due_amount',
@@ -56,6 +57,7 @@ class Sale extends Model
             'sale_date' => 'date:Y-m-d',
             'sale_price' => 'float',
             'down_payment' => 'float',
+            'charges_total' => 'float',
             'total_paid' => 'float',
             'due_amount' => 'float',
             'cancelled_at' => 'datetime',
@@ -116,6 +118,12 @@ class Sale extends Model
         return $this->hasMany(DuePromise::class);
     }
 
+    /** @return HasMany<SaleCharge, $this> */
+    public function charges(): HasMany
+    {
+        return $this->hasMany(SaleCharge::class)->orderBy('charged_on')->orderBy('id');
+    }
+
     /** @return HasMany<SaleEdit, $this> */
     public function edits(): HasMany
     {
@@ -130,10 +138,10 @@ class Sale extends Model
 
     public function grandTotal(): float
     {
-        if ($this->payment_type === 'installment' && $this->plan) {
-            return Money::add($this->down_payment, $this->plan->total_payable);
-        }
+        $base = $this->payment_type === 'installment' && $this->plan
+            ? Money::add($this->down_payment, $this->plan->total_payable)
+            : (float) $this->sale_price;
 
-        return (float) $this->sale_price;
+        return Money::add($base, $this->charges_total); // charges added to the customer's bill
     }
 }

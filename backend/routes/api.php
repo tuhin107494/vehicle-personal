@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\PurchaseController;
 use App\Http\Controllers\Api\RegistrationController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\RoleController;
+use App\Http\Controllers\Api\SaleChargeController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\ShopController;
@@ -157,6 +158,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('vehicles/{vehicle}', [VehicleController::class, 'destroy']);
         Route::delete('purchases/{purchase}', [PurchaseController::class, 'destroy']);
         Route::post('sales/{sale}/cancel', [SaleController::class, 'cancel']);
+        Route::post('sales/{sale}/charges', [SaleChargeController::class, 'store']);
+        Route::get('charges/{charge}', [SaleChargeController::class, 'show']);
+        Route::put('charges/{charge}', [SaleChargeController::class, 'update']);
+        Route::delete('charges/{charge}', [SaleChargeController::class, 'destroy']);
         Route::get('transactions/{type}/{id}', [TransactionController::class, 'show']);
         Route::put('transactions/{type}/{id}', [TransactionController::class, 'update']);
     });

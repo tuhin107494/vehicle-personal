@@ -216,6 +216,43 @@ class VehicleFlowTest extends TestCase
         $this->putJson("/api/transactions/supplier_advance/{$advance->id}", ['amount' => 7000, 'paid_at' => today()->toDateString(), 'method' => 'cash'])->assertOk();
     }
 
+    public function test_a_charge_adds_to_the_due_and_is_collected_after_the_sale_balance(): void
+    {
+        $v = $this->stockVehicle('CHG-1');
+        $sale = $this->postJson('/api/sales', $this->saleData($v, ['payment_type' => 'due', 'down_payment' => 900000]))->assertCreated()->json('data'); // 100,000 due
+
+        $charge = $this->postJson("/api/sales/{$sale['id']}/charges", ['purpose' => 'Late fee', 'amount' => 5000, 'charged_on' => today()->toDateString()])->assertCreated()->json('data');
+        $this->assertDatabaseHas('sales', ['id' => $sale['id'], 'charges_total' => 5000, 'due_amount' => 105000]);
+
+        // 102,000: the 100,000 balance first, then 2,000 of the charge
+        $this->postJson('/api/accounts', ['side' => 'customer', 'customer_id' => $sale['customer_id'], 'amount' => 102000, 'method' => 'cash'])->assertCreated();
+        $this->assertDatabaseHas('payments', ['sale_id' => $sale['id'], 'sale_charge_id' => null, 'amount' => 100000, 'note' => null]);
+        $this->assertDatabaseHas('payments', ['sale_charge_id' => $charge['id'], 'amount' => 2000]);
+        $this->assertDatabaseHas('sales', ['id' => $sale['id'], 'due_amount' => 3000]);
+
+        // the charge shows on the statement, can be raised but not below what is paid, and is not deletable once paid
+        $this->getJson("/api/reports/person-transactions?side=customer&customer_id={$sale['customer_id']}")->assertOk()
+            ->assertJsonFragment(['description' => 'Late fee', 'charge' => 5000]);
+        $this->putJson("/api/charges/{$charge['id']}", ['purpose' => 'Late fee', 'amount' => 1000, 'charged_on' => today()->toDateString()])->assertStatus(409);
+        $this->putJson("/api/charges/{$charge['id']}", ['purpose' => 'Late fee', 'amount' => 6000, 'charged_on' => today()->toDateString()])->assertOk();
+        $this->assertDatabaseHas('sales', ['id' => $sale['id'], 'due_amount' => 4000]);
+        $this->deleteJson("/api/charges/{$charge['id']}")->assertStatus(409);
+        $this->getJson("/api/charges/{$charge['id']}")->assertOk()->assertJsonPath('data.edits.0.changes.0.field', 'Amount');
+    }
+
+    public function test_charge_payments_on_an_installment_sale_come_after_the_installments(): void
+    {
+        $v = $this->stockVehicle('CHG-2');
+        $plan = ['installment_count' => 2, 'first_due_date' => today()->addMonth()->toDateString(), 'interest_rate' => 0];
+        $sale = $this->postJson('/api/sales', $this->saleData($v, ['payment_type' => 'installment', 'down_payment' => 800000] + $plan))->assertCreated()->json('data'); // 2 x 100,000
+        $charge = $this->postJson("/api/sales/{$sale['id']}/charges", ['purpose' => 'Documents', 'amount' => 3000, 'charged_on' => today()->toDateString()])->assertCreated()->json('data');
+
+        $this->postJson('/api/accounts', ['side' => 'customer', 'customer_id' => $sale['customer_id'], 'amount' => 203000, 'method' => 'cash'])->assertCreated();
+        $this->assertDatabaseHas('sales', ['id' => $sale['id'], 'due_amount' => 0, 'payment_status' => 'paid']);
+        $this->assertDatabaseHas('payments', ['sale_charge_id' => $charge['id'], 'amount' => 3000]);
+        $this->assertDatabaseCount('installments', 2);
+    }
+
     public function test_a_cancelled_sale_cannot_be_edited(): void
     {
         $v = $this->stockVehicle('EDIT-3');

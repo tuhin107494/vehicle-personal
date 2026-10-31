@@ -127,7 +127,7 @@ class ReportController extends Controller implements HasMiddleware
             ->orderByDesc('sale_date')->orderByDesc('id')->get();
 
         $cost = fn ($s) => Money::add($s->purchase->price ?? 0, $s->purchase->cost_extra ?? 0);
-        $profit = fn ($s) => Money::add($s->sale_price, -$cost($s));
+        $profit = fn ($s) => Money::add($s->sale_price, $s->charges_total, -$cost($s)); // charges to the customer are extra income
 
         $rows = $sales->map(fn ($s) => [
             ...SaleResource::make($s)->resolve(),
@@ -215,7 +215,7 @@ class ReportController extends Controller implements HasMiddleware
     private function customerEntries(?int $customerId = null): array
     {
         $out = [];
-        $sales = Sale::with(['vehicle:id,chassis_no,brand,model,engine_no', 'plan', 'payments.receiver:id,name', 'payments.installment:id,seq_no'])->when($customerId, fn ($q) => $q->where('customer_id', $customerId))->get();
+        $sales = Sale::with(['vehicle:id,chassis_no,brand,model,engine_no', 'plan', 'charges', 'payments.receiver:id,name', 'payments.installment:id,seq_no'])->when($customerId, fn ($q) => $q->where('customer_id', $customerId))->get();
 
         foreach ($sales as $sale) {
             $vehicle = $sale->vehicle->chassis_no;
@@ -233,6 +233,12 @@ class ReportController extends Controller implements HasMiddleware
                     ['Vehicle', $name ?: null], ['Chassis', $vehicle], ['Sale', "#{$sale->id}"], ['Method', ucfirst($pay->method)],
                     ['Installment', $pay->installment ? "#{$pay->installment->seq_no}" : null], ['Received by', $pay->receiver?->name], ['Memo no.', $pay->memo_no], ['Note', $pay->note],
                 ], TransactionService::tx($pay));
+            }
+
+            foreach ($sale->charges as $charge) {
+                $out[] = $this->entry($sale->customer_id, $charge->charged_on->toDateString(), 0, $charge->id, 'charge', $charge->purpose, $vehicle, (float) $charge->amount, 0, null, "CHG-{$charge->id}", [
+                    ['Vehicle', $name ?: null], ['Chassis', $vehicle], ['Sale', "#{$sale->id}"], ['Note', $charge->note],
+                ]);
             }
 
             if ($sale->status === 'cancelled') {

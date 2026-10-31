@@ -28,7 +28,7 @@ class SaleController extends Controller implements HasMiddleware
 
     private const DETAIL = [
         'vehicle', 'customer', 'investor', 'purchase', 'creator', 'plan.installments',
-        'payments.receiver', 'promises', 'registrationLogs.user', 'booking.creator:id,name', 'edits.user:id,name',
+        'payments.receiver', 'promises', 'registrationLogs.user', 'booking.creator:id,name', 'edits.user:id,name', 'charges',
     ];
 
     public function __construct(private SaleService $sales) {}

@@ -18,6 +18,7 @@ class Payment extends Model
         'shop_id',
         'sale_id',
         'installment_id',
+        'sale_charge_id',
         'amount',
         'method',
         'paid_at',

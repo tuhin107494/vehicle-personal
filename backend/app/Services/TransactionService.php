@@ -7,6 +7,7 @@ use App\Models\Advance;
 use App\Models\Installment;
 use App\Models\Purchase;
 use App\Models\Sale;
+use App\Models\SaleCharge;
 use App\Models\Payment;
 use App\Models\PurchasePayment;
 use App\Models\TransactionEdit;
@@ -124,6 +125,15 @@ class TransactionService
 
             if ($paidTotal > Money::paisa($sale->grandTotal())) {
                 throw new BusinessRuleException('That would be more than the sale total of '.Money::format(Money::paisa($sale->grandTotal())).'.');
+            }
+
+            if ($m->sale_charge_id) {
+                $charge = SaleCharge::findOrFail($m->sale_charge_id);
+                $others = Money::paisa(Payment::where('sale_charge_id', $charge->id)->where('id', '!=', $m->id)->sum('amount'));
+
+                if ($others + $new > Money::paisa($charge->amount)) {
+                    throw new BusinessRuleException('That is more than the charge of '.Money::format(Money::paisa($charge->amount)).'.');
+                }
             }
 
             if ($m->installment_id) {

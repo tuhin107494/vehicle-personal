@@ -13,7 +13,8 @@ import { Badge, Button, Card, ErrorText, KV, Loading, PageHeader, StatusBadge } 
 import { Col, DataTable } from "@/components/DataTable";
 import { CancelSaleModal, CollectPaymentModal, PromiseModal } from "@/components/forms/SaleModals";
 import { SaleEditModal } from "@/components/forms/SaleEditModal";
-import { Ban, CalendarClock, HandCoins, Pencil, Printer } from "lucide-react";
+import { SaleChargeModal } from "@/components/forms/SaleChargeModal";
+import { Ban, CalendarClock, HandCoins, Pencil, Plus, Printer, Trash2 } from "lucide-react";
 import { openSaleMemo } from "@/components/SaleMemo";
 
 const STEPS = ["pending", "bank_chalan_done", "file_received", "file_processing", "registration_complete", "document_provided"];
@@ -61,6 +62,7 @@ export default function SaleDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { can, user } = useAuth();
   const { data: sale, loading, error, reload } = useFetch<Sale>(`/sales/${id}`);
+  const [chargeFor, setChargeFor] = useState<number | null | "new">(null); // the charge being edited, or "new"
   const [modal, setModal] = useState<"pay" | "promise" | "cancel" | "edit" | null>(null);
 
   if (loading && !sale) return <Loading />;
@@ -100,6 +102,34 @@ export default function SaleDetailPage() {
     { header: "Note", cell: ({ row }) => row.original.note ?? "-" },
   ];
 
+  const removeCharge = async (chargeId: number) => {
+    if (!confirm("Delete this charge?")) return;
+    try {
+      const res = await api(`/charges/${chargeId}`, { method: "DELETE" });
+      toast.success(res.message);
+      reload();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Failed");
+    }
+  };
+  const chargeCols: Col<NonNullable<Sale["charges"]>[number]>[] = [
+    { header: "Date", cell: ({ row }) => fmtDate(row.original.charged_on) },
+    { header: "Purpose", cell: ({ row }) => row.original.purpose },
+    { header: "Amount", cell: ({ row }) => money(row.original.amount) },
+    { header: "Paid", cell: ({ row }) => money(row.original.paid ?? 0) },
+    { header: "Remaining", cell: ({ row }) => money(row.original.amount - (row.original.paid ?? 0)) },
+    { header: "Note", cell: ({ row }) => row.original.note ?? "-" },
+    ...(active && can("sales.charge") ? [{
+      header: "Action",
+      id: "actions",
+      cell: ({ row }: { row: { original: NonNullable<Sale["charges"]>[number] } }) => (
+        <div className="flex justify-end gap-1.5">
+          <Button variant="outline" size="sm" onClick={() => setChargeFor(row.original.id)}><Pencil className="size-3.5 text-emerald-600" /> Edit</Button>
+          {!(row.original.paid ?? 0) && <Button variant="danger" size="sm" onClick={() => removeCharge(row.original.id)}><Trash2 className="size-3.5" /> Delete</Button>}
+        </div>
+      ),
+    }] : []),
+  ];
   const editCols: Col<NonNullable<Sale["edits"]>[number]>[] = [
     { header: "When", cell: ({ row }) => new Date(row.original.at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) },
     { header: "By", cell: ({ row }) => row.original.by ?? "-" },
@@ -123,6 +153,7 @@ export default function SaleDetailPage() {
           <Button variant="outline" onClick={() => openSaleMemo(sale, user?.shop?.name ?? "Vehicle Hub", { installments: false })}><Printer className="size-4 text-sky-600" /> Memo</Button>
           {active && can("payments.collect") && sale.due_amount > 0 && <Button onClick={() => setModal("pay")}><HandCoins className="size-4 " /> Collect payment</Button>}
           {active && can("promises.manage") && sale.due_amount > 0 && sale.payment_type === "due" && <Button variant="outline" onClick={() => setModal("promise")}><CalendarClock className="size-4 text-amber-500" /> Add promise</Button>}
+          {active && can("sales.charge") && <Button variant="outline" onClick={() => setChargeFor("new")}><Plus className="size-4 text-amber-600" /> Add charge</Button>}
           {active && can("sales.edit") && <Button variant="outline" onClick={() => setModal("edit")}><Pencil className="size-4 text-emerald-600" /> Edit</Button>}
           {active && can("sales.cancel") && <Button variant="danger" onClick={() => setModal("cancel")}><Ban className="size-4 " /> Cancel sale</Button>}
         </>}
@@ -164,6 +195,7 @@ export default function SaleDetailPage() {
       {sale.payment_type === "due" && (<><h2 className="mb-2 mt-6 font-semibold">Promises</h2><DataTable columns={promiseCols} data={sale.promises ?? []} empty="No promises." /></>)}
       <h2 className="mb-2 mt-6 font-semibold">Payments</h2>
       <DataTable columns={payCols} data={sale.payments ?? []} empty="No payments yet." />
+      {(sale.charges?.length ?? 0) > 0 && (<><h2 className="mb-2 mt-6 font-semibold">Charges</h2><DataTable columns={chargeCols} data={sale.charges ?? []} /></>)}
       <h2 className="mb-2 mt-6 font-semibold">Edit history</h2>
       <DataTable columns={editCols} data={sale.edits ?? []} empty="This sale has not been edited." />
       <h2 className="mb-2 mt-6 font-semibold">Registration log</h2>
@@ -171,6 +203,7 @@ export default function SaleDetailPage() {
 
       <CollectPaymentModal open={modal === "pay"} sale={sale} onClose={() => setModal(null)} onDone={reload} />
       <PromiseModal open={modal === "promise"} sale={sale} onClose={() => setModal(null)} onDone={reload} />
+      <SaleChargeModal open={chargeFor !== null} saleId={sale.id} chargeId={typeof chargeFor === "number" ? chargeFor : null} onClose={() => setChargeFor(null)} onDone={reload} />
       <SaleEditModal open={modal === "edit"} sale={sale} onClose={() => setModal(null)} onDone={reload} />
       <CancelSaleModal open={modal === "cancel"} sale={sale} onClose={() => setModal(null)} onDone={reload} />
     </>
