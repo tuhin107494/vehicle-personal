@@ -11,10 +11,11 @@ import { Input } from "@/components/ui/input";
 import { PrintButton } from "@/components/PrintButton";
 import { ResponsiveFilters } from "@/components/ResponsiveFilters";
 import { MobileCards } from "@/components/MobileCards";
-import { Printer } from "lucide-react";
+import { Pencil, Printer } from "lucide-react";
 import { printVoucher, TransactionVoucher, type VoucherTx } from "@/components/TransactionVoucher";
+import { TransactionEditModal, type Tx } from "@/components/forms/TransactionEditModal";
 
-type Row = { no: string; details: [string, string][]; date: string; kind: string; description: string; vehicle: string | null; reference: string | null; charge: number; paid: number; balance: number };
+type Row = { tx?: Tx | null; no: string; details: [string, string][]; date: string; kind: string; description: string; vehicle: string | null; reference: string | null; charge: number; paid: number; balance: number };
 type Statement = {
   person: { id: number; name: string; phone: string; alt_phone: string | null; address: string | null };
   side: "customer" | "supplier"; from: string | null; to: string | null;
@@ -22,7 +23,7 @@ type Statement = {
 };
 
 type ListRow = { person: { id: number; name: string; phone: string; alt_phone: string | null }; opening_balance: number; charge: number; paid: number; closing_balance: number; transactions: number; last_date: string | null };
-type TxRow = { no: string; phone: string | null; details: [string, string][]; date: string; person_id: number; person: string; kind: string; description: string; vehicle: string | null; reference: string | null; charge: number; paid: number };
+type TxRow = { tx?: Tx | null; no: string; phone: string | null; details: [string, string][]; date: string; person_id: number; person: string; kind: string; description: string; vehicle: string | null; reference: string | null; charge: number; paid: number };
 type Txs = { rows: TxRow[]; total_charge: number; total_paid: number };
 type Listing = { rows: ListRow[]; total_opening: number; total_charge: number; total_paid: number; total_closing: number };
 
@@ -35,13 +36,15 @@ const TEXT = {
 
 /** A customer's or supplier's full statement, with a print / save-as-PDF button. */
 export function PersonStatement({ side }: { side: "customer" | "supplier" }) {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const t = TEXT[side];
+  const [editing, setEditing] = useState<Tx | null>(null);
+  const editButton = (r: { tx?: Tx | null }) => (r.tx && can("transactions.edit") ? <button type="button" onClick={() => setEditing(r.tx!)} className="inline-flex items-center gap-1 rounded-lg border border-amber-200 px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50"><Pencil className="size-3.5" /> Edit</button> : null);
   const [personId, setPersonId] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const qs = new URLSearchParams({ side, [side === "customer" ? "customer_id" : "supplier_id"]: personId, ...(from && { from }), ...(to && { to }) });
-  const { data, loading, error } = useFetch<Statement>(personId ? `/reports/person-transactions?${qs}` : null);
+  const { data, loading, error, reload: reloadStatement } = useFetch<Statement>(personId ? `/reports/person-transactions?${qs}` : null);
   const [pickedName, setPickedName] = useState<string | undefined>();
   const listQs = new URLSearchParams({ side, ...(from && { from }), ...(to && { to }) });
   const [voucher, setVoucher] = useState<VoucherTx | null>(null);
@@ -183,7 +186,7 @@ export function PersonStatement({ side }: { side: "customer" | "supplier" }) {
                 <MobileCards
                   tone={CARD_TONE}
                   empty="No transactions in this period."
-                  items={txPg.items.map((r, i) => ({ key: i, title: r.description, sub: `${fmtDate(r.date)} · ${r.person}${r.vehicle ? ` · ${r.vehicle}` : ""}`, amount: money(r.charge || r.paid), fields: [[r.charge ? t.charge : t.paid, money(r.charge || r.paid)], ...(r.reference ? ([["Ref.", r.reference]] as [string, React.ReactNode][]) : [])], action: <div className="flex gap-1.5"><button type="button" onClick={() => setVoucher(r)} className="rounded-lg border border-emerald-200 px-3 py-1 text-xs font-medium text-emerald-700">View</button><button type="button" onClick={() => printVoucher(r, side, shopName)} className="inline-flex items-center gap-1 rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50"><Printer className="size-3.5" /> Print</button></div> }))}
+                  items={txPg.items.map((r, i) => ({ key: i, title: r.description, sub: `${fmtDate(r.date)} · ${r.person}${r.vehicle ? ` · ${r.vehicle}` : ""}`, amount: money(r.charge || r.paid), fields: [[r.charge ? t.charge : t.paid, money(r.charge || r.paid)], ...(r.reference ? ([["Ref.", r.reference]] as [string, React.ReactNode][]) : [])], action: <div className="flex gap-1.5"><button type="button" onClick={() => setVoucher(r)} className="rounded-lg border border-emerald-200 px-3 py-1 text-xs font-medium text-emerald-700">View</button><button type="button" onClick={() => printVoucher(r, side, shopName)} className="inline-flex items-center gap-1 rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50"><Printer className="size-3.5" /> Print</button>{editButton(r)}</div> }))}
                   totals={[[side === "customer" ? "Total sold" : "Total bought", money(txs.data.total_charge)], [side === "customer" ? "Total received" : "Total paid", money(txs.data.total_paid)]]}
                 />
                 <div className="hidden overflow-x-auto md:block print:block">
@@ -206,7 +209,7 @@ export function PersonStatement({ side }: { side: "customer" | "supplier" }) {
                           <td className="border-r border-emerald-100 px-3 py-2">{r.reference ?? ""}</td>
                           <td className="border-r border-emerald-100 px-3 py-2 text-right text-amber-700 print:text-black">{r.charge ? money(r.charge) : ""}</td>
                           <td className="border-r border-emerald-100 px-3 py-2 text-right text-emerald-700 print:text-black">{r.paid ? money(r.paid) : ""}</td>
-                          <td className="whitespace-nowrap px-3 py-2 text-right print:hidden"><div className="flex justify-end gap-1.5"><button type="button" onClick={() => setVoucher(r)} className="rounded-lg border border-emerald-200 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50">View</button><button type="button" onClick={() => printVoucher(r, side, shopName)} className="inline-flex items-center gap-1 rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50"><Printer className="size-3.5" /> Print</button></div></td>
+                          <td className="whitespace-nowrap px-3 py-2 text-right print:hidden"><div className="flex justify-end gap-1.5"><button type="button" onClick={() => setVoucher(r)} className="rounded-lg border border-emerald-200 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50">View</button><button type="button" onClick={() => printVoucher(r, side, shopName)} className="inline-flex items-center gap-1 rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50"><Printer className="size-3.5" /> Print</button>{editButton(r)}</div></td>
                         </tr>
                       ))}
                       {!txs.data.rows.length && <tr className="border-t border-emerald-200"><td colSpan={8} className="px-3 py-6 text-center text-slate-500">No transactions in this period.</td></tr>}
@@ -257,8 +260,8 @@ export function PersonStatement({ side }: { side: "customer" | "supplier" }) {
               tone={CARD_TONE}
               empty="No transactions in this period."
               items={[
+                ...stPg.items.map((r, i) => ({ key: i, title: r.description, sub: `${fmtDate(r.date)}${r.vehicle ? ` · ${r.vehicle}` : ""}`, amount: money(r.balance), fields: [...(r.charge ? ([[t.charge, money(r.charge)]] as [string, React.ReactNode][]) : []), ...(r.paid ? ([[t.paid, money(r.paid)]] as [string, React.ReactNode][]) : []), ...(r.reference ? ([["Ref.", r.reference]] as [string, React.ReactNode][]) : [])] , action: <div className="flex gap-1.5"><button type="button" onClick={() => setVoucher(voucherOf(r))} className="rounded-lg border border-emerald-200 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50">View</button><button type="button" onClick={() => printVoucher(voucherOf(r), side, shopName)} className="inline-flex items-center gap-1 rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50"><Printer className="size-3.5" /> Print</button>{editButton(r)}</div> })),
                 { key: "open", title: "Opening balance", amount: money(data.opening_balance), fields: [] },
-                ...stPg.items.map((r, i) => ({ key: i, title: r.description, sub: `${fmtDate(r.date)}${r.vehicle ? ` · ${r.vehicle}` : ""}`, amount: money(r.balance), fields: [...(r.charge ? ([[t.charge, money(r.charge)]] as [string, React.ReactNode][]) : []), ...(r.paid ? ([[t.paid, money(r.paid)]] as [string, React.ReactNode][]) : []), ...(r.reference ? ([["Ref.", r.reference]] as [string, React.ReactNode][]) : [])] , action: <div className="flex gap-1.5"><button type="button" onClick={() => setVoucher(voucherOf(r))} className="rounded-lg border border-emerald-200 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50">View</button><button type="button" onClick={() => printVoucher(voucherOf(r), side, shopName)} className="inline-flex items-center gap-1 rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50"><Printer className="size-3.5" /> Print</button></div> })),
               ]}
               totals={[[side === "customer" ? "Total sold" : "Total bought", money(data.total_charge)], [side === "customer" ? "Total received" : "Total paid", money(data.total_paid)], ["Balance", money(data.closing_balance)]]}
             />
@@ -274,13 +277,6 @@ export function PersonStatement({ side }: { side: "customer" | "supplier" }) {
                 </tr>
               </thead>
               <tbody>
-                <tr className="border-t border-emerald-200 bg-slate-50 text-slate-600">
-                  <td className="border-r border-emerald-100 px-3 py-2" colSpan={4}>Opening balance</td>
-                  <td className="border-r border-emerald-100 px-3 py-2" />
-                  <td className="border-r border-emerald-100 px-3 py-2" />
-                  <td className="border-r border-emerald-100 px-3 py-2 text-right font-medium">{money(data.opening_balance)}</td>
-                  <td className="px-3 py-2 print:hidden" />
-                </tr>
                 {stPg.items.map((r, i) => (
                   <tr key={i} className="border-t border-emerald-200">
                     <td className="whitespace-nowrap border-r border-emerald-100 px-3 py-2">{fmtDate(r.date)}</td>
@@ -290,10 +286,17 @@ export function PersonStatement({ side }: { side: "customer" | "supplier" }) {
                     <td className="border-r border-emerald-100 px-3 py-2 text-right text-amber-700 print:text-black">{r.charge ? money(r.charge) : ""}</td>
                     <td className="border-r border-emerald-100 px-3 py-2 text-right text-emerald-700 print:text-black">{r.paid ? money(r.paid) : ""}</td>
                     <td className="border-r border-emerald-100 px-3 py-2 text-right font-medium">{money(r.balance)}</td>
-                    <td className="whitespace-nowrap px-3 py-2 text-right print:hidden"><div className="flex justify-end gap-1.5"><button type="button" onClick={() => setVoucher(voucherOf(r))} className="rounded-lg border border-emerald-200 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50">View</button><button type="button" onClick={() => printVoucher(voucherOf(r), side, shopName)} className="inline-flex items-center gap-1 rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50"><Printer className="size-3.5" /> Print</button></div></td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right print:hidden"><div className="flex justify-end gap-1.5"><button type="button" onClick={() => setVoucher(voucherOf(r))} className="rounded-lg border border-emerald-200 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50">View</button><button type="button" onClick={() => printVoucher(voucherOf(r), side, shopName)} className="inline-flex items-center gap-1 rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50"><Printer className="size-3.5" /> Print</button>{editButton(r)}</div></td>
                   </tr>
                 ))}
                 {!data.rows.length && <tr className="border-t border-emerald-200"><td colSpan={8} className="px-3 py-6 text-center text-slate-500">No transactions in this period.</td></tr>}
+                <tr className="border-t border-emerald-200 bg-slate-50 text-slate-600">
+                  <td className="border-r border-emerald-100 px-3 py-2" colSpan={4}>Opening balance</td>
+                  <td className="border-r border-emerald-100 px-3 py-2" />
+                  <td className="border-r border-emerald-100 px-3 py-2" />
+                  <td className="border-r border-emerald-100 px-3 py-2 text-right font-medium">{money(data.opening_balance)}</td>
+                  <td className="px-3 py-2 print:hidden" />
+                </tr>
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-emerald-300 bg-emerald-50 font-semibold print:bg-slate-100">
@@ -311,6 +314,7 @@ export function PersonStatement({ side }: { side: "customer" | "supplier" }) {
           <p className="mt-2 hidden text-xs text-slate-500 print:block">Printed on {fmtDate(new Date().toISOString())}</p>
         </div>
       )}
+    <TransactionEditModal tx={editing} onClose={() => setEditing(null)} onDone={() => { list.reload(); txs.reload(); reloadStatement(); }} />
     <TransactionVoucher tx={voucher} side={side} shop={shopName} onClose={() => setVoucher(null)} />
     </>
   );
