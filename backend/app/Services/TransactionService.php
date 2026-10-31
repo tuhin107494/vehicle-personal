@@ -83,6 +83,12 @@ class TransactionService
         return rtrim(rtrim($text, '0'), '.');
     }
 
+    /** The rows of the collection a payment belongs to (just itself when it was not spread). */
+    private function batch(Model $m): \Illuminate\Support\Collection
+    {
+        return $m instanceof Payment && $m->batch_no ? Payment::where('sale_id', $m->sale_id)->where('batch_no', $m->batch_no)->get() : collect([$m]);
+    }
+
     /** A payment taken at the sale is recognised by its note ("Down payment"...), so the note stays as it is. */
     private function noteLocked(Model $m): bool
     {
@@ -98,6 +104,7 @@ class TransactionService
             return match (true) {
                 $sale->status !== 'active' => 'The sale was cancelled, so its payments are fixed.',
                 $this->noteLocked($m) => 'This was taken at the sale: change it with Edit sale.',
+                $this->batch($m)->count() > 1 => 'This payment was spread over several installments, so its amount is fixed. Its other details can still change.',
                 (bool) $sale->plan?->investor_id => 'This sale is financed by an investor, whose share was already credited from this payment.',
                 default => null,
             };
@@ -217,6 +224,11 @@ class TransactionService
             }
 
             $m->update($fields);
+
+            // a collection spread over several installments is one invoice: its details change on every row
+            foreach ($this->batch($m)->where('id', '!=', $m->id) as $row) {
+                $row->update(['paid_at' => $date->copy()->setTimeFrom($row->paid_at)] + array_diff_key($fields, ['paid_at' => 1]));
+            }
 
             $changes = [];
 

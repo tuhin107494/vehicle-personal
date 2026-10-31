@@ -79,11 +79,17 @@ export default function SaleDetailPage() {
     { header: "Remaining", cell: ({ row }) => money(row.original.amount - row.original.paid_amount) },
     { header: "Status", cell: ({ row }) => <StatusBadge status={row.original.status} /> },
   ];
-  const payCols: Col<Payment>[] = [
+  // one collection spread over several installments is one row: the amounts add up and the installments are listed together
+  const payRows: (Payment & { installmentIds: (number | null)[] })[] = [];
+  for (const pay of sale.payments ?? []) {
+    const same = pay.batch_no ? payRows.find((r) => r.batch_no === pay.batch_no) : undefined;
+    if (same) { same.amount += pay.amount; same.installmentIds.push(pay.installment_id); } else payRows.push({ ...pay, installmentIds: [pay.installment_id] });
+  }
+  const payCols: Col<Payment & { installmentIds: (number | null)[] }>[] = [
     { header: "Date", cell: ({ row }) => fmtDate(row.original.paid_at) },
     { header: "Amount", cell: ({ row }) => <span className={row.original.amount < 0 ? "text-red-600" : ""}>{money(row.original.amount)}</span> },
     { header: "Method", accessorKey: "method" },
-    { header: "Installment", cell: ({ row }) => (row.original.installment_id ? `#${installments.find((i) => i.id === row.original.installment_id)?.seq_no ?? ""}` : "-") },
+    { header: "Installment", cell: ({ row }) => row.original.installmentIds.filter(Boolean).map((id) => `#${installments.find((i) => i.id === id)?.seq_no ?? ""}`).join(", ") || "-" },
     { header: "Reference", cell: ({ row }) => row.original.reference ?? "-" },
     { header: "Memo no.", cell: ({ row }) => row.original.memo_no ?? "-" },
     { header: "Received by", cell: ({ row }) => row.original.receiver?.name ?? "-" },
@@ -194,7 +200,7 @@ export default function SaleDetailPage() {
       {sale.plan && (<><h2 className="mb-2 font-semibold">Installments</h2><DataTable columns={instCols} data={installments} /></>)}
       {sale.payment_type === "due" && (<><h2 className="mb-2 mt-6 font-semibold">Promises</h2><DataTable columns={promiseCols} data={sale.promises ?? []} empty="No promises." /></>)}
       <h2 className="mb-2 mt-6 font-semibold">Payments</h2>
-      <DataTable columns={payCols} data={sale.payments ?? []} empty="No payments yet." />
+      <DataTable columns={payCols} data={payRows} empty="No payments yet." />
       {(sale.charges?.length ?? 0) > 0 && (<><h2 className="mb-2 mt-6 font-semibold">Charges</h2><DataTable columns={chargeCols} data={sale.charges ?? []} /></>)}
       <h2 className="mb-2 mt-6 font-semibold">Edit history</h2>
       <DataTable columns={editCols} data={sale.edits ?? []} empty="This sale has not been edited." />
