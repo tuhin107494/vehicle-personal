@@ -101,6 +101,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('investors', 'investors');
         });
 
+        Route::post('customers/import', [CustomerController::class, 'import'])->middleware('throttle:10,1');
         Route::apiResource('customers', CustomerController::class)->except('destroy');
         Route::get('customers/{customer}/history', [CustomerController::class, 'history']);
         Route::apiResource('suppliers', SupplierController::class)->except('destroy');
