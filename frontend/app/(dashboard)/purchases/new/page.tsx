@@ -512,7 +512,7 @@ function PurchaseForm() {
               <div className="flex flex-wrap justify-end gap-2">
                 <Button variant="outline" onClick={() => setCreated(null)}>Close</Button>
                 <Link className="inline-flex items-center rounded-lg border border-violet-200 bg-white px-3 py-2 text-sm font-medium text-violet-700 hover:bg-violet-50" href={`/vehicles/${created.vehicle_id}`}>View vehicle</Link>
-                <Button onClick={() => { printVoucher(voucher, created.source === "customer" ? "customer" : "supplier", user?.shop?.name ?? "Vehicle Hub"); setCreated(null); }}><Printer className="size-4" /> Print voucher</Button>
+                <Button onClick={() => { printVoucher(voucher, created.source === "customer" ? "customer" : "supplier", user?.shop?.name ?? "Gari Becho"); setCreated(null); }}><Printer className="size-4" /> Print voucher</Button>
               </div>
             </div>
           );

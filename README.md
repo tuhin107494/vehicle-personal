@@ -137,6 +137,7 @@ backend/
 ```
 frontend/
 ├── app/
+│   ├── page.tsx         # public landing page at /
 │   ├── (auth)/          # login, forgot-password, reset-password
 │   └── (dashboard)/     # one folder per screen: vehicles, sales, purchases, reports, …
 ├── components/          # shared components (DataTable, SearchSelect, AppShell, …)

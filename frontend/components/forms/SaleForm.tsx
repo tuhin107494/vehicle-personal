@@ -569,7 +569,7 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
             <div className="flex flex-wrap justify-end gap-2">
               <Button variant="outline" onClick={() => setCreated(null)}>Close</Button>
               <Link className="inline-flex items-center rounded-lg border border-violet-200 bg-white px-3 py-2 text-sm font-medium text-violet-700 hover:bg-violet-50" href={`/sales/${created.id}`}>View sale</Link>
-              <Button onClick={() => { openSaleMemo(created, user?.shop?.name ?? "Vehicle Hub"); setCreated(null); }}><Printer className="size-4" /> Print memo</Button>
+              <Button onClick={() => { openSaleMemo(created, user?.shop?.name ?? "Gari Becho"); setCreated(null); }}><Printer className="size-4" /> Print memo</Button>
             </div>
           </div>
         )}

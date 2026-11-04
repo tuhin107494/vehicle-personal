@@ -102,7 +102,7 @@ export function BookingList() {
           );
         }
         const view = <button type="button" aria-label="View booking" title="View" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-violet-700" onClick={() => setViewing(b)}><Eye className="size-4" /></button>;
-        const print = <button type="button" aria-label="Print booking" title="Print" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-sky-700" onClick={() => openBookingReceipt(b, user?.shop?.name ?? "Vehicle Hub")}><Printer className="size-4" /></button>;
+        const print = <button type="button" aria-label="Print booking" title="Print" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-sky-700" onClick={() => openBookingReceipt(b, user?.shop?.name ?? "Gari Becho")}><Printer className="size-4" /></button>;
         if (b.status === "active") {
           return (
             <div className="flex flex-wrap items-center justify-end gap-1.5 md:flex-nowrap md:whitespace-nowrap">

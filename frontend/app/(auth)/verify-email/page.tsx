@@ -29,7 +29,7 @@ function Confirm() {
       .then((res) => {
         startSession(res.data);
         toast.success(res.message);
-        router.replace("/");
+        router.replace("/dashboard");
       })
       .catch((e) => setError(e instanceof ApiError ? (e.errors?.token?.[0] ?? e.message) : "Something went wrong"));
   }, [id, expires, token, startSession, router]);

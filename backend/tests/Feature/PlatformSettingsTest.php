@@ -8,6 +8,7 @@ use App\Support\PlatformSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class PlatformSettingsTest extends TestCase
@@ -44,7 +45,7 @@ class PlatformSettingsTest extends TestCase
     {
         $this->actingAs($this->superAdmin())->putJson('/api/platform-settings', [
             'google' => ['enabled' => true, 'client_id' => 'client-123', 'client_secret' => 'google-secret'],
-            'smtp' => ['enabled' => true, 'host' => 'smtp.gmail.com', 'port' => 587, 'encryption' => 'tls', 'username' => 'me@gmail.com', 'password' => 'app-password', 'from_address' => 'me@gmail.com', 'from_name' => 'Vehicle Hub'],
+            'smtp' => ['enabled' => true, 'host' => 'smtp.gmail.com', 'port' => 587, 'encryption' => 'tls', 'username' => 'me@gmail.com', 'password' => 'app-password', 'from_address' => 'me@gmail.com', 'from_name' => 'Gari Becho'],
         ])->assertOk()
             ->assertJsonPath('data.google.client_id', 'client-123')
             ->assertJsonPath('data.google.client_secret_set', true)
@@ -70,7 +71,7 @@ class PlatformSettingsTest extends TestCase
 
     public function test_saved_smtp_settings_drive_the_mailer(): void
     {
-        PlatformSettings::save(['smtp' => ['enabled' => true, 'host' => 'smtp.gmail.com', 'port' => 465, 'encryption' => 'ssl', 'username' => 'me@gmail.com', 'password' => 'app-password', 'from_address' => 'me@gmail.com', 'from_name' => 'Vehicle Hub']]);
+        PlatformSettings::save(['smtp' => ['enabled' => true, 'host' => 'smtp.gmail.com', 'port' => 465, 'encryption' => 'ssl', 'username' => 'me@gmail.com', 'password' => 'app-password', 'from_address' => 'me@gmail.com', 'from_name' => 'Gari Becho']]);
 
         PlatformSettings::applyMail();
 
@@ -78,7 +79,28 @@ class PlatformSettingsTest extends TestCase
         $this->assertSame('smtp.gmail.com', config('mail.mailers.smtp.host'));
         $this->assertSame('smtps', config('mail.mailers.smtp.scheme'));
         $this->assertSame('app-password', config('mail.mailers.smtp.password'));
-        $this->assertSame('Vehicle Hub', config('mail.from.name'));
+        $this->assertSame('Gari Becho', config('mail.from.name'));
+    }
+
+    public function test_the_saved_sender_names_every_email(): void
+    {
+        config(['app.name' => 'Vehicle Management']);
+        PlatformSettings::save(['smtp' => ['enabled' => true, 'host' => 'smtp.example.com', 'from_address' => 'noreply@garibecho.com', 'from_name' => 'Gari Becho']]);
+
+        PlatformSettings::applyMail();
+
+        $this->assertSame('noreply@garibecho.com', config('mail.from.address'));
+        $this->assertSame('Gari Becho', config('mail.from.name'));
+        $this->assertSame('Gari Becho', config('app.name'));
+    }
+
+    public function test_every_email_is_marked_as_automatic(): void
+    {
+        Mail::raw('Hello', fn ($m) => $m->to('someone@example.com')->subject('Test'));
+
+        $sent = app('mail.manager')->mailer('array')->getSymfonyTransport()->messages()->first()->getOriginalMessage();
+
+        $this->assertSame('auto-generated', $sent->getHeaders()->get('Auto-Submitted')->getBodyAsString());
     }
 
     public function test_the_login_page_only_sees_the_google_client_id_once_it_is_on(): void

@@ -1,3 +1,7 @@
+/** GET /landing: what the public landing page shows. A detail left blank in System settings stays off the page. */
+export type LandingInfo = {
+  signup_enabled: boolean; contact_form: boolean; support_email: string | null; support_phone: string | null; whatsapp: string | null; address: string | null; support_hours: string | null;
+};
 export type Customer = {
   id: number; name: string; father_name: string | null; phone: string; alt_phone: string | null; nid: string | null;
   address: string | null; notes: string | null; receivable_due?: number; photo_url?: string | null;

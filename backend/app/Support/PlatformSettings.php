@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
-/** Platform-wide settings the super admin keeps: Google sign-in and the SMTP server mail goes out through. */
+/** Platform-wide settings the super admin keeps: Google sign-in, the SMTP server mail goes out through, and the landing page's contact details. */
 class PlatformSettings
 {
     private const CACHE_KEY = 'platform_settings';
@@ -28,6 +28,11 @@ class PlatformSettings
         'smtp.password' => 'secret',
         'smtp.from_address' => 'string',
         'smtp.from_name' => 'string',
+        'landing.support_email' => 'string',
+        'landing.support_phone' => 'string',
+        'landing.whatsapp' => 'string', // international format: wa.me links need the country code
+        'landing.address' => 'string',
+        'landing.support_hours' => 'string',
     ];
 
     /** Values used until the super admin saves one. Sign-up is open by default: new shops still wait for approval. */
@@ -51,6 +56,20 @@ class PlatformSettings
         }
 
         return $out;
+    }
+
+    /** What the public landing page may see. Anyone can read this, so nothing outside the landing group goes in here except whether sign-up is open and the contact form works. */
+    public static function forLanding(): array
+    {
+        return ['signup_enabled' => (bool) self::get('signup.enabled'), 'contact_form' => filled(self::get('landing.support_email')) && self::canSendMail()] + self::forAdmin()['landing'];
+    }
+
+    /** Whether mail really leaves the server, through the saved SMTP settings or the .env ones. The log and array mailers keep it here. */
+    public static function canSendMail(): bool
+    {
+        self::applyMail();
+
+        return ! in_array(config('mail.default'), ['log', 'array'], true);
     }
 
     /** Saves the given values. A blank secret keeps the saved one, so the page does not have to know it. */
@@ -123,7 +142,8 @@ class PlatformSettings
             config(['mail.from.address' => self::get('smtp.from_address')]);
         }
         if (filled(self::get('smtp.from_name'))) {
-            config(['mail.from.name' => self::get('smtp.from_name')]);
+            // app.name too: email subjects, headers and sign-offs use it, so one setting names every email
+            config(['mail.from.name' => self::get('smtp.from_name'), 'app.name' => self::get('smtp.from_name')]);
         }
     }
 

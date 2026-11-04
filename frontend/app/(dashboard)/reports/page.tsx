@@ -157,7 +157,7 @@ function PurchasesReport() {
     { header: "Total cost", cell: ({ row }) => <b>{money(row.original.total_cost)}</b> },
     { header: "Paid", cell: ({ row }) => money(row.original.paid_amount) },
     { header: "Unpaid", cell: ({ row }) => <span className={row.original.unpaid > 0 ? "font-medium text-amber-700" : ""}>{money(row.original.unpaid)}</span> },
-    viewCol<NonNullable<typeof data>["purchases"][number]>((x) => `/vehicles/${x.vehicle_id}`, (x) => printVoucher(purchaseVoucher(x), x.source === "customer" ? "customer" : "supplier", user?.shop?.name ?? "Vehicle Hub")),
+    viewCol<NonNullable<typeof data>["purchases"][number]>((x) => `/vehicles/${x.vehicle_id}`, (x) => printVoucher(purchaseVoucher(x), x.source === "customer" ? "customer" : "supplier", user?.shop?.name ?? "Gari Becho")),
   ];
 
   return (
@@ -213,7 +213,7 @@ function SalesReport() {
     { header: "Status", cell: ({ row }) => <StatusBadge status={row.original.status} /> },
     viewCol<NonNullable<typeof data>["sales"][number]>((x) => `/sales/${x.id}`, async (x) => {
       try {
-        openSaleMemo((await api<Sale>(`/sales/${x.id}`)).data, user?.shop?.name ?? "Vehicle Hub"); // the memo needs the full sale: plan and payments
+        openSaleMemo((await api<Sale>(`/sales/${x.id}`)).data, user?.shop?.name ?? "Gari Becho"); // the memo needs the full sale: plan and payments
       } catch (e) {
         toast.error(e instanceof ApiError ? e.message : "Could not load the sale.");
       }

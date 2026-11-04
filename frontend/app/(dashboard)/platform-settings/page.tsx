@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Mail, Save, Send } from "lucide-react";
+import Link from "next/link";
+import { ExternalLink, Mail, Save, Send } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { api, applyServerErrors } from "@/lib/api";
@@ -9,6 +10,7 @@ import { useAuth } from "@/lib/auth";
 import { Button, Card, ErrorText, Field, inputCls, Loading, PageHeader } from "@/components/app-ui";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import type { LandingInfo } from "@/lib/types";
 
 /** What the server sends: every value except the secrets, which only say whether one is saved. */
 type Saved = {
@@ -18,12 +20,14 @@ type Saved = {
     enabled: boolean; host: string | null; port: number | null; encryption: string | null; username: string | null;
     password_set: boolean; from_address: string | null; from_name: string | null;
   };
+  landing: Omit<LandingInfo, "signup_enabled" | "contact_form">;
 };
 
 type Values = {
   signup: { enabled: boolean };
   google: { enabled: boolean; client_id: string; client_secret: string };
   smtp: { enabled: boolean; host: string; port: string; encryption: string; username: string; password: string; from_address: string; from_name: string };
+  landing: { support_email: string; support_phone: string; whatsapp: string; address: string; support_hours: string };
 };
 
 // secrets always start blank: blank keeps the saved one
@@ -33,6 +37,10 @@ const valuesFrom = (s: Saved): Values => ({
   smtp: {
     enabled: s.smtp.enabled, host: s.smtp.host ?? "", port: s.smtp.port ? String(s.smtp.port) : "", encryption: s.smtp.encryption ?? "tls",
     username: s.smtp.username ?? "", password: "", from_address: s.smtp.from_address ?? "", from_name: s.smtp.from_name ?? "",
+  },
+  landing: {
+    support_email: s.landing.support_email ?? "", support_phone: s.landing.support_phone ?? "", whatsapp: s.landing.whatsapp ?? "",
+    address: s.landing.address ?? "", support_hours: s.landing.support_hours ?? "",
   },
 });
 
@@ -58,7 +66,7 @@ export default function PlatformSettingsPage() {
     try {
       const res = await api<Saved>("/platform-settings", {
         method: "PUT",
-        body: { signup: v.signup, google: v.google, smtp: { ...v.smtp, port: v.smtp.port ? Number(v.smtp.port) : null } },
+        body: { signup: v.signup, google: v.google, smtp: { ...v.smtp, port: v.smtp.port ? Number(v.smtp.port) : null }, landing: v.landing },
       });
       setSaved(res.data);
       reset(valuesFrom(res.data));
@@ -107,6 +115,29 @@ export default function PlatformSettingsPage() {
           </div>
         </Card>
 
+        <Card
+          title="Landing page"
+          className="lg:col-span-2"
+          actions={<Link href="/" target="_blank" className="flex items-center gap-1 text-sm font-medium text-emerald-700 hover:underline"><ExternalLink className="size-4" /> View the landing page</Link>}
+        >
+          <div className="space-y-3">
+            <p className="text-sm text-slate-500">These details show in the Contact section of the public landing page. Leave one blank to hide it.</p>
+            <p className="text-sm text-slate-500">Messages from the landing page&apos;s contact form go to the support email. While it is blank, the page says support is unavailable. The form shows only while the server can send mail.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Support email" error={errors.landing?.support_email?.message}><Input type="email" className={inputCls} placeholder="support@example.com" {...register("landing.support_email")} /></Field>
+              <Field label="Support phone" error={errors.landing?.support_phone?.message}><Input type="tel" className={inputCls} placeholder="+880 1712-345678" {...register("landing.support_phone")} /></Field>
+              <div>
+                <Field label="WhatsApp number" error={errors.landing?.whatsapp?.message}><Input type="tel" className={inputCls} placeholder="+8801712345678" {...register("landing.whatsapp")} /></Field>
+                <p className="mt-1 text-xs text-slate-500">With the country code and no spaces. Visitors get a button that opens a WhatsApp chat with this number.</p>
+              </div>
+              <Field label="Support hours" error={errors.landing?.support_hours?.message}><Input className={inputCls} maxLength={255} placeholder="Sat to Thu, 10am to 8pm" {...register("landing.support_hours")} /></Field>
+              <div className="sm:col-span-2">
+                <Field label="Address" error={errors.landing?.address?.message}><Input className={inputCls} maxLength={255} {...register("landing.address")} /></Field>
+              </div>
+            </div>
+          </div>
+        </Card>
+
         <Card title="Google sign-in">
           <div className="space-y-3">
             <p className="text-sm text-slate-500">
@@ -147,9 +178,12 @@ export default function PlatformSettingsPage() {
               <Field label="Password" error={errors.smtp?.password?.message}>
                 <Input type="password" className={inputCls} placeholder={keepHint(saved.smtp.password_set)} autoComplete="new-password" {...register("smtp.password")} />
               </Field>
-              <Field label="From address" error={errors.smtp?.from_address?.message}><Input type="email" className={inputCls} placeholder="you@gmail.com" {...register("smtp.from_address")} /></Field>
-              <Field label="From name" error={errors.smtp?.from_name?.message}><Input className={inputCls} placeholder="Vehicle Hub" {...register("smtp.from_name")} /></Field>
+              <Field label="From address" error={errors.smtp?.from_address?.message}><Input type="email" className={inputCls} placeholder="noreply@garibecho.com" {...register("smtp.from_address")} /></Field>
+              <Field label="From name" error={errors.smtp?.from_name?.message}><Input className={inputCls} placeholder="Gari Becho" {...register("smtp.from_name")} /></Field>
             </div>
+            {saved.smtp.host?.endsWith("gmail.com") && !saved.smtp.from_address?.endsWith("@gmail.com") && (
+              <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-800">Gmail sends from its own address, so it replaces this From address and mail from your domain can land in spam. To send from your domain, use an email service that has verified it.</p>
+            )}
             <div className="border-t border-slate-200 pt-3">
               <Field label="Send a test email to">
                 <div className="flex gap-2">
