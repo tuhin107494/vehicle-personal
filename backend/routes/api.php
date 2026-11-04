@@ -20,11 +20,13 @@ use App\Http\Controllers\Api\PurchaseController;
 use App\Http\Controllers\Api\RegistrationController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\RoleController;
+use App\Http\Controllers\Api\SaleChargeController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\ShopController;
 use App\Http\Controllers\Api\SignupController;
 use App\Http\Controllers\Api\SupplierController;
+use App\Http\Controllers\Api\TransactionController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\VehicleCategoryController;
 use App\Http\Controllers\Api\VehicleColorController;
@@ -99,6 +101,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('investors', 'investors');
         });
 
+        Route::post('customers/import', [CustomerController::class, 'import'])->middleware('throttle:10,1');
         Route::apiResource('customers', CustomerController::class)->except('destroy');
         Route::get('customers/{customer}/history', [CustomerController::class, 'history']);
         Route::apiResource('suppliers', SupplierController::class)->except('destroy');
@@ -156,5 +159,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('vehicles/{vehicle}', [VehicleController::class, 'destroy']);
         Route::delete('purchases/{purchase}', [PurchaseController::class, 'destroy']);
         Route::post('sales/{sale}/cancel', [SaleController::class, 'cancel']);
+        Route::post('sales/{sale}/charges', [SaleChargeController::class, 'store']);
+        Route::get('charges/{charge}', [SaleChargeController::class, 'show']);
+        Route::put('charges/{charge}', [SaleChargeController::class, 'update']);
+        Route::delete('charges/{charge}', [SaleChargeController::class, 'destroy']);
+        Route::get('transactions/{type}/{id}', [TransactionController::class, 'show']);
+        Route::put('transactions/{type}/{id}', [TransactionController::class, 'update']);
     });
 });

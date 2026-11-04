@@ -33,6 +33,8 @@ class StoreSaleRequest extends ApiRequest
             'frequency' => ['nullable', Rule::in(['monthly', 'weekly'])],
             'interest_rate' => ['nullable', 'numeric', 'min:0', 'max:1000'],
             'guarantor_phone' => ['nullable', 'string', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
+            'guarantor_name' => ['nullable', 'string', 'max:100'],
+            'memo_no' => ['nullable', 'string', 'max:100'],
             'interest_amount' => ['nullable', 'numeric', 'min:0'], // the interest in money, instead of a rate
             'investor_share_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ];

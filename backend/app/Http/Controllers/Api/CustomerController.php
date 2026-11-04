@@ -4,12 +4,14 @@ namespace App\Http\Controllers\Api;
 
 use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\CustomerImportRequest;
 use App\Http\Requests\CustomerRequest;
 use App\Http\Resources\CustomerResource;
 use App\Http\Resources\PurchaseResource;
 use App\Http\Resources\SaleResource;
 use App\Models\Customer;
 use App\Models\Sale;
+use App\Services\CustomerImportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -21,7 +23,7 @@ class CustomerController extends Controller implements HasMiddleware
     {
         return [
             new Middleware('permission:parties.view', only: ['index', 'show', 'history']),
-            new Middleware('permission:parties.create', only: ['store']),
+            new Middleware('permission:parties.create', only: ['store', 'import']),
             new Middleware('permission:parties.edit', only: ['update']),
             new Middleware('permission:parties.delete', only: ['destroy']),
         ];
@@ -46,6 +48,13 @@ class CustomerController extends Controller implements HasMiddleware
     public function store(CustomerRequest $request): JsonResponse
     {
         return $this->success(CustomerResource::make(Customer::create($request->validated())), 'Customer created', 201);
+    }
+
+    public function import(CustomerImportRequest $request, CustomerImportService $importer): JsonResponse
+    {
+        $result = $importer->import($request->file('file')->getRealPath());
+
+        return $this->success($result, "{$result['created']} customers imported");
     }
 
     public function show(Customer $customer): JsonResponse

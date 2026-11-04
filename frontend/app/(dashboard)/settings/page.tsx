@@ -59,6 +59,7 @@ export default function SettingsPage() {
   const { hidden, setHidden } = useHiddenMenu();
   const dash = useHiddenDashboard();
   const [recallDays, setRecallDays] = useState<number | null>(null); // saved on its own, apart from the settings table
+  const [memoNo, setMemoNo] = useState<boolean | null>(null); // same, for the memo number field
   const [autoDate, setAutoDate] = useState<boolean | null>(null); // same, for the date setting
   const [keepSelection, setKeepSelection] = useState<boolean | null>(null); // same, for the payment forms
   const [fromCustomer, setFromCustomer] = useState<boolean | null>(null); // what was just saved, until the settings are fetched again
@@ -284,6 +285,21 @@ export default function SettingsPage() {
             }
           }} />
           Fill in today's date automatically
+        </label>
+        <p className="mb-3 mt-4 text-xs text-slate-500">Show the optional "Memo no." field on the Sale and Due collection forms.</p>
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" className="size-4 accent-emerald-600" checked={memoNo ?? settings.data.forms?.memo_no ?? true} onChange={async (e) => {
+            const value = e.target.checked;
+            try {
+              await api("/settings", { method: "PUT", body: { forms: { memo_no: value } } });
+              setMemoNo(value);
+              settings.reload();
+              toast.success("Saved");
+            } catch (err) {
+              toast.error(err instanceof ApiError ? err.message : "Failed to save");
+            }
+          }} />
+          Show the memo number field
         </label>
       </Card>
       <Card title="Bookings" className="mb-4">
