@@ -7,10 +7,12 @@ use App\Models\Installment;
 use App\Models\InvestorSettlement;
 use App\Models\Payment;
 use App\Models\Sale;
+use App\Models\SaleCharge;
 use App\Models\User;
 use App\Support\Money;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class PaymentService
 {
@@ -37,6 +39,7 @@ class PaymentService
 
             $paidAt = isset($data['paid_at']) ? Carbon::parse($data['paid_at']) : now();
             $base = [
+                'batch_no' => $data['batch_no'] ?? (string) Str::uuid(), // the rows of one collection are shown as one invoice
                 'sale_id' => $sale->id,
                 'method' => $data['method'] ?? 'cash',
                 'paid_at' => $paidAt,
@@ -47,17 +50,28 @@ class PaymentService
             ];
 
             $payments = [];
+            $toCharges = $amount; // what is left for the charges once the sale's own balance is paid
 
             if ($sale->payment_type === 'installment') {
-                foreach ($this->allocate($sale, $amount, $data['installment_id'] ?? null) as [$installment, $applied]) {
-                    $installment->paid_amount = Money::taka(Money::paisa($installment->paid_amount) + $applied);
+                $applied = 0;
+
+                foreach ($this->allocate($sale, $amount, $data['installment_id'] ?? null) as [$installment, $part]) {
+                    $installment->paid_amount = Money::taka(Money::paisa($installment->paid_amount) + $part);
                     $this->refreshInstallment($installment, $paidAt);
-                    $payments[] = Payment::create($base + ['installment_id' => $installment->id, 'amount' => Money::taka($applied)]);
+                    $payments[] = Payment::create($base + ['installment_id' => $installment->id, 'amount' => Money::taka($part)]);
+                    $applied += $part;
                 }
 
-                $this->creditInvestor($sale, $amount, $paidAt, $user);
+                $applied > 0 && $this->creditInvestor($sale, $applied, $paidAt, $user);
+                $toCharges = $amount - $applied;
             } else {
-                $payments[] = Payment::create($base + ['amount' => Money::taka($amount)]);
+                $toBase = min($amount, max($due - $this->unpaidCharges($sale), 0));
+                $toBase > 0 && $payments[] = Payment::create($base + ['amount' => Money::taka($toBase)]);
+                $toCharges = $amount - $toBase;
+            }
+
+            if ($toCharges > 0) {
+                array_push($payments, ...$this->payCharges($sale, $toCharges, $base));
             }
 
             $this->recalculate($sale);
@@ -84,6 +98,41 @@ class PaymentService
         ]);
 
         return $sale;
+    }
+
+    /** What the customer still owes on the sale's charges, in paisa. */
+    public function unpaidCharges(Sale $sale): int
+    {
+        $charged = Money::paisa(SaleCharge::where('sale_id', $sale->id)->sum('amount'));
+        $paid = Money::paisa(Payment::where('sale_id', $sale->id)->whereNotNull('sale_charge_id')->sum('amount'));
+
+        return max($charged - $paid, 0);
+    }
+
+    /**
+     * Puts a payment (in paisa) against the sale's charges, oldest first.
+     *
+     * @return array<int,Payment>
+     */
+    private function payCharges(Sale $sale, int $amount, array $base): array
+    {
+        $payments = [];
+
+        foreach (SaleCharge::where('sale_id', $sale->id)->orderBy('charged_on')->orderBy('id')->get() as $charge) {
+            if ($amount <= 0) {
+                break;
+            }
+
+            $owed = Money::paisa($charge->amount) - Money::paisa(Payment::where('sale_charge_id', $charge->id)->sum('amount'));
+            $take = min($amount, $owed);
+
+            if ($take > 0) {
+                $payments[] = Payment::create($base + ['sale_charge_id' => $charge->id, 'amount' => Money::taka($take)]);
+                $amount -= $take;
+            }
+        }
+
+        return $payments;
     }
 
     /**
@@ -127,7 +176,7 @@ class PaymentService
         return $allocation;
     }
 
-    private function refreshInstallment(Installment $installment, Carbon $paidAt): void
+    public function refreshInstallment(Installment $installment, Carbon $paidAt): void
     {
         if (Money::paisa($installment->paid_amount) >= Money::paisa($installment->amount)) {
             $installment->status = 'paid';

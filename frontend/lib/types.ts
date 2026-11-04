@@ -40,7 +40,7 @@ export type Plan = {
   investor_share_percent: number; installments?: Installment[]; sale?: Sale;
 };
 export type Payment = {
-  id: number; sale_id: number; installment_id: number | null; amount: number; method: string;
+  id: number; sale_id: number; installment_id: number | null; batch_no?: string | null; amount: number; method: string;
   paid_at: string; reference: string | null; memo_no?: string | null; note: string | null; receiver?: { id: number; name: string };
 };
 export type Promise_ = {
@@ -53,10 +53,10 @@ export type RegLog = {
 };
 export type Sale = {
   id: number; vehicle_id: number; customer_id: number; sale_date: string; sale_price: number; down_payment: number;
-  payment_type: "cash" | "due" | "installment"; guarantor_phone: string | null; total_paid: number; due_amount: number; grand_total: number;
+  payment_type: "cash" | "due" | "installment"; guarantor_phone: string | null; guarantor_name?: string | null; memo_no?: string | null; total_paid: number; due_amount: number; grand_total: number;
   payment_status: "paid" | "partial" | "unpaid"; status: "active" | "cancelled"; cancel_reason: string | null;
   registration_status: string; vehicle?: Vehicle; customer?: Customer; investor?: Investor; plan?: Plan;
-  payments?: Payment[]; promises?: Promise_[]; registration_logs?: RegLog[];
+  payments?: Payment[]; promises?: Promise_[]; registration_logs?: RegLog[]; charges?: { id: number; purpose: string; amount: number; charged_on: string; note: string | null; paid: number | null }[]; edits?: { id: number; by: string | null; at: string; changes: { field: string; from: string | null; to: string | null }[] }[];
   booking?: { id: number; advance_amount: number; advance_method: string; booked_on: string; expires_on: string | null; agreed_price: number | null; note: string | null; booked_by: string | null } | null; // the booking this sale completed
   advance?: { amount: number; date: string; method: string; booking_id: number | null } | null; // received before the sale: a booking's advance or an advance payment
 };
