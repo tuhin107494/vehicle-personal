@@ -122,7 +122,7 @@ export default function DailyReportPage() {
         <OpenCtx.Provider value={open}>
         <div>
           <div className="mb-4 hidden border-b border-slate-300 pb-3 print:block">
-            <p className="text-lg font-bold">{user?.shop?.name ?? "Vehicle Hub"}</p>
+            <p className="text-lg font-bold">{user?.shop?.name ?? "Gari Becho"}</p>
             <p className="text-base font-semibold">Daily report · {fmtDate(data.date)}</p>
           </div>
           <p className="mb-3 text-sm text-slate-600 print:hidden">{fmtDate(data.date)}</p>

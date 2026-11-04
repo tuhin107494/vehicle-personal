@@ -16,7 +16,7 @@ export const NAV: Item[] = [
   { href: "/categories", text: "Categories", icon: Tags, color: "text-sky-600", roles: ["super_admin"] },
   { href: "/permissions", text: "Permissions", icon: KeyRound, color: "text-amber-500", roles: ["super_admin"] },
   { href: "/platform-settings", text: "System settings", icon: Settings, color: "text-slate-600", roles: ["super_admin"] },
-  { href: "/", text: "Dashboard", icon: LayoutDashboard, color: "text-emerald-600", permission: "dashboard.view" },
+  { href: "/dashboard", text: "Dashboard", icon: LayoutDashboard, color: "text-emerald-600", permission: "dashboard.view" },
   { href: "/sales/new", text: "Sales", icon: BadgeDollarSign, color: "text-green-600", permission: "sales.create" },
   { href: "/purchases/new", text: "Purchases", icon: ShoppingCart, color: "text-orange-500", permission: "purchases.create" },
   { href: "/vehicles", text: "Vehicles", icon: Car, color: "text-blue-600", permission: "vehicles.view" },
@@ -64,7 +64,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-green-500 text-white ring-2 ring-white/40"><Car className="size-5" /></span>
           <div className="min-w-0 flex-1">
             {/* a shop user sees only their shop's name; the platform admin has no shop, so the product name shows */}
-            <p className="truncate text-lg font-bold leading-tight text-orange-200">{user?.shop ? user.shop.name : t("Vehicle Hub")}</p>
+            <p className="truncate text-lg font-bold leading-tight text-orange-200">{user?.shop ? user.shop.name : t("Gari Becho")}</p>
           </div>
           <button type="button" aria-label={menuOpen ? "Close menu" : "Open menu"} aria-expanded={menuOpen} className="flex size-10 items-center justify-center rounded-xl bg-white/15 hover:bg-white/25 md:hidden" onClick={() => setMenuOpen((o) => !o)}>
             {menuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
@@ -72,7 +72,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
         <nav className={`${menuOpen ? "grid" : "hidden"} grid-cols-2 gap-1 px-3 pb-3 sm:grid-cols-3 md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto md:pb-2`}>
           {items.map(({ href, text, icon: Icon, color }) => {
-            const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+            const active = pathname.startsWith(href);
             return (
               <Link
                 key={href}

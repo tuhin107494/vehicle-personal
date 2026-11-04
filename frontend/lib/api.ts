@@ -83,7 +83,8 @@ async function send<T>(path: string, options: { method?: string; body?: unknown 
   if (!res.ok || !json?.success) {
     if (res.status === 401 && typeof window !== "undefined" && !path.startsWith("/login")) {
       tokenStore.clear();
-      window.location.href = "/login";
+      // /me runs on every page, public ones too; the dashboard layout sends signed-out users to /login by itself
+      if (path !== "/me") window.location.href = "/login";
     }
     // 403: the server refused this user; say so plainly
     const message = res.status === 403 ? "You don't have permission to do this." : (res.status === 422 ? firstError(json?.errors) : null) ?? json?.message ?? "Something went wrong";

@@ -1,11 +1,14 @@
+"use client"
+
 import * as React from "react"
 import { Input as InputPrimitive } from "@base-ui/react/input"
+import { Eye, EyeOff } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 // Fields that have a picker (calendar or clock): a click on the icon at the right edge opens it; a click elsewhere in the field is for typing the date.
 const PICKER_TYPES = ["date", "datetime-local", "month", "week", "time"]
 
-function Input({ className, type, onClick, onWheel, ...props }: React.ComponentProps<"input">) {
+function PlainInput({ className, type, onClick, onWheel, ...props }: React.ComponentProps<"input">) {
   const opensPicker = !!type && PICKER_TYPES.includes(type)
 
   return (
@@ -35,6 +38,49 @@ function Input({ className, type, onClick, onWheel, ...props }: React.ComponentP
       {...props}
     />
   )
+}
+
+/** A password field with an eye button: one click shows what was typed, another hides it again. */
+function PasswordInput({ className, ...props }: React.ComponentProps<"input">) {
+  const [visible, setVisible] = React.useState(false)
+  const box = React.useRef<HTMLDivElement>(null)
+
+  // submitting hides it again, so a password is not left on screen after the form has gone
+  React.useEffect(() => {
+    const form = box.current?.closest("form")
+    const hide = () => setVisible(false)
+    form?.addEventListener("submit", hide)
+    return () => form?.removeEventListener("submit", hide)
+  }, [])
+
+  return (
+    <div ref={box} className="relative w-full">
+      <PlainInput
+        {...props}
+        type={visible ? "text" : "password"}
+        // once shown it is a text field: keep the browser's spellcheck and phone keyboards away from the password
+        spellCheck={false}
+        autoCapitalize="none"
+        autoCorrect="off"
+        className={cn("pr-9 [&::-ms-reveal]:hidden", className)}
+      />
+      <button
+        type="button"
+        aria-label={visible ? "Hide password" : "Show password"}
+        aria-pressed={visible}
+        disabled={props.disabled}
+        onMouseDown={(e) => e.preventDefault()} // keep the cursor in the field
+        onClick={() => setVisible((v) => !v)}
+        className="absolute inset-y-0 right-0 flex w-9 items-center justify-center rounded-r-lg text-slate-500 outline-none hover:text-emerald-700 focus-visible:text-emerald-700 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
+      >
+        {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+      </button>
+    </div>
+  )
+}
+
+function Input({ type, ...props }: React.ComponentProps<"input">) {
+  return type === "password" ? <PasswordInput {...props} /> : <PlainInput type={type} {...props} />
 }
 
 export { Input }

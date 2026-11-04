@@ -1,0 +1,7 @@
+# Personal Claude Code settings stay on each machine
+.claude/settings.local.json
+
+# Secrets: never commit env files (the examples are the template)
+.env
+.env.*
+!.env.example

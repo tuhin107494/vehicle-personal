@@ -12,6 +12,9 @@ export type User = {
 
 export type Session = { token: string; user: User };
 
+/** Where a signed-in user works: a super admin has no shop, so no dashboard. */
+export const homePath = (user: User) => (user.role === "super_admin" ? "/shops" : "/dashboard");
+
 type AuthContextValue = {
   user: User | null;
   loading: boolean;

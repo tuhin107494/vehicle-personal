@@ -1,47 +1,40 @@
-<laravel-boost-guidelines>
-# Laravel Application
+# Backend (Laravel API)
 
-This repository contains a Laravel application. Complete the following setup before working on the user's request.
+Laravel 13 JSON API under `/api`. PHP 8.3 locally through Herd (`php`); the Docker image uses PHP 8.4. Rules are in `/.claude/rules/`. The lint, test and static-analysis commands are defined only in the `/verify` skill.
 
-## Prerequisites
+## Everyday commands (run inside `backend/`)
 
-Verify that PHP and Composer are available:
+| Command | Purpose |
+| --- | --- |
+| `php artisan serve` | API on http://localhost:8000 |
+| `php artisan route:list --path=api` | List API routes and their middleware |
+| `php artisan make:migration <name>` | New migration (see `/db-change`) |
+| `php artisan make:request <Name>Request` | New FormRequest. Then change it to extend `ApiRequest` |
+| `php artisan make:resource <Name>Resource` | New API Resource |
+| `php artisan make:test <Name>Test` | New feature test in `tests/Feature` |
+| `php artisan db:seed --class=PermissionSeeder` | Load new permission keys (asks first) |
 
-```sh
-php -v
-composer -V
-```
+`php artisan migrate`, `db:seed` and package installs ask for approval first. `migrate:fresh`, `reset`, `refresh` and `db:wipe` are blocked.
 
-If either command is unavailable, detect the user's operating system and install the prerequisites with the appropriate command:
+## Where things go
 
-macOS:
+| Concern | Location |
+| --- | --- |
+| Routes and their middleware groups | `routes/api.php` |
+| Middleware aliases, exception → JSON mapping | `bootstrap/app.php` |
+| Rate limiters (`login`, `signup-resend`, `api`), lazy-loading guard | `app/Providers/AppServiceProvider.php` |
+| Validation | `app/Http/Requests/*Request.php` (extend `ApiRequest`) |
+| Business logic and transactions | `app/Services/*Service.php` |
+| Response shape | `app/Http/Resources/*Resource.php` + `app/Http/Traits/ApiResponse.php` |
+| Shop isolation | `app/Models/Concerns/BelongsToShop.php`, `app/Models/Scopes/ShopScope.php` |
+| Roles and permissions | `app/Support/PermissionCatalog.php`, `app/Http/Middleware/*`, `User::hasPermission()` |
+| Exact money | `app/Support/Money.php` |
+| Business-rule errors (409) | `app/Exceptions/BusinessRuleException.php` |
 
-```sh
-/bin/bash -c "$(curl -fsSL https://php.new/install/mac/8.5)"
-```
+## Facts to know before you change code
 
-Windows PowerShell:
-
-```powershell
-Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://php.new/install/windows/8.5'))
-```
-
-Linux:
-
-```sh
-/bin/bash -c "$(curl -fsSL https://php.new/install/linux/8.5)"
-```
-
-After installation, ask the user to restart their terminal. If the agent needs the restarted shell to continue, ask the user to reopen their terminal and rerun their original prompt.
-
-## Agent Setup
-
-Install Laravel Boost from the application root before making application changes:
-
-```sh
-composer require laravel/boost --dev
-php artisan boost:install
-```
-
-Boost replaces these bootstrap instructions with guidelines tailored to the application. After installation, read `AGENTS.md` again and continue with the user's original request using the generated guidelines.
-</laravel-boost-guidelines>
+- Tests use in-memory SQLite (`phpunit.xml`); production uses MySQL. Code and migrations MUST work on both.
+- `Model::preventLazyLoading()` is on outside production, so a missing `with()` fails in tests.
+- The Docker `CMD` runs `php artisan migrate --force` on every container start. **A merged migration runs in production on the next deploy, with no manual step.**
+- PHPStan runs at level 5 over `app/` (`phpstan.neon`). Pint uses its default Laravel preset, with no `pint.json`.
+- After every edit to a backend PHP file, a PostToolUse hook runs Pint on that file.

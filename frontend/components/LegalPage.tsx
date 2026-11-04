@@ -15,13 +15,14 @@ export function LegalPage({ title, updated, children }: { title: string; updated
           <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-green-500 text-white"><Car className="size-6" /></span>
           <div>
             <h1 className="text-xl font-bold text-slate-800 sm:text-2xl">{title}</h1>
-            <p className="text-sm text-slate-500">Vehicle Hub · Last updated {updated}</p>
+            <p className="text-sm text-slate-500">Gari Becho · Last updated {updated}</p>
           </div>
         </header>
         <div className="space-y-6 text-sm leading-relaxed text-slate-700 [&_h2]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-slate-800 [&_li]:ml-5 [&_li]:list-disc [&_ul]:space-y-1">
           {children}
         </div>
         <footer className="mt-8 flex flex-wrap gap-x-5 gap-y-2 border-t border-slate-200 pt-5 text-sm">
+          <Link className="font-medium text-emerald-700 hover:underline" href="/">Home</Link>
           <Link className="font-medium text-emerald-700 hover:underline" href="/login">Sign in</Link>
           <Link className="text-slate-500 hover:text-emerald-700 hover:underline" href="/privacy">Privacy policy</Link>
           <Link className="text-slate-500 hover:text-emerald-700 hover:underline" href="/terms">Terms of service</Link>

@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\DraftController;
 use App\Http\Controllers\Api\InstallmentController;
 use App\Http\Controllers\Api\InvestorController;
 use App\Http\Controllers\Api\InvestorSettlementController;
+use App\Http\Controllers\Api\LandingController;
 use App\Http\Controllers\Api\PayableController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PermissionController;
@@ -37,6 +38,9 @@ Route::post('login', [AuthController::class, 'login'])->middleware('throttle:log
 Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:5,1');
 Route::post('reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:10,1');
 Route::get('auth/config', [AuthController::class, 'config']);
+// the prefix gives it its own counter: guests' plain throttles share one per address, so page views would use up the sign-up limit
+Route::get('landing', [LandingController::class, 'show'])->middleware('throttle:60,1,landing');
+Route::post('contact', [LandingController::class, 'contact'])->middleware('throttle:contact');
 Route::post('auth/google', [AuthController::class, 'google'])->middleware('throttle:10,1');
 Route::post('signup', [SignupController::class, 'store'])->middleware('throttle:5,1');
 Route::post('signup/google', [SignupController::class, 'google'])->middleware('throttle:5,1');

@@ -36,7 +36,7 @@ export function BookingView({ booking, onClose }: { booking: Booking | null; onC
           ]} />
           <div className="flex flex-wrap justify-end gap-2">
             {b.sale_id && <Link className="inline-flex h-9 items-center rounded-lg border border-emerald-200 px-3 text-sm font-medium text-emerald-700 hover:bg-emerald-50" href={`/sales/${b.sale_id}`}>Sales details</Link>}
-            <Button variant="outline" onClick={() => openBookingReceipt(b, user?.shop?.name ?? "Vehicle Hub")}><Printer className="size-4" /> Print</Button>
+            <Button variant="outline" onClick={() => openBookingReceipt(b, user?.shop?.name ?? "Gari Becho")}><Printer className="size-4" /> Print</Button>
           </div>
         </div>
       )}

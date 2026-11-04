@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { ContactEmail, LegalPage } from "@/components/LegalPage";
 
-export const metadata: Metadata = { title: "Privacy Policy · Vehicle Hub" };
+export const metadata: Metadata = { title: "Privacy Policy · Gari Becho" };
 
 export default function PrivacyPage() {
   return (
     <LegalPage title="Privacy Policy" updated="30 October 2026">
       <p>
-        Vehicle Hub is a tool vehicle shops use to manage their stock, purchases, sales, collections and investors. This policy
+        Gari Becho is a tool vehicle shops use to manage their stock, purchases, sales, collections and investors. This policy
         explains what information we collect, why, and what you can do about it. It is operated by Beacon Soft Ltd.
       </p>
 
@@ -45,7 +45,7 @@ export default function PrivacyPage() {
         <h2>Google user data</h2>
         <p>
           Information received from Google is used only to sign you in and to fill in your account&apos;s name and email. It is not
-          used for advertising, not sold, and not shared with third parties. Vehicle Hub&apos;s use of information received from
+          used for advertising, not sold, and not shared with third parties. Gari Becho&apos;s use of information received from
           Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.
         </p>
       </section>

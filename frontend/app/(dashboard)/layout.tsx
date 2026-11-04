@@ -13,7 +13,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
-    else if (user?.role === "super_admin" && pathname === "/") router.replace("/shops");
+    else if (user?.role === "super_admin" && pathname === "/dashboard") router.replace("/shops");
   }, [loading, user, router, pathname]);
 
   if (loading || !user) return null;
