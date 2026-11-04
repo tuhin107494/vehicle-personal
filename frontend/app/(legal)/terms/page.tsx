@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ContactEmail, LegalPage } from "@/components/LegalPage";
 
-export const metadata: Metadata = { title: "Terms of Service · Vehicle Hub" };
+export const metadata: Metadata = { title: "Terms of Service · Gari Becho" };
 
 export default function TermsPage() {
   return (
     <LegalPage title="Terms of Service" updated="30 October 2026">
       <p>
-        These terms apply when you use Vehicle Hub, a service operated by Beacon Soft Ltd. By creating an account or signing in,
+        These terms apply when you use Gari Becho, a service operated by Beacon Soft Ltd. By creating an account or signing in,
         you agree to them.
       </p>
 
@@ -33,7 +33,7 @@ export default function TermsPage() {
       <section>
         <h2>Acceptable use</h2>
         <ul>
-          <li>Use Vehicle Hub only for lawful business purposes.</li>
+          <li>Use Gari Becho only for lawful business purposes.</li>
           <li>Do not try to access other shops&apos; data, break the service&apos;s security, or overload it.</li>
           <li>Do not enter information you have no right to store.</li>
         </ul>
@@ -42,7 +42,7 @@ export default function TermsPage() {
       <section>
         <h2>The service</h2>
         <p>
-          We work to keep Vehicle Hub available and accurate, but it is provided &quot;as is&quot; without guarantees. You are
+          We work to keep Gari Becho available and accurate, but it is provided &quot;as is&quot; without guarantees. You are
           responsible for checking figures before relying on them for financial or legal decisions. To the extent the law allows,
           we are not liable for indirect losses arising from use of the service.
         </p>

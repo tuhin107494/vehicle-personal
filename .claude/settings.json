@@ -1,0 +1,108 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(composer test*)",
+      "Bash(php artisan test*)",
+      "Bash(php artisan route:list*)",
+      "Bash(vendor/bin/pint*)",
+      "Bash(vendor/bin/phpstan analyse*)",
+      "Bash(npm run lint*)",
+      "Bash(npm run build*)",
+      "Bash(npx eslint *)",
+      "Bash(npx tsc --noEmit*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git branch)",
+      "Bash(git branch --list*)",
+      "Bash(git merge-base *)",
+      "Bash(git ls-files*)",
+      "Bash(git rev-parse *)"
+    ],
+    "ask": [
+      "Bash(composer require*)",
+      "Bash(composer remove*)",
+      "Bash(composer update*)",
+      "Bash(composer install*)",
+      "Bash(npm install*)",
+      "Bash(npm i *)",
+      "Bash(npm ci*)",
+      "Bash(npm uninstall*)",
+      "Bash(npm update*)",
+      "Bash(npx shadcn*)",
+      "Bash(php artisan migrate*)",
+      "Bash(php artisan db:seed*)",
+      "Bash(git commit*)",
+      "Bash(git push*)",
+      "Bash(git merge*)",
+      "Bash(git rebase*)",
+      "Bash(docker*)"
+    ],
+    "deny": [
+      "Read(**/.env)",
+      "Read(**/.env.local)",
+      "Read(**/.env.*.local)",
+      "Read(**/.env.development)",
+      "Read(**/.env.production)",
+      "Read(**/.env.staging)",
+      "Read(**/.env.testing)",
+      "Read(**/.env.backup)",
+      "Read(**/auth.json)",
+      "Read(**/storage/*.key)",
+      "Read(**/*.pem)",
+      "Edit(**/.env)",
+      "Edit(**/.env.local)",
+      "Edit(**/.env.*.local)",
+      "Edit(**/.env.development)",
+      "Edit(**/.env.production)",
+      "Edit(**/.env.staging)",
+      "Edit(**/.env.testing)",
+      "Edit(**/.env.backup)",
+      "Edit(**/auth.json)",
+      "Edit(**/storage/*.key)",
+      "Edit(**/*.pem)",
+      "Edit(.claude/settings.local.json)",
+      "Bash(* .env)",
+      "Bash(*/.env)",
+      "Bash(* .env.local)",
+      "Bash(*/.env.local)",
+      "Bash(* .env.production)",
+      "Bash(*/.env.production)",
+      "Bash(printenv*)",
+      "Bash(rm -rf*)",
+      "Bash(rm -fr*)",
+      "Bash(rm -r *)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push * --force*)",
+      "Bash(git push * -f*)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean -f*)",
+      "Bash(php artisan migrate:fresh*)",
+      "Bash(php artisan migrate:reset*)",
+      "Bash(php artisan migrate:refresh*)",
+      "Bash(php artisan db:wipe*)",
+      "Bash(* DROP DATABASE*)",
+      "Bash(* DROP TABLE*)",
+      "Bash(* TRUNCATE*)",
+      "Bash(* drop database*)",
+      "Bash(* drop table*)",
+      "Bash(* truncate *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | { read -r f; case \"$f\" in */backend/*.php) cd \"${f%%/backend/*}/backend\" && php vendor/bin/pint --quiet \"$f\";; esac; } 2>/dev/null || true",
+            "statusMessage": "Formatting PHP with Pint"
+          }
+        ]
+      }
+    ]
+  }
+}

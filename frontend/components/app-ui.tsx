@@ -134,7 +134,7 @@ function BackButton() {
     <button
       type="button"
       aria-label="Back"
-      onClick={() => (window.history.length > 1 ? router.back() : router.push("/"))}
+      onClick={() => (window.history.length > 1 ? router.back() : router.push("/dashboard"))}
       className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg border border-emerald-200 bg-white px-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50 print:hidden sm:px-3 sm:text-sm"
     >
       <ArrowLeft className="size-4" /> <span className="hidden sm:inline">{t("Back")}</span>
