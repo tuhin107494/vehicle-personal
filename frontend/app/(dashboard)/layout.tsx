@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { AppShell } from "@/components/AppShell";
+import { ThemeProvider } from "@/lib/theme";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -18,5 +19,5 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (loading || !user) return null;
 
-  return <AppShell>{children}</AppShell>;
+  return <ThemeProvider><AppShell>{children}</AppShell></ThemeProvider>;
 }

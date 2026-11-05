@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useT } from "@/lib/i18n";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { BadgeDollarSign, CalendarDays, Footprints, HandCoins, Menu, X, Building2, Car, ChartColumn, KeyRound, LayoutDashboard, Landmark, LogOut, Settings, ShieldCheck, ShoppingCart, Tags, Truck, UserCog, Users, Wallet } from "lucide-react";
+import { BadgeDollarSign, CalendarDays, Footprints, HandCoins, Menu, X, Building2, Car, ChartColumn, KeyRound, LayoutDashboard, Landmark, LogOut, Moon, Settings, ShieldCheck, ShoppingCart, Sun, Tags, Truck, UserCog, Users, Wallet } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { useTheme } from "@/lib/theme";
 import { Avatar } from "@/components/Avatar";
 import { useHiddenMenu } from "@/lib/menu";
 
@@ -52,13 +53,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   const { t, lang, setLang, showSwitch } = useT();
+  const { theme, toggle: toggleTheme } = useTheme();
   const { hidden } = useHiddenMenu();
   // Settings can never be hidden: it is where hidden items are brought back
   const items = allowedNav(user?.role, can).filter((i) => i.href === "/settings" || !hidden.includes(i.href));
 
   return (
     <div className="min-h-screen overflow-x-clip md:flex print:block">
-      <aside className="print:hidden bg-[#223f32] pt-[env(safe-area-inset-top)] text-white md:sticky md:top-0 md:flex md:h-dvh md:w-60 md:shrink-0 md:flex-col md:overflow-hidden md:pb-[env(safe-area-inset-bottom)]"
+      <aside data-app-sidebar className="print:hidden bg-[#223f32] pt-[env(safe-area-inset-top)] text-white md:sticky md:top-0 md:flex md:h-dvh md:w-60 md:shrink-0 md:flex-col md:overflow-hidden md:pb-[env(safe-area-inset-bottom)]"
         style={{ backgroundImage: "linear-gradient(135deg, #1b3a2d, #29493a)" }}
       >
         <div className="flex items-center gap-2 px-5 py-3 md:py-5">
@@ -87,10 +89,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
         <div className={`${menuOpen ? "block" : "hidden"} shrink-0 border-t border-white/15 p-3 md:block`}>
-          {showSwitch && <div className="mb-2 flex items-center justify-between px-1 text-xs text-white/80"><span>{t("Language")}</span><div className="flex overflow-hidden rounded-lg bg-white/15 text-xs font-semibold" role="group" aria-label="Language">
-              <button type="button" onClick={() => setLang("en")} className={`px-2 py-1.5 ${lang === "en" ? "bg-white text-emerald-700" : "text-white/85 hover:bg-white/15"}`}>EN</button>
-              <button type="button" onClick={() => setLang("bn")} className={`px-2 py-1.5 ${lang === "bn" ? "bg-white text-emerald-700" : "text-white/85 hover:bg-white/15"}`}>বাং</button>
-            </div></div>}
+          <div className="mb-2 flex items-center justify-between gap-2 px-1 text-xs text-white/80">
+            {showSwitch ? (
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="truncate">{t("Language")}</span>
+                <div className="flex shrink-0 overflow-hidden rounded-lg bg-white/15 text-xs font-semibold" role="group" aria-label="Language">
+                  <button type="button" onClick={() => setLang("en")} className={`px-2 py-1.5 ${lang === "en" ? "bg-white text-emerald-700" : "text-white/85 hover:bg-white/15"}`}>EN</button>
+                  <button type="button" onClick={() => setLang("bn")} className={`px-2 py-1.5 ${lang === "bn" ? "bg-white text-emerald-700" : "text-white/85 hover:bg-white/15"}`}>বাং</button>
+                </div>
+              </div>
+            ) : <span />}
+            <button type="button" onClick={toggleTheme} aria-pressed={theme === "dark"} aria-label={t(theme === "dark" ? "Dark mode" : "Light mode")} title={t(theme === "dark" ? "Dark mode" : "Light mode")} className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white/15 text-white/85 hover:bg-white/25">
+              {theme === "dark" ? <Moon className="size-4" /> : <Sun className="size-4" />}
+            </button>
+          </div>
           <div className="flex items-center gap-2.5 rounded-xl bg-white/10 p-2.5">
             <Link href="/profile" title="Profile settings" className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg hover:bg-white/10">
               <Avatar name={user?.name ?? ""} url={user?.photo_url} size="md" className="bg-white ring-0" />
