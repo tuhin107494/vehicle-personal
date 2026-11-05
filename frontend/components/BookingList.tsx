@@ -97,20 +97,20 @@ export function BookingList() {
           return (
             <div className="flex items-center justify-end gap-1.5">
               <Link className="inline-flex h-8 items-center rounded-lg border border-emerald-200 px-2.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50" href={`/sales/new?${(b.draft.data as { investor?: boolean } | undefined)?.investor ? "tab=investor&" : ""}resume=${b.draft.id}`}>Resume</Link>
-              <Button size="sm" variant="outline" className="border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800" onClick={() => removeDraft(b.draft!)}><Trash2 className="size-4" /> Delete</Button>
+              <Button size="sm" variant="outline" className="h-8 border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800" onClick={() => removeDraft(b.draft!)}><Trash2 className="size-4" /> Delete</Button>
             </div>
           );
         }
-        const view = <button type="button" aria-label="View booking" title="View" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-violet-700" onClick={() => setViewing(b)}><Eye className="size-4" /></button>;
-        const print = <button type="button" aria-label="Print booking" title="Print" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-sky-700" onClick={() => openBookingReceipt(b, user?.shop?.name ?? "Gari Becho")}><Printer className="size-4" /></button>;
+        const view = <button type="button" aria-label="View booking" title="View" className="rounded-lg border border-violet-200 bg-violet-50 inline-flex size-8 items-center justify-center text-violet-700 hover:bg-violet-100" onClick={() => setViewing(b)}><Eye className="size-4" /></button>;
+        const print = <button type="button" aria-label="Print booking" title="Print" className="rounded-lg border border-sky-200 bg-sky-50 inline-flex size-8 items-center justify-center text-sky-700 hover:bg-sky-100" onClick={() => openBookingReceipt(b, user?.shop?.name ?? "Gari Becho")}><Printer className="size-4" /></button>;
         if (b.status === "active") {
           return (
-            <div className="flex flex-wrap items-center justify-end gap-1.5 md:flex-nowrap md:whitespace-nowrap">
+            <div className="flex w-full flex-nowrap items-center justify-end gap-1 whitespace-nowrap md:w-auto md:gap-1.5">
               {view}
               {print}
-              {can("sales.create") && <button type="button" aria-label="Edit booking" title="Edit" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-emerald-700" onClick={() => setEditing(b)}><Pencil className="size-4" /></button>}
-              {can("sales.create") && <Link className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-green-600 px-2.5 text-xs font-medium text-white shadow-sm hover:from-emerald-500 hover:to-green-500" href={`/sales/new?booking=${b.id}`}><HandCoins className="size-4" /> Convert to sale</Link>}
-              {can("sales.cancel") && <Button size="sm" variant="outline" className="border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800" onClick={() => setCancelling(b)}><X className="size-4" /> Cancel</Button>}
+              {can("sales.create") && <button type="button" aria-label="Edit booking" title="Edit" className="rounded-lg border border-emerald-200 bg-emerald-50 inline-flex size-8 items-center justify-center text-emerald-700 hover:bg-emerald-100" onClick={() => setEditing(b)}><Pencil className="size-4" /></button>}
+              {can("sales.create") && <Link className="inline-flex h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg md:flex-none md:gap-1.5 bg-gradient-to-r from-emerald-600 to-green-600 px-2 text-xs font-medium text-white shadow-sm hover:from-emerald-500 hover:to-green-500" href={`/sales/new?booking=${b.id}`}><HandCoins className="size-4 shrink-0" /> Convert to sale</Link>}
+              {can("sales.cancel") && <Button size="sm" variant="outline" className="h-8 gap-0.5 px-1.5 text-xs border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800" onClick={() => setCancelling(b)}><X className="size-4 shrink-0" /> Cancel</Button>}
             </div>
           );
         }
