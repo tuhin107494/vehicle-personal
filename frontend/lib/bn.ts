@@ -274,6 +274,7 @@ export const BN: Record<string, string> = {
   "Enter an email address that can receive mail.": "এমন ইমেইল ঠিকানা দিন যেখানে মেইল যায়।", "Too many messages. Please try again later.": "অনেক বেশি বার্তা পাঠানো হয়েছে। পরে আবার চেষ্টা করুন।",
   "The contact form is not available right now. Please email us directly.": "যোগাযোগ ফর্ম এখন চালু নেই। সরাসরি ইমেইল করুন।", "Your message could not be sent right now. Please try again, or email us directly.": "আপনার বার্তা এখন পাঠানো যায়নি। আবার চেষ্টা করুন, বা সরাসরি ইমেইল করুন।",
   "Gmail sends from its own address, so it replaces this From address and mail from your domain can land in spam. To send from your domain, use an email service that has verified it.": "জিমেইল নিজের ঠিকানা থেকেই পাঠায়, তাই এই প্রেরকের ঠিকানা বদলে যায় এবং আপনার ডোমেইনের মেইল স্প্যামে যেতে পারে। নিজের ডোমেইন থেকে পাঠাতে, ডোমেইন যাচাই করা কোনো ইমেইল সার্ভিস ব্যবহার করুন।",
+  "Choose date": "তারিখ বাছুন",
   "Show password": "পাসওয়ার্ড দেখান", "Hide password": "পাসওয়ার্ড লুকান",
   "Install app": "অ্যাপ ইনস্টল করুন", Dismiss: "বন্ধ করুন",
   "Install Gari Becho: tap the Share button, then 'Add to Home Screen'.": "Gari Becho ইনস্টল করতে: Share বাটনে চাপুন, তারপর 'Add to Home Screen' বেছে নিন।",
