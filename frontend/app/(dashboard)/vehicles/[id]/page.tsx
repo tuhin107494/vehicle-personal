@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { ChevronDown, Pencil } from "lucide-react";
-import { fmtDate, money } from "@/lib/format";
+import { fmtDate, label as statusLabel, money } from "@/lib/format";
 import { useCategories } from "@/lib/categories";
 import { useFetch } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
@@ -13,6 +13,7 @@ import { DataTable, type Col } from "@/components/DataTable";
 import { Badge, Button, Card, ErrorText, KV, Loading, PageHeader, StatusBadge } from "@/components/app-ui";
 import { VehicleForm } from "@/components/forms/VehicleForm";
 import { PurchaseEditModal } from "@/components/forms/PurchaseEditModal";
+import { RegistrationModal } from "@/components/forms/RegistrationModal";
 
 type Event = { type: string; date: string; title: string; amount: number | null; ref_id: number; how?: string | null };
 
@@ -25,6 +26,7 @@ export default function VehicleDetailPage() {
   const [open, setOpen] = useState<Record<string, boolean>>({}); // which chain steps are expanded
   const [editing, setEditing] = useState(false);
   const [editingPurchase, setEditingPurchase] = useState<number | null>(null); // id of the purchase being edited
+  const [registering, setRegistering] = useState<Sale | null>(null); // the sale whose registration step is being changed
   const { data, loading, error, reload } = useFetch<{ vehicle: Vehicle; sales: Sale[]; purchases: Purchase[]; timeline: Event[]; bookings: Booking[] }>(`/vehicles/${id}/history`);
 
   if (loading && !data) return <Loading />;
@@ -203,9 +205,16 @@ export default function VehicleDetailPage() {
                               <p className="mt-2 text-right text-sm text-gray-600">Total paid <b className="text-slate-900">{money(st.s.total_paid)}</b></p>
                             )}
                           </div>
+                          {st.s.status === "active" && (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-xs font-semibold uppercase text-emerald-700">Registration</span>
+                              <Badge tone={st.s.registration_status === "document_provided" ? "green" : st.s.registration_status === "pending" ? "gray" : "blue"}>{statusLabel(st.s.registration_status)}</Badge>
+                              {can("registration.update") && <Button variant="outline" size="sm" onClick={() => setRegistering(st.s)}><Pencil className="size-4 text-sky-700" /> Update registration</Button>}
+                            </div>
+                          )}
                           {timeline.filter((e) => e.type === "registration" && e.ref_id === st.id).length > 0 && (
                             <div>
-                              <p className="mb-1 text-xs font-semibold uppercase text-emerald-700">Registration</p>
+                              {st.s.status !== "active" && <p className="mb-1 text-xs font-semibold uppercase text-emerald-700">Registration</p>}
                               <ul className="space-y-1">
                                 {timeline.filter((e) => e.type === "registration" && e.ref_id === st.id).map((e, k) => (
                                   <li key={k} className="flex gap-3"><span className="w-28 text-gray-500">{fmtDate(e.date)}</span><span>{e.title.replace("Registration: ", "")}</span></li>
@@ -224,6 +233,7 @@ export default function VehicleDetailPage() {
           })}
         </ol>
       </Card>}
+      <RegistrationModal key={registering?.id} saleId={registering?.id ?? null} status={registering?.registration_status ?? "pending"} title={`Registration · ${v.chassis_no}`} open={!!registering} onClose={() => setRegistering(null)} onSaved={reload} />
       <PurchaseEditModal purchase={purchases.find((p) => p.id === editingPurchase) ?? null} onClose={() => setEditingPurchase(null)} onSaved={reload} />
       <VehicleForm open={editing} vehicle={v} onClose={() => setEditing(false)} onSaved={reload} />
     </>
