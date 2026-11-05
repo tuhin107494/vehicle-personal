@@ -44,8 +44,9 @@ class BookingController extends Controller implements HasMiddleware
 
         // the tabs' badges: how many bookings are in each state, for the current search; the drafts count as active
         $counts = (clone $base)->selectRaw('status, COUNT(*) as total')->groupBy('status')->pluck('total', 'status');
-        $draftCount = $drafts ? (clone $drafts)->count() : 0;
-        $counts->put('active', ($counts['active'] ?? 0) + $draftCount);
+        // drafts hold their customer in JSON, so the search is applied to them after they are loaded (there are only a few)
+        $draftRows = $drafts ? $this->searchDrafts(Draft::presentMany((clone $drafts)->with('creator:id,name')->latest('updated_at')->get()), (string) $request->search) : collect();
+        $counts->put('active', ($counts['active'] ?? 0) + $draftRows->count());
 
         $bookings = $base->with(['vehicle:id,chassis_no,engine_no,brand,model,year,vehicle_type,status', 'customer:id,name,phone,alt_phone', 'creator:id,name'])
             ->when($request->status, fn ($q, $s) => $q->where('status', $s))
@@ -56,10 +57,28 @@ class BookingController extends Controller implements HasMiddleware
         $withDrafts = $drafts && in_array($request->status, [null, '', 'active'], true) && $bookings->currentPage() === 1;
         $extra = ['status_counts' => $counts];
         if ($withDrafts) {
-            $extra['drafts'] = Draft::presentMany((clone $drafts)->with('creator:id,name')->latest('updated_at')->get());
+            $extra['drafts'] = $draftRows;
         }
 
         return $this->paginated($bookings, BookingResource::class, extra: $extra);
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, array<string,mixed>>  $drafts
+     * @return \Illuminate\Support\Collection<int, array<string,mixed>>
+     */
+    private function searchDrafts($drafts, string $search)
+    {
+        $needle = mb_strtolower(trim($search));
+
+        if ($needle === '') {
+            return $drafts;
+        }
+
+        return $drafts->filter(fn (array $d) => collect([
+            $d['customer']['name'] ?? null, $d['customer']['phone'] ?? null, $d['customer']['alt_phone'] ?? null,
+            $d['vehicle']['chassis_no'] ?? null, $d['vehicle']['brand'] ?? null, $d['vehicle']['model'] ?? null,
+        ])->contains(fn ($v) => $v !== null && str_contains(mb_strtolower((string) $v), $needle)))->values();
     }
 
     public function show(Booking $booking): JsonResponse

@@ -131,16 +131,18 @@ export function BookingList() {
   return (
     <>
       <div className="mb-3 mt-7 flex flex-wrap items-center gap-1.5 sm:gap-2">
+        <div className="flex max-w-full flex-nowrap items-center gap-1 sm:gap-2">
         {TABS.map(([key, text]) => {
           const count = key ? counts[key] ?? 0 : total;
           const active = status === key;
           return (
-            <button key={key || "all"} type="button" onClick={() => setStatus(key)} className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition sm:gap-2 sm:px-4 sm:py-1.5 sm:text-sm ${active ? "bg-gradient-to-r from-emerald-600 to-green-600 text-white shadow" : "bg-white text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-50"}`}>
+            <button key={key || "all"} type="button" onClick={() => setStatus(key)} className={`flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-1 text-xs font-medium transition sm:gap-2 sm:px-4 sm:py-1.5 sm:text-sm ${active ? "bg-gradient-to-r from-emerald-600 to-green-600 text-white shadow" : "bg-white text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-50"}`}>
               {text}
-              <span className={`rounded-full px-1.5 text-[11px] sm:px-2 sm:text-xs ${active ? "bg-white/25" : "bg-emerald-100 text-emerald-800"}`}>{count}</span>
+              <span className={`rounded-full px-1 text-[11px] sm:px-2 sm:text-xs ${active ? "bg-white/25" : "bg-emerald-100 text-emerald-800"}`}>{count}</span>
             </button>
           );
         })}
+        </div>
         {can("sales.create") && <Button className="ml-auto" onClick={() => setOpen(true)}><Plus className="size-4" /> New booking</Button>}
       </div>
       <Input className={`${inputCls} mb-3 max-w-xs`} placeholder="Search customer, phone, chassis" value={list.search} onChange={(e) => list.setSearch(e.target.value)} />
