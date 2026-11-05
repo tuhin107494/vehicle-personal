@@ -27,6 +27,7 @@ class PermissionCatalog
         return [
             ['dashboard.view', 'View dashboard', 'dashboard'],
             ...$crud('parties', 'parties'),
+            ...$crud('walkins', 'walk-in customers'),
             ...$crud('investors', 'investors'),
             ['settlements.view', 'View investor settlements', 'investors'],
             ['settlements.manage', 'Record investor settlements', 'investors'],

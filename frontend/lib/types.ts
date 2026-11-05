@@ -116,3 +116,5 @@ export type Booking = {
   vehicle?: { id: number; chassis_no: string; engine_no: string; brand: string | null; model: string | null; year: number | null; vehicle_type: string; status: string };
   customer?: { id: number; name: string; phone: string; alt_phone: string | null };
 };
+
+export type WalkIn = { id: number; name: string | null; phone: string; address: string | null; note: string | null; created_at: string; saved_by?: string | null };

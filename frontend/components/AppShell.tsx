@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useT } from "@/lib/i18n";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { BadgeDollarSign, CalendarDays, HandCoins, Menu, X, Building2, Car, ChartColumn, KeyRound, LayoutDashboard, Landmark, LogOut, Settings, ShieldCheck, ShoppingCart, Tags, Truck, UserCog, Users, Wallet } from "lucide-react";
+import { BadgeDollarSign, CalendarDays, Footprints, HandCoins, Menu, X, Building2, Car, ChartColumn, KeyRound, LayoutDashboard, Landmark, LogOut, Settings, ShieldCheck, ShoppingCart, Tags, Truck, UserCog, Users, Wallet } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Avatar } from "@/components/Avatar";
 import { useHiddenMenu } from "@/lib/menu";
@@ -24,6 +24,7 @@ export const NAV: Item[] = [
   { href: "/due-collection", text: "Due collection", icon: HandCoins, color: "text-green-600", permission: "payments.collect" },
   { href: "/supplier-payment", text: "Supplier payment", icon: HandCoins, color: "text-green-600", permission: "purchases.edit" },
   { href: "/customers", text: "Customers", icon: Users, color: "text-sky-600", permission: "parties.view" },
+  { href: "/walk-ins", text: "Walking customers", icon: Footprints, color: "text-teal-600", permission: "walkins.view" },
   { href: "/suppliers", text: "Suppliers", icon: Truck, color: "text-orange-500", permission: "parties.view" },
   { href: "/investors", text: "Investors", icon: Landmark, color: "text-violet-600", permission: "investors.view" },
   { href: "/daily-report", text: "Daily report", icon: CalendarDays, color: "text-sky-600", permission: "reports.view" },

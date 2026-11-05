@@ -7,7 +7,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { api, applyServerErrors } from "@/lib/api";
 import { toPayload, MOBILE_MSG, MOBILE_RX, savedMsg } from "@/lib/format";
-import type { Customer } from "@/lib/types";
+import type { Customer, WalkIn } from "@/lib/types";
 import { Button, Field, inputCls, Modal } from "@/components/app-ui";
 import { PhotoField } from "@/components/PhotoField";
 import { savePhoto, type PhotoChange } from "@/lib/photo";
@@ -27,8 +27,8 @@ type Values = z.infer<typeof schema>;
 
 const blank: Values = { name: "", father_name: "", phone: "", alt_phone: "", nid: "", address: "", notes: "" };
 
-/** Add or edit a customer. `initialText` pre-fills the name (or the mobile number, if it looks like one) from a search box. */
-export function CustomerForm({ open, customer, onClose, onSaved, initialText = "" }: { open: boolean; customer?: Customer | null; onClose: () => void; onSaved: (c: Customer) => void; initialText?: string }) {
+/** Add or edit a customer. `initialText` pre-fills the name (or the mobile number, if it looks like one) from a search box. `convertFrom` makes the customer from a walk-in: its details are pre-filled and the walk-in is removed when saved. */
+export function CustomerForm({ open, customer, onClose, onSaved, initialText = "", convertFrom = null }: { open: boolean; customer?: Customer | null; onClose: () => void; onSaved: (c: Customer) => void; initialText?: string; convertFrom?: WalkIn | null }) {
   const { register, handleSubmit, reset, setError, watch, formState: { errors, isSubmitting } } = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: blank,
@@ -38,12 +38,16 @@ export function CustomerForm({ open, customer, onClose, onSaved, initialText = "
 
   useEffect(() => {
     if (open) setPhoto(null);
+    if (open && convertFrom && !customer) {
+      reset({ ...blank, name: convertFrom.name ?? "", phone: convertFrom.phone, address: convertFrom.address ?? "", notes: convertFrom.note ?? "" });
+      return;
+    }
     if (open) reset(customer ? { ...blank, ...Object.fromEntries(Object.entries(customer).filter(([k]) => k in blank).map(([k, v]) => [k, v ?? ""])) } : (/^[+\d][\d\s-]{4,}$/.test(initialText) ? { ...blank, phone: initialText } : { ...blank, name: initialText }));
-  }, [open, customer, reset, initialText]);
+  }, [open, customer, reset, initialText, convertFrom]);
 
   const onSubmit = async (values: Values) => {
     try {
-      const res = await api<Customer>(customer ? `/customers/${customer.id}` : "/customers", {
+      const res = await api<Customer>(customer ? `/customers/${customer.id}` : convertFrom ? `/walk-ins/${convertFrom.id}/convert` : "/customers", {
         method: customer ? "PUT" : "POST",
         body: { ...toPayload(values), father_name: values.father_name || null, alt_phone: values.alt_phone || null, nid: values.nid || null, address: values.address || null, notes: values.notes || null },
       });

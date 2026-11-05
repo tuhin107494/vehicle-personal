@@ -32,6 +32,7 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\VehicleCategoryController;
 use App\Http\Controllers\Api\VehicleColorController;
 use App\Http\Controllers\Api\VehicleController;
+use App\Http\Controllers\Api\WalkInController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('login', [AuthController::class, 'login'])->middleware('throttle:login');
@@ -108,6 +109,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('customers/import', [CustomerController::class, 'import'])->middleware('throttle:10,1');
         Route::apiResource('customers', CustomerController::class)->except('destroy');
         Route::get('customers/{customer}/history', [CustomerController::class, 'history']);
+        Route::post('walk-ins/{walkIn}/convert', [WalkInController::class, 'convert']);
+        Route::apiResource('walk-ins', WalkInController::class)->parameters(['walk-ins' => 'walkIn']);
         Route::apiResource('suppliers', SupplierController::class)->except('destroy');
         Route::get('suppliers/{supplier}/history', [SupplierController::class, 'history']);
 
