@@ -17,6 +17,9 @@ class ShopUserRequest extends ApiRequest
             'password' => [$user ? 'nullable' : 'required', 'string', 'min:8'],
             'role' => ['required', Rule::in(PermissionCatalog::ASSIGNABLE_ROLES)],
             'is_active' => ['nullable', 'boolean'],
+            // the full list this user should have: the role's defaults, with any added or taken away
+            'permissions' => ['sometimes', 'array'],
+            'permissions.*' => ['string', Rule::exists('permissions', 'key')],
         ];
     }
 

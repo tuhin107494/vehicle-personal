@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\ShopUserRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
+use App\Services\UserPermissionService;
 use App\Support\PermissionCatalog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -22,17 +23,25 @@ class UserController extends Controller
         return $this->success(UserResource::collection($users));
     }
 
-    public function store(ShopUserRequest $request): JsonResponse
+    public function store(ShopUserRequest $request, UserPermissionService $permissions): JsonResponse
     {
-        $user = User::create($request->safe()->only(['name', 'email', 'password', 'role']) + [
-            'shop_id' => $request->user()->shop_id,
-            'is_active' => $request->boolean('is_active', true),
-        ]);
+        $user = DB::transaction(function () use ($request, $permissions) {
+            $user = User::create($request->safe()->only(['name', 'email', 'password', 'role']) + [
+                'shop_id' => $request->user()->shop_id,
+                'is_active' => $request->boolean('is_active', true),
+            ]);
+
+            if ($request->has('permissions')) {
+                $permissions->sync($user, $request->permissions);
+            }
+
+            return $user;
+        });
 
         return $this->success(UserResource::make($user), 'User created', 201);
     }
 
-    public function update(ShopUserRequest $request, User $user): JsonResponse
+    public function update(ShopUserRequest $request, User $user, UserPermissionService $permissions): JsonResponse
     {
         $this->authorizeTarget($user);
 
@@ -42,8 +51,16 @@ class UserController extends Controller
             $data['password'] = $request->password;
         }
 
-        DB::transaction(function () use ($user, $data, $request) {
+        DB::transaction(function () use ($user, $data, $request, $permissions) {
+            $roleChanged = $data['role'] !== $user->role;
             $user->fill($data + ['is_active' => $request->boolean('is_active', $user->is_active)])->save();
+
+            if ($request->has('permissions')) {
+                $permissions->sync($user, $request->permissions);
+            } elseif ($roleChanged) {
+                // what was added or taken away was measured against the old role
+                $permissions->clear($user);
+            }
 
             if (! $user->is_active) {
                 DB::table('personal_access_tokens')->where('tokenable_id', $user->id)->where('tokenable_type', User::class)->delete();

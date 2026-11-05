@@ -55,12 +55,29 @@ class User extends Authenticatable
         return $this->permissionKeys ??= match (true) {
             $this->isSuperAdmin() => [],
             $this->role === 'shop_owner' => Permission::pluck('key')->all(),
-            default => DB::table('role_permissions')
-                ->join('permissions', 'permissions.id', '=', 'role_permissions.permission_id')
-                ->where('role_permissions.shop_id', $this->shop_id)
-                ->where('role_permissions.role', $this->role)
-                ->pluck('permissions.key')->all(),
+            default => $this->roleKeysWithOverrides(),
         };
+    }
+
+    /** @return array<int, string> the role's permissions, plus those added for this user, minus those taken away */
+    private function roleKeysWithOverrides(): array
+    {
+        $role = DB::table('role_permissions')
+            ->join('permissions', 'permissions.id', '=', 'role_permissions.permission_id')
+            ->where('role_permissions.shop_id', $this->shop_id)
+            ->where('role_permissions.role', $this->role)
+            ->pluck('permissions.key')->all();
+
+        $overrides = DB::table('user_permissions')
+            ->join('permissions', 'permissions.id', '=', 'user_permissions.permission_id')
+            ->where('user_permissions.shop_id', $this->shop_id)
+            ->where('user_permissions.user_id', $this->id)
+            ->pluck('user_permissions.granted', 'permissions.key');
+
+        $added = $overrides->filter()->keys()->all();
+        $taken = $overrides->reject(fn ($granted) => $granted)->keys()->all();
+
+        return array_values(array_diff(array_unique([...$role, ...$added]), $taken));
     }
 
     public function hasPermission(string $key): bool
