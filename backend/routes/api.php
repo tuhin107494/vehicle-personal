@@ -169,5 +169,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('charges/{charge}', [SaleChargeController::class, 'destroy']);
         Route::get('transactions/{type}/{id}', [TransactionController::class, 'show']);
         Route::put('transactions/{type}/{id}', [TransactionController::class, 'update']);
+        Route::delete('transactions/{type}/{id}', [TransactionController::class, 'destroy']);
     });
 });

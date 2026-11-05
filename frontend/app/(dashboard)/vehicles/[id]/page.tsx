@@ -12,6 +12,7 @@ import type { Booking, Payment, Purchase, Sale, Vehicle } from "@/lib/types";
 import { DataTable, type Col } from "@/components/DataTable";
 import { Badge, Button, Card, ErrorText, KV, Loading, PageHeader, StatusBadge } from "@/components/app-ui";
 import { VehicleForm } from "@/components/forms/VehicleForm";
+import { PurchaseEditModal } from "@/components/forms/PurchaseEditModal";
 
 type Event = { type: string; date: string; title: string; amount: number | null; ref_id: number; how?: string | null };
 
@@ -23,6 +24,7 @@ export default function VehicleDetailPage() {
   const history = useSearchParams().get("tab") === "history";
   const [open, setOpen] = useState<Record<string, boolean>>({}); // which chain steps are expanded
   const [editing, setEditing] = useState(false);
+  const [editingPurchase, setEditingPurchase] = useState<number | null>(null); // id of the purchase being edited
   const { data, loading, error, reload } = useFetch<{ vehicle: Vehicle; sales: Sale[]; purchases: Purchase[]; timeline: Event[]; bookings: Booking[] }>(`/vehicles/${id}/history`);
 
   if (loading && !data) return <Loading />;
@@ -185,6 +187,7 @@ export default function VehicleDetailPage() {
                             ["Extra cost", st.p.cost_extra > 0 ? money(st.p.cost_extra) : null],
                             ["Payment status", <span key="ps" className="capitalize">{st.p.payment_status}</span>], ["Memo no.", st.p.memo_no], ["Reference", st.p.payment_reference], ["Notes", st.p.notes],
                           ]} />
+                          {can("purchases.edit") && <Button variant="outline" size="sm" onClick={() => setEditingPurchase(st.p.id)}><Pencil className="size-4 text-emerald-600" /> Edit purchase</Button>}
                           {st.p.adjusted_sale_id && <Link className="text-xs underline" href={`/sales/${st.p.adjusted_sale_id}`}>Due set off against sale #{st.p.adjusted_sale_id}</Link>}
                         </>
                       ) : (
@@ -221,6 +224,7 @@ export default function VehicleDetailPage() {
           })}
         </ol>
       </Card>}
+      <PurchaseEditModal purchase={purchases.find((p) => p.id === editingPurchase) ?? null} onClose={() => setEditingPurchase(null)} onSaved={reload} />
       <VehicleForm open={editing} vehicle={v} onClose={() => setEditing(false)} onSaved={reload} />
     </>
   );

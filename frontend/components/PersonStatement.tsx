@@ -11,7 +11,9 @@ import { Input } from "@/components/ui/input";
 import { PrintButton } from "@/components/PrintButton";
 import { ResponsiveFilters } from "@/components/ResponsiveFilters";
 import { MobileCards } from "@/components/MobileCards";
-import { Pencil, Printer } from "lucide-react";
+import { Pencil, Printer, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { api, ApiError } from "@/lib/api";
 import { printVoucher, TransactionVoucher, type VoucherTx } from "@/components/TransactionVoucher";
 import { TransactionEditModal, type Tx } from "@/components/forms/TransactionEditModal";
 
@@ -40,6 +42,18 @@ export function PersonStatement({ side }: { side: "customer" | "supplier" }) {
   const t = TEXT[side];
   const [editing, setEditing] = useState<Tx | null>(null);
   const editButton = (r: { tx?: Tx | null }) => (r.tx && can("transactions.edit") ? <button type="button" onClick={() => setEditing(r.tx!)} className="inline-flex items-center gap-1 rounded-lg border border-amber-200 px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50"><Pencil className="size-3.5" /> Edit</button> : null);
+  // deleting takes the amount back out of the sale, installment or purchase it was paid against; the server says when it cannot
+  const deleteTx = async (tx: Tx) => {
+    if (!window.confirm("Delete this transaction? The amount is taken back out of the sale or purchase it was paid against. This cannot be undone.")) return;
+    try {
+      const res = await api(`/transactions/${tx.type}/${tx.id}`, { method: "DELETE" });
+      toast.success(res.message);
+      list.reload(); txs.reload(); reloadStatement();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "The transaction could not be deleted.");
+    }
+  };
+  const deleteButton = (r: { tx?: Tx | null }) => (r.tx?.deletable && can("transactions.delete") ? <button type="button" onClick={() => deleteTx(r.tx!)} className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50"><Trash2 className="size-3.5" /> Delete</button> : null);
   const [personId, setPersonId] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -186,7 +200,7 @@ export function PersonStatement({ side }: { side: "customer" | "supplier" }) {
                 <MobileCards
                   tone={CARD_TONE}
                   empty="No transactions in this period."
-                  items={txPg.items.map((r, i) => ({ key: i, title: r.description, sub: `${fmtDate(r.date)} · ${r.person}${r.vehicle ? ` · ${r.vehicle}` : ""}`, amount: money(r.charge || r.paid), fields: [[r.charge ? t.charge : t.paid, money(r.charge || r.paid)], ...(r.reference ? ([["Ref.", r.reference]] as [string, React.ReactNode][]) : [])], action: <div className="flex gap-1.5"><button type="button" onClick={() => setVoucher(r)} className="rounded-lg border border-emerald-200 px-3 py-1 text-xs font-medium text-emerald-700">View</button><button type="button" onClick={() => printVoucher(r, side, shopName)} className="inline-flex items-center gap-1 rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50"><Printer className="size-3.5" /> Print</button>{editButton(r)}</div> }))}
+                  items={txPg.items.map((r, i) => ({ key: i, title: r.description, sub: `${fmtDate(r.date)} · ${r.person}${r.vehicle ? ` · ${r.vehicle}` : ""}`, amount: money(r.charge || r.paid), fields: [[r.charge ? t.charge : t.paid, money(r.charge || r.paid)], ...(r.reference ? ([["Ref.", r.reference]] as [string, React.ReactNode][]) : [])], action: <div className="flex gap-1.5"><button type="button" onClick={() => setVoucher(r)} className="rounded-lg border border-emerald-200 px-3 py-1 text-xs font-medium text-emerald-700">View</button><button type="button" onClick={() => printVoucher(r, side, shopName)} className="inline-flex items-center gap-1 rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50"><Printer className="size-3.5" /> Print</button>{editButton(r)}{deleteButton(r)}</div> }))}
                   totals={[[side === "customer" ? "Total sold" : "Total bought", money(txs.data.total_charge)], [side === "customer" ? "Total received" : "Total paid", money(txs.data.total_paid)]]}
                 />
                 <div className="hidden overflow-x-auto md:block print:block">
@@ -209,7 +223,7 @@ export function PersonStatement({ side }: { side: "customer" | "supplier" }) {
                           <td className="border-r border-emerald-100 px-3 py-2">{r.reference ?? ""}</td>
                           <td className="border-r border-emerald-100 px-3 py-2 text-right text-amber-700 print:text-black">{r.charge ? money(r.charge) : ""}</td>
                           <td className="border-r border-emerald-100 px-3 py-2 text-right text-emerald-700 print:text-black">{r.paid ? money(r.paid) : ""}</td>
-                          <td className="whitespace-nowrap px-3 py-2 text-right print:hidden"><div className="flex justify-end gap-1.5"><button type="button" onClick={() => setVoucher(r)} className="rounded-lg border border-emerald-200 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50">View</button><button type="button" onClick={() => printVoucher(r, side, shopName)} className="inline-flex items-center gap-1 rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50"><Printer className="size-3.5" /> Print</button>{editButton(r)}</div></td>
+                          <td className="whitespace-nowrap px-3 py-2 text-right print:hidden"><div className="flex justify-end gap-1.5"><button type="button" onClick={() => setVoucher(r)} className="rounded-lg border border-emerald-200 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50">View</button><button type="button" onClick={() => printVoucher(r, side, shopName)} className="inline-flex items-center gap-1 rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50"><Printer className="size-3.5" /> Print</button>{editButton(r)}{deleteButton(r)}</div></td>
                         </tr>
                       ))}
                       {!txs.data.rows.length && <tr className="border-t border-emerald-200"><td colSpan={8} className="px-3 py-6 text-center text-slate-500">No transactions in this period.</td></tr>}
@@ -260,7 +274,7 @@ export function PersonStatement({ side }: { side: "customer" | "supplier" }) {
               tone={CARD_TONE}
               empty="No transactions in this period."
               items={[
-                ...stPg.items.map((r, i) => ({ key: i, title: r.description, sub: `${fmtDate(r.date)}${r.vehicle ? ` · ${r.vehicle}` : ""}`, amount: money(r.balance), fields: [...(r.charge ? ([[t.charge, money(r.charge)]] as [string, React.ReactNode][]) : []), ...(r.paid ? ([[t.paid, money(r.paid)]] as [string, React.ReactNode][]) : []), ...(r.reference ? ([["Ref.", r.reference]] as [string, React.ReactNode][]) : [])] , action: <div className="flex gap-1.5"><button type="button" onClick={() => setVoucher(voucherOf(r))} className="rounded-lg border border-emerald-200 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50">View</button><button type="button" onClick={() => printVoucher(voucherOf(r), side, shopName)} className="inline-flex items-center gap-1 rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50"><Printer className="size-3.5" /> Print</button>{editButton(r)}</div> })),
+                ...stPg.items.map((r, i) => ({ key: i, title: r.description, sub: `${fmtDate(r.date)}${r.vehicle ? ` · ${r.vehicle}` : ""}`, amount: money(r.balance), fields: [...(r.charge ? ([[t.charge, money(r.charge)]] as [string, React.ReactNode][]) : []), ...(r.paid ? ([[t.paid, money(r.paid)]] as [string, React.ReactNode][]) : []), ...(r.reference ? ([["Ref.", r.reference]] as [string, React.ReactNode][]) : [])] , action: <div className="flex gap-1.5"><button type="button" onClick={() => setVoucher(voucherOf(r))} className="rounded-lg border border-emerald-200 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50">View</button><button type="button" onClick={() => printVoucher(voucherOf(r), side, shopName)} className="inline-flex items-center gap-1 rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50"><Printer className="size-3.5" /> Print</button>{editButton(r)}{deleteButton(r)}</div> })),
                 { key: "open", title: "Opening balance", amount: money(data.opening_balance), fields: [] },
               ]}
               totals={[[side === "customer" ? "Total sold" : "Total bought", money(data.total_charge)], [side === "customer" ? "Total received" : "Total paid", money(data.total_paid)], ["Balance", money(data.closing_balance)]]}
@@ -286,7 +300,7 @@ export function PersonStatement({ side }: { side: "customer" | "supplier" }) {
                     <td className="border-r border-emerald-100 px-3 py-2 text-right text-amber-700 print:text-black">{r.charge ? money(r.charge) : ""}</td>
                     <td className="border-r border-emerald-100 px-3 py-2 text-right text-emerald-700 print:text-black">{r.paid ? money(r.paid) : ""}</td>
                     <td className="border-r border-emerald-100 px-3 py-2 text-right font-medium">{money(r.balance)}</td>
-                    <td className="whitespace-nowrap px-3 py-2 text-right print:hidden"><div className="flex justify-end gap-1.5"><button type="button" onClick={() => setVoucher(voucherOf(r))} className="rounded-lg border border-emerald-200 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50">View</button><button type="button" onClick={() => printVoucher(voucherOf(r), side, shopName)} className="inline-flex items-center gap-1 rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50"><Printer className="size-3.5" /> Print</button>{editButton(r)}</div></td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right print:hidden"><div className="flex justify-end gap-1.5"><button type="button" onClick={() => setVoucher(voucherOf(r))} className="rounded-lg border border-emerald-200 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50">View</button><button type="button" onClick={() => printVoucher(voucherOf(r), side, shopName)} className="inline-flex items-center gap-1 rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50"><Printer className="size-3.5" /> Print</button>{editButton(r)}{deleteButton(r)}</div></td>
                   </tr>
                 ))}
                 {!data.rows.length && <tr className="border-t border-emerald-200"><td colSpan={8} className="px-3 py-6 text-center text-slate-500">No transactions in this period.</td></tr>}

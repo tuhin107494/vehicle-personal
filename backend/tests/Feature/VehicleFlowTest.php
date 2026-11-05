@@ -2,10 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Models\Advance;
 use App\Models\Customer;
+use App\Models\DuePromise;
 use App\Models\Installment;
 use App\Models\Investor;
+use App\Models\Payment;
 use App\Models\Permission;
+use App\Models\PurchasePayment;
 use App\Models\Sale;
 use App\Models\Shop;
 use App\Models\Supplier;
@@ -97,7 +101,7 @@ class VehicleFlowTest extends TestCase
         $this->putJson("/api/sales/{$sale['id']}", $this->editBody($sale, ['sale_price' => 1200000, 'down_payment' => 500000, 'memo_no' => 'M-5', 'guarantor_name' => 'Karim', 'promised_date' => today()->addDays(10)->toDateString()]))
             ->assertOk()->assertJsonPath('data.due_amount', 700000)->assertJsonPath('data.total_paid', 500000)->assertJsonCount(2, 'data.edits');
         $this->assertDatabaseCount('payments', 1);
-        $this->assertSame(700000.0, (float) \App\Models\DuePromise::where('sale_id', $sale['id'])->value('promised_amount'));
+        $this->assertSame(700000.0, (float) DuePromise::where('sale_id', $sale['id'])->value('promised_amount'));
     }
 
     public function test_money_terms_are_locked_once_a_payment_is_collected_but_details_still_edit(): void
@@ -143,7 +147,7 @@ class VehicleFlowTest extends TestCase
 
         // the date cannot go before the sale, and a tx that cannot be edited is refused
         $this->putJson("/api/transactions/{$tx['type']}/{$tx['id']}", ['paid_at' => today()->subDays(30)->toDateString(), 'method' => 'cash'])->assertStatus(409);
-        $adjustment = \App\Models\Payment::create(['sale_id' => $sale['id'], 'amount' => 1000, 'method' => 'adjustment', 'paid_at' => now(), 'received_by' => auth()->id() ?? 1, 'note' => 'Set off']);
+        $adjustment = Payment::create(['sale_id' => $sale['id'], 'amount' => 1000, 'method' => 'adjustment', 'paid_at' => now(), 'received_by' => auth()->id() ?? 1, 'note' => 'Set off']);
         $this->putJson("/api/transactions/customer_payment/{$adjustment->id}", ['paid_at' => today()->toDateString(), 'method' => 'cash'])->assertStatus(409);
         $this->getJson("/api/transactions/{$tx['type']}/{$tx['id']}")->assertOk()->assertJsonPath('data.edits.0.changes.0.field', 'Method');
     }
@@ -171,7 +175,7 @@ class VehicleFlowTest extends TestCase
         $v = $this->stockVehicle('AMT-1');
         $sale = $this->postJson('/api/sales', $this->saleData($v, ['payment_type' => 'due', 'down_payment' => 400000]))->assertCreated()->json('data');
         $this->postJson('/api/accounts', ['side' => 'customer', 'customer_id' => $sale['customer_id'], 'amount' => 100000, 'method' => 'cash'])->assertCreated();
-        $pay = \App\Models\Payment::where('sale_id', $sale['id'])->whereNull('note')->first();
+        $pay = Payment::where('sale_id', $sale['id'])->whereNull('note')->first();
 
         $this->putJson("/api/transactions/customer_payment/{$pay->id}", ['amount' => 150000, 'paid_at' => today()->toDateString(), 'method' => 'cash'])
             ->assertOk()->assertJsonPath('data.edits.0.changes.0.field', 'Amount');
@@ -179,7 +183,7 @@ class VehicleFlowTest extends TestCase
 
         // more than the sale total is refused; the down payment's amount is changed with the sale
         $this->putJson("/api/transactions/customer_payment/{$pay->id}", ['amount' => 700000, 'paid_at' => today()->toDateString(), 'method' => 'cash'])->assertStatus(409);
-        $down = \App\Models\Payment::where('sale_id', $sale['id'])->where('note', 'Down payment')->first();
+        $down = Payment::where('sale_id', $sale['id'])->where('note', 'Down payment')->first();
         $this->putJson("/api/transactions/customer_payment/{$down->id}", ['amount' => 450000, 'paid_at' => today()->toDateString(), 'method' => 'cash', 'note' => 'changed'])->assertStatus(409);
         $this->assertDatabaseHas('payments', ['id' => $down->id, 'note' => 'Down payment', 'amount' => 400000]);
         $this->getJson("/api/transactions/customer_payment/{$down->id}")->assertOk()->assertJsonPath('data.values.amount_lock', 'This was taken at the sale: change it with Edit sale.');
@@ -191,7 +195,7 @@ class VehicleFlowTest extends TestCase
         $plan = ['installment_count' => 4, 'first_due_date' => today()->addMonth()->toDateString(), 'interest_rate' => 0];
         $sale = $this->postJson('/api/sales', $this->saleData($v, ['payment_type' => 'installment', 'down_payment' => 400000] + $plan))->assertCreated()->json('data');
         $this->postJson("/api/sales/{$sale['id']}/payments", ['amount' => 100000, 'method' => 'cash'])->assertCreated();
-        $pay = \App\Models\Payment::where('sale_id', $sale['id'])->whereNotNull('installment_id')->first();
+        $pay = Payment::where('sale_id', $sale['id'])->whereNotNull('installment_id')->first();
 
         $this->putJson("/api/transactions/customer_payment/{$pay->id}", ['amount' => 120000, 'paid_at' => today()->toDateString(), 'method' => 'cash'])->assertOk();
         $this->assertDatabaseHas('installments', ['id' => $pay->installment_id, 'paid_amount' => 120000]);
@@ -203,7 +207,7 @@ class VehicleFlowTest extends TestCase
         $seller = Supplier::create(['name' => 'Seller', 'phone' => '01700066666']);
         $p = $this->postJson('/api/purchases', ['vehicle_type' => 'motorcycle', 'chassis_no' => 'AMT-S1', 'engine_no' => 'E-AMT-S1', 'supplier_id' => $seller->id, 'purchase_date' => today()->subDays(5)->toDateString(), 'price' => 100000, 'paid_amount' => 0])->assertCreated()->json('data');
         $this->postJson('/api/accounts', ['side' => 'supplier', 'supplier_id' => $seller->id, 'amount' => 60000, 'method' => 'cash'])->assertCreated();
-        $pay = \App\Models\PurchasePayment::where('purchase_id', $p['id'])->first();
+        $pay = PurchasePayment::where('purchase_id', $p['id'])->first();
 
         $this->putJson("/api/transactions/supplier_payment/{$pay->id}", ['amount' => 80000, 'paid_at' => today()->toDateString(), 'method' => 'cash'])->assertOk();
         $this->assertDatabaseHas('purchases', ['id' => $p['id'], 'paid_amount' => 80000, 'payment_status' => 'partial']);
@@ -211,7 +215,7 @@ class VehicleFlowTest extends TestCase
         $this->assertDatabaseHas('purchases', ['id' => $p['id'], 'paid_amount' => 100000, 'payment_status' => 'paid']);
         $this->putJson("/api/transactions/supplier_payment/{$pay->id}", ['amount' => 100001, 'paid_at' => today()->toDateString(), 'method' => 'cash'])->assertStatus(409);
 
-        $advance = \App\Models\Advance::create(['supplier_id' => $seller->id, 'amount' => 5000, 'used' => 3000, 'method' => 'cash', 'paid_at' => today(), 'created_by' => 1]);
+        $advance = Advance::create(['supplier_id' => $seller->id, 'amount' => 5000, 'used' => 3000, 'method' => 'cash', 'paid_at' => today(), 'created_by' => 1]);
         $this->putJson("/api/transactions/supplier_advance/{$advance->id}", ['amount' => 2000, 'paid_at' => today()->toDateString(), 'method' => 'cash'])->assertStatus(409);
         $this->putJson("/api/transactions/supplier_advance/{$advance->id}", ['amount' => 7000, 'paid_at' => today()->toDateString(), 'method' => 'cash'])->assertOk();
     }
@@ -261,7 +265,7 @@ class VehicleFlowTest extends TestCase
         $this->postJson('/api/accounts', ['side' => 'customer', 'customer_id' => $sale['customer_id'], 'amount' => 250000, 'method' => 'cash', 'note' => 'Advance'])->assertCreated()
             ->assertJsonCount(1, 'data.vouchers');
         $this->assertDatabaseCount('installments', 4);
-        $this->assertSame(3, \App\Models\Payment::where('sale_id', $sale['id'])->whereNotNull('installment_id')->count()); // still three rows underneath
+        $this->assertSame(3, Payment::where('sale_id', $sale['id'])->whereNotNull('installment_id')->count()); // still three rows underneath
 
         $rows = collect($this->getJson("/api/reports/person-transactions?side=customer&customer_id={$sale['customer_id']}")->assertOk()->json('data.rows'))->where('kind', 'payment')->where('paid', 250000);
         $this->assertCount(1, $rows);
@@ -272,7 +276,7 @@ class VehicleFlowTest extends TestCase
         // details change on every row; the amount of a spread payment is fixed
         $tx = $rows->first()['tx'];
         $this->putJson("/api/transactions/{$tx['type']}/{$tx['id']}", ['paid_at' => today()->toDateString(), 'method' => 'bank'])->assertOk();
-        $this->assertSame(3, \App\Models\Payment::where('sale_id', $sale['id'])->whereNotNull('installment_id')->where('method', 'bank')->count());
+        $this->assertSame(3, Payment::where('sale_id', $sale['id'])->whereNotNull('installment_id')->where('method', 'bank')->count());
         $this->putJson("/api/transactions/{$tx['type']}/{$tx['id']}", ['amount' => 200000, 'paid_at' => today()->toDateString(), 'method' => 'bank'])->assertStatus(409);
     }
 
@@ -879,5 +883,56 @@ class VehicleFlowTest extends TestCase
             ->whereIn('permission_id', Permission::where('key', 'sales.create')->pluck('id'))->delete();
         Sanctum::actingAs(User::find($mod->id)); // a fresh instance, so its permissions are read again
         $this->getJson('/api/drafts?type=sale')->assertForbidden();
+    }
+
+    public function test_a_collected_payment_can_be_deleted_and_the_sale_and_installment_follow(): void
+    {
+        $v = $this->stockVehicle('DEL-1');
+        $plan = ['installment_count' => 4, 'first_due_date' => today()->addMonth()->toDateString(), 'interest_rate' => 0];
+        $sale = $this->postJson('/api/sales', $this->saleData($v, ['payment_type' => 'installment', 'down_payment' => 400000] + $plan))->assertCreated()->json('data');
+        $this->postJson("/api/sales/{$sale['id']}/payments", ['amount' => 100000, 'method' => 'cash'])->assertCreated();
+        $pay = Payment::where('sale_id', $sale['id'])->whereNotNull('installment_id')->first();
+
+        $rows = $this->getJson("/api/reports/person-transactions?side=customer&customer_id={$sale['customer_id']}")->json('data.rows');
+        $this->assertTrue(collect($rows)->firstWhere('paid', 100000)['tx']['deletable']);
+        $this->assertFalse(collect($rows)->firstWhere('paid', 400000)['tx']['deletable']); // the down payment is changed with the sale
+
+        $this->deleteJson("/api/transactions/customer_payment/{$pay->id}")->assertOk();
+        $this->assertDatabaseMissing('payments', ['id' => $pay->id]);
+        $this->assertDatabaseHas('installments', ['id' => $pay->installment_id, 'paid_amount' => 0, 'status' => 'pending']);
+        $this->assertDatabaseHas('sales', ['id' => $sale['id'], 'total_paid' => 400000, 'due_amount' => 600000]);
+        $this->assertDatabaseHas('transaction_edits', ['type' => 'customer_payment', 'subject_id' => $pay->id]);
+
+        $down = Payment::where('sale_id', $sale['id'])->where('note', 'Down payment')->first();
+        $this->deleteJson("/api/transactions/customer_payment/{$down->id}")->assertStatus(409);
+        $this->assertDatabaseHas('payments', ['id' => $down->id]);
+    }
+
+    public function test_a_supplier_payment_and_advance_can_be_deleted_and_the_purchase_follows(): void
+    {
+        $seller = Supplier::create(['name' => 'Seller', 'phone' => '01700088888']);
+        $purchase = $this->postJson('/api/purchases', ['vehicle_type' => 'motorcycle', 'chassis_no' => 'DEL-S1', 'engine_no' => 'E-DEL-S1', 'supplier_id' => $seller->id, 'purchase_date' => today()->subDays(5)->toDateString(), 'price' => 100000, 'paid_amount' => 0])->assertCreated()->json('data.id');
+        $this->postJson('/api/accounts', ['side' => 'supplier', 'supplier_id' => $seller->id, 'amount' => 130000, 'method' => 'cash'])->assertCreated();
+
+        $rows = collect($this->getJson("/api/reports/person-transactions?side=supplier&supplier_id={$seller->id}")->json('data.rows'))->where('kind', '!=', 'purchase');
+        $payment = $rows->firstWhere('kind', 'payment')['tx'];
+        $advance = $rows->firstWhere('kind', 'advance')['tx'];
+
+        $this->deleteJson("/api/transactions/{$payment['type']}/{$payment['id']}")->assertOk();
+        $this->assertDatabaseHas('purchases', ['id' => $purchase, 'paid_amount' => 0, 'payment_status' => 'unpaid']);
+        $this->deleteJson("/api/transactions/{$advance['type']}/{$advance['id']}")->assertOk();
+        $this->assertDatabaseMissing('advances', ['id' => $advance['id']]);
+    }
+
+    public function test_deleting_a_transaction_needs_its_own_permission(): void
+    {
+        $v = $this->stockVehicle('DEL-2');
+        $sale = $this->postJson('/api/sales', $this->saleData($v, ['payment_type' => 'due', 'down_payment' => 400000]))->assertCreated()->json('data');
+        $this->postJson('/api/accounts', ['side' => 'customer', 'customer_id' => $sale['customer_id'], 'amount' => 100000, 'method' => 'cash'])->assertCreated();
+        $pay = Payment::where('sale_id', $sale['id'])->whereNull('note')->first();
+
+        Sanctum::actingAs(User::factory()->create(['role' => 'moderator', 'shop_id' => $this->shop->id]));
+        $this->deleteJson("/api/transactions/customer_payment/{$pay->id}")->assertForbidden();
+        $this->assertDatabaseHas('payments', ['id' => $pay->id]);
     }
 }

@@ -5,16 +5,17 @@ namespace App\Services;
 use App\Exceptions\BusinessRuleException;
 use App\Models\Advance;
 use App\Models\Installment;
+use App\Models\Payment;
 use App\Models\Purchase;
+use App\Models\PurchasePayment;
 use App\Models\Sale;
 use App\Models\SaleCharge;
-use App\Models\Payment;
-use App\Models\PurchasePayment;
 use App\Models\TransactionEdit;
 use App\Models\User;
 use App\Support\Money;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -50,7 +51,7 @@ class TransactionService
     /** @return array{type:string,id:int}|null what the statement needs to offer an Edit button */
     public static function tx(Model $m): ?array
     {
-        return self::editable($m) ? ['type' => self::typeOf($m), 'id' => $m->id] : null;
+        return self::editable($m) ? ['type' => self::typeOf($m), 'id' => $m->id, 'deletable' => app(self::class)->deleteLock($m) === null] : null;
     }
 
     public function find(string $type, int $id): Model
@@ -84,7 +85,7 @@ class TransactionService
     }
 
     /** The rows of the collection a payment belongs to (just itself when it was not spread). */
-    private function batch(Model $m): \Illuminate\Support\Collection
+    private function batch(Model $m): Collection
     {
         return $m instanceof Payment && $m->batch_no ? Payment::where('sale_id', $m->sale_id)->where('batch_no', $m->batch_no)->get() : collect([$m]);
     }
@@ -245,6 +246,68 @@ class TransactionService
             }
 
             return $m;
+        });
+    }
+
+    /** Why this entry cannot be deleted, or null when it can. */
+    public function deleteLock(Model $m): ?string
+    {
+        if (! self::editable($m)) {
+            return 'This entry cannot be deleted here.';
+        }
+
+        if ($m instanceof Payment) {
+            $lock = $this->amountLock($m);
+
+            return $lock ? 'This payment cannot be deleted. '.$lock : null;
+        }
+
+        if ($m instanceof Advance && Money::paisa($m->used) > 0) {
+            return 'Part of this advance ('.Money::format(Money::paisa($m->used)).') was already used to pay purchases, so it cannot be deleted.';
+        }
+
+        return null;
+    }
+
+    /** Removes a payment or advance and takes its amount back out of every figure it fed. The deletion is kept in the history. */
+    public function delete(Model $m, User $user): void
+    {
+        DB::transaction(function () use ($m, $user) {
+            $m = $m::lockForUpdate()->findOrFail($m->id);
+
+            if ($lock = $this->deleteLock($m)) {
+                throw new BusinessRuleException($lock);
+            }
+
+            $summary = $this->plain($m->amount).' on '.$m->paid_at->toDateString().' ('.$m->method.')';
+
+            if ($m instanceof Payment) {
+                $sale = Sale::lockForUpdate()->with('plan')->findOrFail($m->sale_id);
+
+                if ($m->installment_id) {
+                    $installment = Installment::lockForUpdate()->findOrFail($m->installment_id);
+                    $installment->paid_amount = Money::taka(max(Money::paisa($installment->paid_amount) - Money::paisa($m->amount), 0));
+                    $installment->paid_at = null;
+                    app(PaymentService::class)->refreshInstallment($installment, $m->paid_at);
+                }
+
+                $m->delete();
+                app(PaymentService::class)->recalculate($sale);
+            } elseif ($m instanceof PurchasePayment) {
+                $purchase = Purchase::lockForUpdate()->findOrFail($m->purchase_id);
+                $paid = max(Money::paisa($purchase->paid_amount) - Money::paisa($m->amount), 0);
+                $settled = $paid + Money::paisa($purchase->due_adjustment);
+
+                $m->delete();
+                $purchase->update([
+                    'paid_amount' => Money::taka($paid),
+                    'payment_status' => $settled >= Money::paisa($purchase->price) ? 'paid' : ($settled > 0 ? 'partial' : 'unpaid'),
+                ]);
+            } else {
+                $m->delete();
+            }
+
+            TransactionEdit::create(['type' => self::typeOf($m), 'subject_id' => $m->id, 'user_id' => $user->id, 'changes' => [['field' => 'Deleted', 'from' => $summary, 'to' => null]]]);
         });
     }
 

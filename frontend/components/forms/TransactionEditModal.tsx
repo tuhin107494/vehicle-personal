@@ -10,7 +10,7 @@ import { Button, Field, inputCls, Modal } from "@/components/app-ui";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 
-export type Tx = { type: "customer_payment" | "supplier_payment" | "supplier_advance"; id: number };
+export type Tx = { type: "customer_payment" | "supplier_payment" | "supplier_advance"; id: number; deletable?: boolean };
 type Values = { amount: string; paid_at: string; method: string; reference: string; memo_no: string; note: string };
 type Detail = { values: Values & { amount_lock: string | null; note_locked: string | null }; edits: { id: number; by: string | null; at: string; changes: { field: string; from: string | null; to: string | null }[] }[] };
 
