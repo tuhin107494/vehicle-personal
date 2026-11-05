@@ -198,7 +198,7 @@ export default function VehicleDetailPage() {
                           ]} />
                           <div>
                             <p className="mb-2 text-xs font-semibold uppercase text-emerald-700">Payments</p>
-                            <DataTable columns={paymentCols} data={st.s.payments ?? []} empty="No payments." />
+                            <DataTable columns={paymentCols} data={st.s.payments ?? []} pager={false} pageSize={Number.MAX_SAFE_INTEGER} empty="No payments." />
                             {(st.s.payments ?? []).length > 0 && (
                               <p className="mt-2 text-right text-sm text-gray-600">Total paid <b className="text-slate-900">{money(st.s.total_paid)}</b></p>
                             )}
