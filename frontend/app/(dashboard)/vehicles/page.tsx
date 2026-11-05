@@ -49,7 +49,7 @@ function Vehicles() {
         return can("registration.update") ? <button type="button" title="Update registration" onClick={() => setReg(v)} className="rounded-full ring-sky-300 hover:ring-2">{badge} <Pencil className="ml-0.5 inline size-3 text-sky-700" /></button> : badge;
       },
     },
-    { header: "Status", cell: ({ row }) => <StatusBadge status={row.original.status} /> },
+    { header: "Status", cell: ({ row }) => row.original.status === "booked" && row.original.booking_id ? <Badge tone="yellow">Booked (Advance)</Badge> : row.original.status === "booked" && row.original.draft_id ? <Badge tone="yellow">Booked (Draft)</Badge> : <StatusBadge status={row.original.status} /> },
     {
       header: "Action",
       id: "actions",
@@ -59,10 +59,10 @@ function Vehicles() {
             <Link className="inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-1.5 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 md:flex-none md:gap-1.5 md:px-2.5 md:py-1.5 md:text-xs" href={`/sales/new?vehicle=${row.original.id}`} title="Sell"><ArrowUpRight className="size-3 shrink-0 md:size-4" /> <span>Sell</span></Link>
           )}
           {row.original.status === "booked" && row.original.booking_id && can("sales.create") && (
-            <Link className="inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-yellow-400 bg-yellow-100 px-1.5 py-1 text-[11px] font-medium text-yellow-900 hover:bg-yellow-200 md:flex-none md:gap-1.5 md:px-2.5 md:py-1.5 md:text-xs" href={`/sales/new?booking=${row.original.booking_id}`} title="Sell"><HandCoins className="size-3 shrink-0 md:size-4" /> <span>Convert to sale</span></Link>
+            <Link className="inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-yellow-400 bg-yellow-100 px-1.5 py-1 text-[11px] font-medium text-yellow-900 hover:bg-yellow-200 md:flex-none md:gap-1.5 md:px-2.5 md:py-1.5 md:text-xs" href={`/sales/new?booking=${row.original.booking_id}`} title="Sell"><HandCoins className="size-3 shrink-0 md:size-4" /> <span className="md:hidden">Sell</span><span className="hidden md:inline">Convert to sale</span></Link>
           )}
           {row.original.status === "booked" && !row.original.booking_id && row.original.draft_id && can("sales.create") && (
-            <Link className="inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-yellow-400 bg-yellow-100 px-1.5 py-1 text-[11px] font-medium text-yellow-900 hover:bg-yellow-200 md:flex-none md:gap-1.5 md:px-2.5 md:py-1.5 md:text-xs" href={`/sales/new?resume=${row.original.draft_id}`} title="Resume sale"><ArrowUpRight className="size-3 shrink-0 md:size-4" /> <span>Resume sale</span></Link>
+            <Link className="inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-yellow-400 bg-yellow-100 px-1.5 py-1 text-[11px] font-medium text-yellow-900 hover:bg-yellow-200 md:flex-none md:gap-1.5 md:px-2.5 md:py-1.5 md:text-xs" href={`/sales/new?resume=${row.original.draft_id}`} title="Resume sale"><ArrowUpRight className="size-3 shrink-0 md:size-4" /> <span className="md:hidden">Resume</span><span className="hidden md:inline">Resume sale</span></Link>
           )}
           {row.original.status === "sold" && (row.original.sale_due ?? 0) > 0 && can("payments.collect") && (
             <Link className="inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-sky-200 px-1.5 py-1 text-[11px] md:py-1.5 md:text-xs md:flex-none md:gap-1.5 md:px-2.5 font-medium text-sky-700 hover:bg-sky-50" href={`/due-collection?vehicle_id=${row.original.id}`} title="Due collection"><HandCoins className="size-3 shrink-0 md:size-4" /> <span>Due</span></Link>

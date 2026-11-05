@@ -141,7 +141,7 @@ class VehicleController extends Controller implements HasMiddleware
 
     public function history(Vehicle $vehicle): JsonResponse
     {
-        $purchases = $vehicle->purchases()->with(['supplier', 'customer'])->get();
+        $purchases = $vehicle->purchases()->with(['supplier', 'customer', 'edits.user'])->withCount('payments')->get();
         $sales = $vehicle->sales()->with(['customer', 'payments', 'plan'])->orderBy('sale_date')->orderBy('id')->get();
         $saleIds = $sales->pluck('id');
         $events = collect();

@@ -126,6 +126,18 @@ class BookingTest extends TestCase
         $this->assertCount(0, $this->getJson('/api/vehicles?status=in_stock')->json('data'));
     }
 
+    public function test_the_booking_search_also_filters_the_saved_drafts(): void
+    {
+        $values = ['vehicle_id' => (string) $this->vehicle->id, 'party_id' => (string) $this->customer->id];
+        $this->postJson('/api/drafts', ['type' => 'sale', 'label' => 'D', 'data' => ['values' => $values]])->assertCreated();
+
+        $this->getJson('/api/bookings?search=CH-1')->assertOk()->assertJsonCount(1, 'meta.drafts')->assertJsonPath('meta.status_counts.active', 1);
+
+        $miss = $this->getJson('/api/bookings?search=no-such-thing')->assertOk();
+        $this->assertCount(0, $miss->json('meta.drafts') ?? []);
+        $this->assertSame(0, $miss->json('meta.status_counts.active'));
+    }
+
     public function test_a_sale_draft_holds_its_vehicle_until_it_is_deleted_or_becomes_the_sale(): void
     {
         $values = ['vehicle_id' => (string) $this->vehicle->id, 'party_id' => (string) $this->customer->id];

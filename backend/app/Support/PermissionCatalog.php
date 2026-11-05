@@ -37,6 +37,7 @@ class PermissionCatalog
             ['sales.edit', 'Edit sales', 'sales'],
             ['sales.charge', 'Add charges to sales', 'sales'],
             ['transactions.edit', 'Edit customer and supplier transactions', 'accounts'],
+            ['transactions.delete', 'Delete customer and supplier transactions', 'accounts'],
             ['sales.cancel', 'Cancel sales', 'sales'],
             ['payments.collect', 'Collect payments', 'collections'],
             ['promises.view', 'View due promises', 'collections'],

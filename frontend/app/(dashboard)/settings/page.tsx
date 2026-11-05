@@ -223,7 +223,7 @@ export default function SettingsPage() {
         <p className="mt-1 text-xs text-slate-500">Applies at once, on this device.</p>
       </Card>
       <Card title="Call follow-up" className="mb-4">
-        <p className="mb-3 text-xs text-slate-500">A "Call done" row on Due alert returns for another call after this many days.</p>
+        <p className="mb-3 text-xs text-slate-500">A &quot;Call done&quot; row on Due alert returns for another call after this many days.</p>
         <Field label="Call again after">
           <NativeSelect className={inputCls} value={recallDays ?? settings.data.collections?.recall_days ?? 7} onChange={async (e) => {
             const days = Number(e.target.value);
@@ -240,7 +240,7 @@ export default function SettingsPage() {
         </Field>
       </Card>
       <Card title="Buying from customers" className="mb-4">
-        <p className="mb-3 text-xs text-slate-500">Show a "From customer" tab on Buy vehicle. Off if you buy only from suppliers.</p>
+        <p className="mb-3 text-xs text-slate-500">Show a &quot;From customer&quot; tab on Buy vehicle. Off if you buy only from suppliers.</p>
         <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" className="size-4 accent-emerald-600" checked={fromCustomer ?? settings.data.purchase?.from_customer ?? true} onChange={async (e) => {
             const value = e.target.checked;
@@ -271,7 +271,7 @@ export default function SettingsPage() {
           }} />
           Keep the selection after a payment
         </label>
-        <p className="mb-3 mt-4 text-xs text-slate-500">Start the date on Sale, Purchase, Due collection and Supplier payment with today's date. When off, the date starts empty.</p>
+        <p className="mb-3 mt-4 text-xs text-slate-500">Start the date on Sale, Purchase, Due collection and Supplier payment with today&apos;s date. When off, the date starts empty.</p>
         <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" className="size-4 accent-emerald-600" checked={autoDate ?? settings.data.forms?.auto_date ?? false} onChange={async (e) => {
             const value = e.target.checked;
@@ -284,7 +284,7 @@ export default function SettingsPage() {
               toast.error(err instanceof ApiError ? err.message : "Failed to save");
             }
           }} />
-          Fill in today's date automatically
+          Fill in today&apos;s date automatically
         </label>
         <p className="mb-3 mt-4 text-xs text-slate-500">Show the optional "Memo no." field on the Sale and Due collection forms.</p>
         <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
