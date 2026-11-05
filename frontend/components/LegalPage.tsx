@@ -8,7 +8,7 @@ export const CONTACT_EMAIL = "beaconsoftltd@gmail.com";
 /** A public reading page (privacy policy, terms) on the sign-in poster background; needs no sign-in. */
 export function LegalPage({ title, updated, children }: { title: string; updated: string; children: ReactNode }) {
   return (
-    <main className="relative flex min-h-screen justify-center px-4 py-8">
+    <main className="relative flex min-h-screen justify-center px-4 pt-[max(2rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))]">
       <LoginPoster />
       <article className="relative z-10 w-full max-w-3xl rounded-xl bg-white/95 p-6 shadow-lg ring-1 ring-emerald-300 sm:p-10">
         <header className="mb-6 flex items-center gap-3 border-b border-slate-200 pb-5">

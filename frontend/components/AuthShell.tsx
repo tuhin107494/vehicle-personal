@@ -9,7 +9,7 @@ import { LoginPoster } from "@/components/LoginPoster";
 /** The sign-in card on the poster background, shared by the forgot-password and reset-password pages. */
 export function AuthShell({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
   return (
-    <main className="relative flex min-h-screen items-center justify-center px-4 py-6">
+    <main className="relative flex min-h-screen items-center justify-center px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]">
       <LoginPoster />
       <div className="relative z-10 w-full max-w-sm">
         <Card className="w-full bg-white/95 shadow-lg ring-1 ring-emerald-300">
