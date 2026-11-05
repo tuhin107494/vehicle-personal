@@ -79,12 +79,12 @@ export function LandingLanguage() {
   );
 }
 
-function ContactCard({ icon: Icon, label, value, href, external }: { icon: LucideIcon; label: string; value: string; href?: string; external?: boolean }) {
+function ContactCard({ icon: Icon, tone, label, value, href, external }: { icon: LucideIcon; tone: string; label: string; value: string; href?: string; external?: boolean }) {
   const text = <span data-no-translate className="mt-1 block break-words font-medium text-slate-800">{value}</span>;
 
   return (
     <div className="flex items-start gap-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-emerald-200">
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700"><Icon className="size-5" /></span>
+      <span className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${tone}`}><Icon className="size-5" /></span>
       <div className="min-w-0">
         <p className="text-sm text-slate-500">{label}</p>
         {href ? <a href={href} className="hover:text-emerald-700 hover:underline" {...(external && { target: "_blank", rel: "noopener noreferrer" })}>{text}</a> : text}
@@ -106,11 +106,11 @@ export function LandingContact() {
       {data?.contact_form && <ContactForm />}
       {!email && <p role="status" className="rounded-xl bg-amber-50 p-4 text-center text-sm font-medium text-amber-800">Support is unavailable for now. It will be available soon.</p>}
       <div className="grid gap-3">
-        {email && <ContactCard icon={Mail} label="Email" value={email} href={`mailto:${email}`} />}
-        {data?.support_phone && <ContactCard icon={Phone} label="Phone" value={data.support_phone} href={`tel:${data.support_phone.replace(/[\s-]/g, "")}`} />}
-        {data?.whatsapp && <ContactCard icon={MessageCircle} label="WhatsApp" value={data.whatsapp} href={whatsappUrl(data.whatsapp, t(WHATSAPP_GREETING))} external />}
-        {data?.support_hours && <ContactCard icon={Clock} label="Support hours" value={data.support_hours} />}
-        {data?.address && <ContactCard icon={MapPin} label="Address" value={data.address} />}
+        {email && <ContactCard icon={Mail} tone="bg-sky-100 text-sky-600" label="Email" value={email} href={`mailto:${email}`} />}
+        {data?.support_phone && <ContactCard icon={Phone} tone="bg-emerald-100 text-emerald-600" label="Phone" value={data.support_phone} href={`tel:${data.support_phone.replace(/[\s-]/g, "")}`} />}
+        {data?.whatsapp && <ContactCard icon={MessageCircle} tone="bg-green-100 text-green-600" label="WhatsApp" value={data.whatsapp} href={whatsappUrl(data.whatsapp, t(WHATSAPP_GREETING))} external />}
+        {data?.support_hours && <ContactCard icon={Clock} tone="bg-amber-100 text-amber-600" label="Support hours" value={data.support_hours} />}
+        {data?.address && <ContactCard icon={MapPin} tone="bg-rose-100 text-rose-600" label="Address" value={data.address} />}
       </div>
     </div>
   );
