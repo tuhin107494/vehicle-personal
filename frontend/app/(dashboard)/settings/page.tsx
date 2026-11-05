@@ -7,6 +7,7 @@ import { api, ApiError } from "@/lib/api";
 import { useCategories } from "@/lib/categories";
 import { useT } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
+import { useTheme } from "@/lib/theme";
 import { useHiddenMenu } from "@/lib/menu";
 import { DASHBOARD_SECTIONS, useHiddenDashboard } from "@/lib/dashboard";
 import { allowedNav } from "@/components/AppShell";
@@ -55,6 +56,7 @@ function gridFrom(s: Settings): Grid {
 export default function SettingsPage() {
   const settings = useSettings();
   const { lang, setLang, showSwitch, setShowSwitch, t } = useT();
+  const { theme, setTheme, showSwitch: showThemeSwitch, setShowSwitch: setShowThemeSwitch } = useTheme();
   const { user, can } = useAuth();
   const { hidden, setHidden } = useHiddenMenu();
   const dash = useHiddenDashboard();
@@ -222,6 +224,20 @@ export default function SettingsPage() {
         </label>
         <p className="mt-1 text-xs text-slate-500">Applies at once, on this device.</p>
       </Card>
+      <Card title="Appearance" className="mb-4">
+        <div className="mb-3 flex items-center gap-3 text-sm text-slate-700">
+          <span>Colour mode</span>
+          <div className="flex overflow-hidden rounded-lg ring-1 ring-emerald-300 text-sm font-semibold" role="group" aria-label="Colour mode">
+            <button type="button" aria-pressed={theme === "light"} onClick={() => setTheme("light")} className={`px-3 py-1.5 ${theme === "light" ? "bg-emerald-600 text-white" : "bg-white text-emerald-700 hover:bg-emerald-50"}`}>Light</button>
+            <button type="button" aria-pressed={theme === "dark"} onClick={() => setTheme("dark")} className={`px-3 py-1.5 ${theme === "dark" ? "bg-emerald-600 text-white" : "bg-white text-emerald-700 hover:bg-emerald-50"}`}>Dark</button>
+          </div>
+        </div>
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" className="size-4 accent-emerald-600" checked={showThemeSwitch} onChange={(e) => setShowThemeSwitch(e.target.checked)} />
+          Show the light/dark switch in the menu
+        </label>
+        <p className="mt-1 text-xs text-slate-500">Applies at once, on this device.</p>
+      </Card>
       <Card title="Call follow-up" className="mb-4">
         <p className="mb-3 text-xs text-slate-500">A &quot;Call done&quot; row on Due alert returns for another call after this many days.</p>
         <Field label="Call again after">
@@ -286,7 +302,7 @@ export default function SettingsPage() {
           }} />
           Fill in today&apos;s date automatically
         </label>
-        <p className="mb-3 mt-4 text-xs text-slate-500">Show the optional "Memo no." field on the Sale and Due collection forms.</p>
+        <p className="mb-3 mt-4 text-xs text-slate-500">Show the optional &quot;Memo no.&quot; field on the Sale and Due collection forms.</p>
         <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" className="size-4 accent-emerald-600" checked={memoNo ?? settings.data.forms?.memo_no ?? true} onChange={async (e) => {
             const value = e.target.checked;

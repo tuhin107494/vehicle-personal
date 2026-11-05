@@ -53,7 +53,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   const { t, lang, setLang, showSwitch } = useT();
-  const { theme, toggle: toggleTheme } = useTheme();
+  const { theme, toggle: toggleTheme, showSwitch: showThemeSwitch } = useTheme();
   const { hidden } = useHiddenMenu();
   // Settings can never be hidden: it is where hidden items are brought back
   const items = allowedNav(user?.role, can).filter((i) => i.href === "/settings" || !hidden.includes(i.href));
@@ -89,7 +89,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
         <div className={`${menuOpen ? "block" : "hidden"} shrink-0 border-t border-white/15 p-3 md:block`}>
-          <div className="mb-2 flex items-center justify-between gap-2 px-1 text-xs text-white/80">
+          {(showSwitch || showThemeSwitch) && <div className="mb-2 flex items-center justify-between gap-2 px-1 text-xs text-white/80">
             {showSwitch ? (
               <div className="flex min-w-0 items-center gap-2">
                 <span className="truncate">{t("Language")}</span>
@@ -99,10 +99,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </div>
               </div>
             ) : <span />}
-            <button type="button" onClick={toggleTheme} aria-pressed={theme === "dark"} aria-label={t(theme === "dark" ? "Dark mode" : "Light mode")} title={t(theme === "dark" ? "Dark mode" : "Light mode")} className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white/15 text-white/85 hover:bg-white/25">
+            {showThemeSwitch && <button type="button" onClick={toggleTheme} aria-pressed={theme === "dark"} aria-label={t(theme === "dark" ? "Dark mode" : "Light mode")} title={t(theme === "dark" ? "Dark mode" : "Light mode")} className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white/15 text-white/85 hover:bg-white/25">
               {theme === "dark" ? <Moon className="size-4" /> : <Sun className="size-4" />}
-            </button>
-          </div>
+            </button>}
+          </div>}
           <div className="flex items-center gap-2.5 rounded-xl bg-white/10 p-2.5">
             <Link href="/profile" title="Profile settings" className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg hover:bg-white/10">
               <Avatar name={user?.name ?? ""} url={user?.photo_url} size="md" className="bg-white ring-0" />
