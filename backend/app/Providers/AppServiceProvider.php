@@ -7,6 +7,8 @@ use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Mail\Events\MessageSending;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
@@ -32,12 +34,20 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('login', fn (Request $request) => Limit::perMinute(5)->by(strtolower((string) $request->input('email')).'|'.$request->ip()));
         // a new confirmation link: 3 a minute for each email + address, so nobody can flood an inbox with them
         RateLimiter::for('signup-resend', fn (Request $request) => Limit::perMinute(3)->by('resend|'.strtolower((string) $request->input('email')).'|'.$request->ip()));
+        // the contact form sends real mail: 3 a minute and 10 an hour for each address, so nobody can flood the support inbox
+        RateLimiter::for('contact', fn (Request $request) => [
+            Limit::perMinute(3)->by('contact-minute|'.$request->ip()),
+            Limit::perHour(10)->by('contact-hour|'.$request->ip()),
+        ]);
         // every other request: 120 a minute for each signed-in user (or address)
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(120)->by($request->user()?->id ?: $request->ip()));
 
         // the reset link in the email opens the web app's reset page, not the API
         // mail goes through the super admin's SMTP server when one is switched on; checked only when something is about to send mail
         $this->app->resolving('mail.manager', fn () => PlatformSettings::applyMail());
+
+        // nobody reads the noreply address, so out-of-office and similar robots must not answer it
+        Event::listen(MessageSending::class, fn (MessageSending $event) => $event->message->getHeaders()->addTextHeader('Auto-Submitted', 'auto-generated'));
 
         ResetPassword::createUrlUsing(fn ($user, string $token) => rtrim(config('app.frontend_url'), '/').'/reset-password?token='.$token.'&email='.urlencode($user->getEmailForPasswordReset()));
     }

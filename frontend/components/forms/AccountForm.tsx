@@ -270,7 +270,7 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
           </div>
         </Card>
       </form>
-      <TransactionVoucher tx={vouchers[0] ?? null} count={vouchers.length} side={side} shop={user?.shop?.name ?? "Vehicle Hub"} onClose={() => setVouchers([])} onDownloaded={() => setVouchers((q) => q.slice(1))} />
+      <TransactionVoucher tx={vouchers[0] ?? null} count={vouchers.length} side={side} shop={user?.shop?.name ?? "Gari Becho"} onClose={() => setVouchers([])} onDownloaded={() => setVouchers((q) => q.slice(1))} />
     </>
   );
 }

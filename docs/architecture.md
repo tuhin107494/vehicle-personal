@@ -63,11 +63,11 @@ Purchase (supplier, optional investor funding) → Vehicle in stock
 
 ## Frontend
 
-- App Router screens are in `app/(dashboard)/<feature>/page.tsx`, and sign-in screens in `app/(auth)/`.
+- App Router screens are in `app/(dashboard)/<feature>/page.tsx`, and sign-in screens in `app/(auth)/`. The public landing page is `app/page.tsx` at `/`, and the dashboard is at `/dashboard`.
 - `lib/api.ts`:
   - It is the only HTTP client. It adds the bearer token from `localStorage` (`vm_token`).
   - It shares GET requests that are still in flight, and caches settings, categories and colors for 10 minutes. Any write clears that cache.
-  - On a 401 it sends the user to `/login`. It turns 422s into form field errors (`applyServerErrors`).
+  - On a 401 it sends the user to `/login`, except for `/me`, which also runs on public pages (the dashboard layout redirects signed-out users itself). It turns 422s into form field errors (`applyServerErrors`).
 - State: `lib/auth.tsx` (signed-in user and permissions) and `lib/i18n.tsx` (language) contexts. Everything else is local or react-hook-form state.
 - Forms use react-hook-form + zod schemas that mirror the backend FormRequests.
 - Translation: English text is the key in `lib/bn.ts`, used through `useT()` and `lib/domTranslate.ts`.

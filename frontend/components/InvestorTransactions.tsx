@@ -68,7 +68,7 @@ export function InvestorTransactions() {
       </ResponsiveFilters>
 
       <div className="mb-4 hidden border-b border-slate-300 pb-3 print:block">
-        <p className="text-lg font-bold">{user?.shop?.name ?? "Vehicle Hub"}</p>
+        <p className="text-lg font-bold">{user?.shop?.name ?? "Gari Becho"}</p>
         <p className="text-base font-semibold">Investor transactions</p>
         <p className="text-xs text-slate-500">Period: {from ? fmtDate(from) : "Beginning"} to {to ? fmtDate(to) : "today"}</p>
       </div>

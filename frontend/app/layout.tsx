@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Vehicle Hub",
-  description: "Vehicle purchase, sale and collection management",
+  title: "Gari Becho",
+  description: "Gari Becho (গাড়ি বেচো): vehicle purchase, sale and collection management",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

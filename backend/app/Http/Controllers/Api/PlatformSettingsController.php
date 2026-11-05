@@ -11,7 +11,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
-/** The super admin's platform settings: Google sign-in keys and the SMTP server. */
+/** The super admin's platform settings: Google sign-in keys, the SMTP server and the landing page's contact details. */
 class PlatformSettingsController extends Controller
 {
     public function show(): JsonResponse
@@ -37,11 +37,20 @@ class PlatformSettingsController extends Controller
             'smtp.password' => ['nullable', 'string', 'max:255'],
             'smtp.from_address' => ['nullable', 'email', 'max:255', 'required_if_accepted:smtp.enabled'],
             'smtp.from_name' => ['nullable', 'string', 'max:255'],
+            'landing' => ['sometimes', 'array'],
+            'landing.support_email' => ['nullable', 'email', 'max:255'],
+            'landing.support_phone' => ['nullable', 'string', 'regex:/^\+?[0-9\s\-]{3,20}$/'],
+            'landing.whatsapp' => ['nullable', 'string', 'regex:/^\+[1-9][0-9]{7,14}$/'],
+            'landing.address' => ['nullable', 'string', 'max:255'],
+            'landing.support_hours' => ['nullable', 'string', 'max:255'],
         ], [
             'google.client_id.required_if_accepted' => 'Client ID is required to turn on Google sign-in.',
             'smtp.host.required_if_accepted' => 'SMTP host is required to turn on SMTP.',
             'smtp.from_address.required_if_accepted' => 'From address is required to turn on SMTP.',
             'smtp.from_address.email' => 'Enter a valid email address.',
+            'landing.support_email.email' => 'Enter a valid email address.',
+            'landing.support_phone.regex' => 'Enter a valid phone number.',
+            'landing.whatsapp.regex' => 'Enter the number with its country code and no spaces, for example +8801712345678.',
         ]);
 
         // switching Google sign-in on needs a secret, either sent now or saved before

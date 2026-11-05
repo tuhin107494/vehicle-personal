@@ -48,7 +48,7 @@ export function PersonStatement({ side }: { side: "customer" | "supplier" }) {
   const [pickedName, setPickedName] = useState<string | undefined>();
   const listQs = new URLSearchParams({ side, ...(from && { from }), ...(to && { to }) });
   const [voucher, setVoucher] = useState<VoucherTx | null>(null);
-  const shopName = user?.shop?.name ?? "Vehicle Hub";
+  const shopName = user?.shop?.name ?? "Gari Becho";
   // a row of one person's statement, as the voucher the per-transaction report prints for it
   const voucherOf = (r: Row): VoucherTx => ({ no: r.no, date: r.date, person: data?.person.name ?? "", phone: data?.person.phone ?? null, description: r.description, vehicle: r.vehicle, reference: r.reference, charge: r.charge, paid: r.paid, details: r.details });
   const [view, setView] = useState<"party" | "transaction">("transaction");
@@ -99,7 +99,7 @@ export function PersonStatement({ side }: { side: "customer" | "supplier" }) {
       {!personId && view === "party" && (
         <div>
           <div className="mb-4 hidden border-b border-slate-300 pb-3 print:block">
-            <p className="text-lg font-bold">{user?.shop?.name ?? "Vehicle Hub"}</p>
+            <p className="text-lg font-bold">{user?.shop?.name ?? "Gari Becho"}</p>
             <p className="text-base font-semibold">{t.title} list</p>
             <p className="text-xs text-slate-500">Period: {period}</p>
           </div>
@@ -170,7 +170,7 @@ export function PersonStatement({ side }: { side: "customer" | "supplier" }) {
       {!personId && view === "transaction" && (
         <div>
           <div className="mb-4 hidden border-b border-slate-300 pb-3 print:block">
-            <p className="text-lg font-bold">{user?.shop?.name ?? "Vehicle Hub"}</p>
+            <p className="text-lg font-bold">{user?.shop?.name ?? "Gari Becho"}</p>
             <p className="text-base font-semibold">{t.title} · per transaction</p>
             <p className="text-xs text-slate-500">Period: {period}</p>
           </div>
@@ -237,7 +237,7 @@ export function PersonStatement({ side }: { side: "customer" | "supplier" }) {
       {data && (
         <div>
           <div className="mb-4 hidden border-b border-slate-300 pb-3 print:block">
-            <p className="text-lg font-bold">{user?.shop?.name ?? "Vehicle Hub"}</p>
+            <p className="text-lg font-bold">{user?.shop?.name ?? "Gari Becho"}</p>
             <p className="text-base font-semibold">{t.title}</p>
           </div>
 

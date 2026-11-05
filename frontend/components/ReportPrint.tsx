@@ -13,7 +13,7 @@ export function useReportPrint(title: string) {
     setBuilding(true);
     setTimeout(() => {
       try {
-        downloadReportPdf({ shop: user?.shop?.name ?? "Vehicle Hub", title, ...meta }, document.querySelector<HTMLTableElement>("[data-report-table] table"));
+        downloadReportPdf({ shop: user?.shop?.name ?? "Gari Becho", title, ...meta }, document.querySelector<HTMLTableElement>("[data-report-table] table"));
       } finally {
         setBuilding(false);
       }

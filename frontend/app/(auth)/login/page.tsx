@@ -9,7 +9,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { useAuth } from "@/lib/auth";
+import { homePath, useAuth } from "@/lib/auth";
 import { applyServerErrors } from "@/lib/api";
 import { Car, UserPlus } from "lucide-react";
 import { Button, Card, Field } from "@/components/app-ui";
@@ -36,7 +36,7 @@ export default function LoginPage() {
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
   useEffect(() => {
-    if (!loading && user) router.replace(user.role === "super_admin" ? "/shops" : "/");
+    if (!loading && user) router.replace(homePath(user));
   }, [loading, user, router]);
 
   const onSubmit = async (values: FormValues) => {
@@ -58,7 +58,7 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="text-center">
               <span className="mx-auto mb-2 flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-green-500 text-white"><Car className="size-6" /></span>
-              <h1 className="text-xl font-bold text-slate-800">Vehicle Hub</h1>
+              <h1 className="text-xl font-bold text-slate-800">Gari Becho</h1>
               <p className="text-sm text-slate-500">Sign in to manage stock, sales and collections</p>
             </div>
             <Field required label="Email" error={errors.email?.message}>
@@ -77,7 +77,7 @@ export default function LoginPage() {
             <GoogleSignIn clientId={config?.google.client_id} />
             {signupOn && (
               <div className="border-t border-slate-200 pt-4 text-center">
-                <p className="mb-2 text-sm text-slate-500">New to Vehicle Hub?</p>
+                <p className="mb-2 text-sm text-slate-500">New to Gari Becho?</p>
                 <Link href="/signup" className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 text-sm font-semibold text-emerald-700 hover:bg-emerald-100">
                   <UserPlus className="size-4" /> Create an account
                 </Link>
@@ -86,7 +86,7 @@ export default function LoginPage() {
           </form>
         </CardContent>
       </Card>
-      <p className="mt-3 text-center text-xs text-slate-500"><Link className="hover:text-emerald-700 hover:underline" href="/privacy">Privacy policy</Link> · <Link className="hover:text-emerald-700 hover:underline" href="/terms">Terms of service</Link></p>
+      <p className="mt-3 text-center text-xs text-slate-500"><Link className="hover:text-emerald-700 hover:underline" href="/">Home</Link> · <Link className="hover:text-emerald-700 hover:underline" href="/privacy">Privacy policy</Link> · <Link className="hover:text-emerald-700 hover:underline" href="/terms">Terms of service</Link></p>
       </div>
     </main>
   );

@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { MailCheck } from "lucide-react";
 import { ResendLink } from "@/components/ResendLink";
 import { api, applyServerErrors } from "@/lib/api";
-import { type Session, useAuth } from "@/lib/auth";
+import { homePath, type Session, useAuth } from "@/lib/auth";
 import { AuthShell } from "@/components/AuthShell";
 import { authError, GoogleButton, OrDivider, useAuthConfig, useGoogleCode } from "@/components/GoogleSignIn";
 import { Button, Field } from "@/components/app-ui";
@@ -35,7 +35,7 @@ export default function SignupPage() {
   const { register, handleSubmit, setError, clearErrors, getValues, formState: { errors, isSubmitting } } = useForm<Values>({ resolver: zodResolver(schema) });
 
   useEffect(() => {
-    if (!loading && user) router.replace(user.role === "super_admin" ? "/shops" : "/");
+    if (!loading && user) router.replace(homePath(user));
   }, [loading, user, router]);
 
   const onSubmit = async (v: Values) => {
@@ -84,7 +84,7 @@ export default function SignupPage() {
 
   if (config && !config.signup_enabled) {
     return (
-      <AuthShell title="Create an account" subtitle="Open your shop on Vehicle Hub">
+      <AuthShell title="Create an account" subtitle="Open your shop on Gari Becho">
         <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Sign-up is closed right now. Contact support to open an account.</p>
         <p className="text-center text-sm"><Link className="font-medium text-emerald-700 underline" href="/login">Back to sign in</Link></p>
       </AuthShell>
@@ -92,7 +92,7 @@ export default function SignupPage() {
   }
 
   return (
-    <AuthShell title="Create an account" subtitle="Open your shop on Vehicle Hub">
+    <AuthShell title="Create an account" subtitle="Open your shop on Gari Becho">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-3" noValidate>
         <Field required label="Shop name" error={errors.shop_name?.message}><Input className="w-full" autoComplete="organization" {...register("shop_name")} /></Field>
         <Field required label="Phone" error={errors.phone?.message}><Input type="tel" className="w-full" autoComplete="tel" {...register("phone")} /></Field>
