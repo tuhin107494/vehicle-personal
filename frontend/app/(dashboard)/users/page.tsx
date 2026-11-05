@@ -46,7 +46,7 @@ function PermissionPicker({ all, selected, defaults, onChange }: { all: Permissi
         <span className="text-sm font-medium text-slate-700">Permissions</span>
         {changed > 0 && <button type="button" className="text-xs font-medium text-emerald-700 underline" onClick={() => onChange(new Set(defaults))}>Reset to role</button>}
       </div>
-      <p className="mb-2 text-xs text-slate-500">Starts with the role&apos;s permissions. Tick to add one for this user, untick to take one away.</p>
+      <p className="mb-2 text-xs text-slate-500">Starts with the role&apos;s access. Tick to add, untick to remove for this user only.</p>
       <div className="max-h-60 space-y-3 overflow-y-auto rounded-lg border border-emerald-200 p-3">
         {Object.entries(groups).map(([group, items]) => (
           <div key={group}>
