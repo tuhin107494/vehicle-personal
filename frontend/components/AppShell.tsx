@@ -57,7 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen overflow-x-clip md:flex print:block">
-      <aside className="print:hidden bg-[#223f32] text-white md:sticky md:top-0 md:flex md:h-dvh md:w-60 md:shrink-0 md:flex-col md:overflow-hidden"
+      <aside className="print:hidden bg-[#223f32] pt-[env(safe-area-inset-top)] text-white md:sticky md:top-0 md:flex md:h-dvh md:w-60 md:shrink-0 md:flex-col md:overflow-hidden md:pb-[env(safe-area-inset-bottom)]"
         style={{ backgroundImage: "linear-gradient(135deg, #1b3a2d, #29493a)" }}
       >
         <div className="flex items-center gap-2 px-5 py-3 md:py-5">
@@ -103,7 +103,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
       <div className="min-w-0 flex-1">
-        <main className="min-w-0 p-4 md:p-6 print:p-0">{children}</main>
+        <main className="min-w-0 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:p-6 md:pb-[calc(1.5rem+env(safe-area-inset-bottom))] print:p-0 print:pb-0">{children}</main>
       </div>
     </div>
   );

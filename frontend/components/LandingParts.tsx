@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Clock, Mail, MapPin, MessageCircle, Phone, type LucideIcon } from "lucide-react";
+import { ArrowRight, Clock, Download, Mail, MapPin, MessageCircle, Phone, Share, X, type LucideIcon } from "lucide-react";
 import { homePath, useAuth } from "@/lib/auth";
 import { useFetch } from "@/lib/hooks";
 import { useT } from "@/lib/i18n";
+import { dismissIosHint, installApp, useCanInstall, useShowIosHint } from "@/lib/install";
 import type { LandingInfo } from "@/lib/types";
 import { Loading } from "@/components/app-ui";
 import { ContactForm } from "@/components/forms/ContactForm";
@@ -32,6 +33,34 @@ export function LandingActions({ large = false }: { large?: boolean }) {
       <Link href="/login" className={`${OUTLINE} ${size}`}>Sign in</Link>
       {data?.signup_enabled !== false && <Link href="/signup" className={`${PRIMARY} ${size}`}>Sign up</Link>}
     </>
+  );
+}
+
+/** Offers to install the app, once the browser is ready to and it is not installed already. Just the icon on a phone, where the header is full. */
+export function LandingInstall() {
+  const canInstall = useCanInstall();
+  if (!canInstall) return null;
+
+  return (
+    <button type="button" aria-label="Install app" onClick={installApp} className={`${OUTLINE} h-9 w-9 gap-2 text-sm lg:w-auto lg:px-3`}>
+      <Download className="size-4 shrink-0" /> <span className="hidden lg:inline">Install app</span>
+    </button>
+  );
+}
+
+/** How to install on iPhone and iPad, where Safari has no install event for the button above to use. */
+export function LandingIosHint() {
+  const show = useShowIosHint();
+  if (!show) return null;
+
+  return (
+    <div className="border-b border-emerald-200 bg-emerald-50">
+      <div className="mx-auto flex w-full max-w-6xl items-start gap-2 px-4 py-2 text-sm text-slate-700">
+        <Share className="mt-0.5 size-4 shrink-0 text-emerald-700" aria-hidden="true" />
+        <p className="min-w-0 flex-1">Install Gari Becho: tap the Share button, then &apos;Add to Home Screen&apos;.</p>
+        <button type="button" aria-label="Dismiss" onClick={dismissIosHint} className="-m-1 flex size-7 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-emerald-100 hover:text-emerald-700"><X className="size-4" /></button>
+      </div>
+    </div>
   );
 }
 
@@ -98,7 +127,7 @@ export function LandingWhatsApp() {
       href={whatsappUrl(data.whatsapp, t(WHATSAPP_GREETING))}
       target="_blank"
       rel="noopener noreferrer"
-      className="fixed bottom-4 right-4 z-40 flex h-12 items-center gap-2 rounded-full bg-emerald-700 px-4 text-sm font-semibold text-white shadow-lg hover:bg-emerald-800"
+      className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-4 z-40 flex h-12 items-center gap-2 rounded-full bg-emerald-700 px-4 text-sm font-semibold text-white shadow-lg hover:bg-emerald-800"
     >
       <MessageCircle className="size-5" /> <span>Chat on WhatsApp</span>
     </a>

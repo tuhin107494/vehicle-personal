@@ -275,6 +275,8 @@ export const BN: Record<string, string> = {
   "The contact form is not available right now. Please email us directly.": "যোগাযোগ ফর্ম এখন চালু নেই। সরাসরি ইমেইল করুন।", "Your message could not be sent right now. Please try again, or email us directly.": "আপনার বার্তা এখন পাঠানো যায়নি। আবার চেষ্টা করুন, বা সরাসরি ইমেইল করুন।",
   "Gmail sends from its own address, so it replaces this From address and mail from your domain can land in spam. To send from your domain, use an email service that has verified it.": "জিমেইল নিজের ঠিকানা থেকেই পাঠায়, তাই এই প্রেরকের ঠিকানা বদলে যায় এবং আপনার ডোমেইনের মেইল স্প্যামে যেতে পারে। নিজের ডোমেইন থেকে পাঠাতে, ডোমেইন যাচাই করা কোনো ইমেইল সার্ভিস ব্যবহার করুন।",
   "Show password": "পাসওয়ার্ড দেখান", "Hide password": "পাসওয়ার্ড লুকান",
+  "Install app": "অ্যাপ ইনস্টল করুন", Dismiss: "বন্ধ করুন",
+  "Install Gari Becho: tap the Share button, then 'Add to Home Screen'.": "Gari Becho ইনস্টল করতে: Share বাটনে চাপুন, তারপর 'Add to Home Screen' বেছে নিন।",
   // landing page settings
   "Messages from the landing page's contact form go to the support email. While it is blank, the page says support is unavailable. The form shows only while the server can send mail.": "ল্যান্ডিং পেজের যোগাযোগ ফর্মের বার্তা সাপোর্ট ইমেইলে যাবে। এটি খালি থাকলে পেজে দেখাবে সাপোর্ট এখন পাওয়া যাচ্ছে না। সার্ভার মেইল পাঠাতে পারলেই ফর্মটি দেখাবে।",
   "Support is unavailable for now. It will be available soon.": "সাপোর্ট এখন পাওয়া যাচ্ছে না। শীঘ্রই চালু হবে।",
