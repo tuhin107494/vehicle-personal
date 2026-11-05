@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BadgeDollarSign, CalendarClock, Car, ChartColumn, ClipboardCheck, HandCoins, Languages, Lock, Smartphone, Ticket, Truck, UsersRound, type LucideIcon } from "lucide-react";
-import { LandingActions, LandingContact, LandingLanguage, LandingWhatsApp } from "@/components/LandingParts";
+import { LandingActions, LandingContact, LandingInstall, LandingIosHint, LandingLanguage, LandingWhatsApp } from "@/components/LandingParts";
 import { VehicleScene } from "@/components/LoginPoster";
 
 export const metadata: Metadata = {
@@ -33,7 +33,7 @@ const STEPS = [
   { title: "Settle", text: "Pay your investors their share and see the figures in your reports." },
 ];
 
-const SECTION = "mx-auto w-full max-w-6xl scroll-mt-20 px-4 py-14 sm:py-20";
+const SECTION = "mx-auto w-full max-w-6xl scroll-mt-[calc(5rem+env(safe-area-inset-top))] px-4 py-14 sm:py-20";
 const NAV_LINK = "text-sm font-medium text-slate-600 hover:text-emerald-700";
 
 function SectionHeading({ title, text }: { title: string; text: string }) {
@@ -49,7 +49,7 @@ function SectionHeading({ title, text }: { title: string; text: string }) {
 export default function LandingPage() {
   return (
     <div className="flex min-h-screen flex-col bg-white">
-      <header className="sticky top-0 z-30 border-b border-emerald-100 bg-white/95 backdrop-blur">
+      <header className="sticky top-0 z-30 border-b border-emerald-100 bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-2 px-4">
           <Link href="/" aria-label="Gari Becho" className="flex min-w-0 items-center gap-2 font-bold text-slate-800">
             <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-green-500 text-white"><Car className="size-5" /></span>
@@ -61,11 +61,14 @@ export default function LandingPage() {
             <a className={NAV_LINK} href="#contact">Contact</a>
           </nav>
           <div className="flex items-center gap-2">
+            <LandingInstall />
             <LandingLanguage />
             <LandingActions />
           </div>
         </div>
       </header>
+
+      <LandingIosHint />
 
       <main className="flex-1">
         <section className="relative overflow-hidden bg-gradient-to-b from-emerald-50 to-white">
@@ -139,7 +142,7 @@ export default function LandingPage() {
 
       <footer className="border-t border-emerald-100">
         {/* the extra padding keeps the links clear of the WhatsApp button */}
-        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-6 pb-20 text-sm text-slate-500 sm:pb-6 sm:pr-52">
+        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-6 pb-[calc(5rem+env(safe-area-inset-bottom))] text-sm text-slate-500 sm:pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pr-52">
           <p>© Gari Becho · Beacon Soft Ltd</p>
           <div className="flex gap-5">
             <Link className="hover:text-emerald-700 hover:underline" href="/privacy">Privacy policy</Link>
