@@ -21,6 +21,7 @@ export type Investor = {
 export type Purchase = {
   id: number; vehicle_id: number; supplier_id: number | null; customer_id: number | null; purchase_date: string; price: number; paid_amount: number;
   cost_extra: number; due_adjustment: number; adjusted_sale_id: number | null; source: "supplier" | "customer"; memo_no: string | null; payment_status: string; payment_method: string | null; payment_reference: string | null; notes: string | null; vehicle?: Vehicle; supplier?: Supplier; customer?: Customer; seller?: Seller;
+  has_payments?: boolean; edits?: { id: number; by: string | null; at: string; changes: { field: string; from: string | null; to: string | null }[] }[];
 };
 export type Vehicle = {
   id: number; chassis_no: string; engine_no: string; registration_no: string | null; vehicle_type: string; brand: string | null;

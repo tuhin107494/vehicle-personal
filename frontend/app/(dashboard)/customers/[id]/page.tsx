@@ -15,6 +15,19 @@ import { Col, DataTable } from "@/components/DataTable";
 import { CustomerForm } from "@/components/forms/CustomerForm";
 import { viewCol } from "@/components/ViewLink";
 
+type VehicleInfo = { chassis_no: string; engine_no?: string | null; brand?: string | null; model?: string | null };
+
+function VehicleCell({ v }: { v?: VehicleInfo | null }) {
+  if (!v) return null;
+  return (
+    <span className="block leading-tight">
+      <span className="font-medium">{[v.brand, v.model].filter(Boolean).join(" ") || v.chassis_no}</span>
+      {(v.brand || v.model) && <span className="block text-xs text-slate-500">Chassis: {v.chassis_no}</span>}
+      {v.engine_no && <span className="block text-xs text-slate-500">Engine: {v.engine_no}</span>}
+    </span>
+  );
+}
+
 type History = { customer: Customer; purchases: Purchase[]; sales: Sale[] };
 
 export default function CustomerDetailPage() {
@@ -42,7 +55,7 @@ export default function CustomerDetailPage() {
   const saleCols: Col<Sale>[] = [
     { header: "Sale", cell: ({ row }) => <span className="font-medium">#{row.original.id}</span> },
     { header: "Date", cell: ({ row }) => fmtDate(row.original.sale_date) },
-    { header: "Vehicle", cell: ({ row }) => row.original.vehicle?.chassis_no },
+    { header: "Vehicle", cell: ({ row }) => <VehicleCell v={row.original.vehicle} /> },
     { header: "Price", cell: ({ row }) => money(row.original.sale_price) },
     { header: "Due", cell: ({ row }) => money(row.original.due_amount) },
     { header: "Payment", cell: ({ row }) => <StatusBadge status={row.original.payment_status} /> },
@@ -51,7 +64,7 @@ export default function CustomerDetailPage() {
   ];
   const buyBackCols: Col<Purchase>[] = [
     { header: "Date", cell: ({ row }) => fmtDate(row.original.purchase_date) },
-    { header: "Vehicle", cell: ({ row }) => <span className="font-medium">{row.original.vehicle?.chassis_no}</span> },
+    { header: "Vehicle", cell: ({ row }) => <VehicleCell v={row.original.vehicle} /> },
     { header: "Price", cell: ({ row }) => money(row.original.price) },
     { header: "Paid", cell: ({ row }) => money(row.original.paid_amount) },
     { header: "Status", cell: ({ row }) => <StatusBadge status={row.original.payment_status} /> },
@@ -68,7 +81,7 @@ export default function CustomerDetailPage() {
         </>}
       />
       <Card className="mb-4">
-        <div className="mb-3"><Avatar name={customer.name} url={customer.photo_url} size="lg" /></div>
+        {customer.photo_url && <div className="mb-3"><Avatar name={customer.name} url={customer.photo_url} size="lg" /></div>}
         <KV items={[["Father's name", customer.father_name], ["Phone", customer.phone], ["Alt. phone", customer.alt_phone], ["NID", customer.nid], ["Address", customer.address], ["Notes", customer.notes]]} />
       </Card>
       <h2 className="mb-2 font-semibold">Sold to this customer ({sales.length})</h2>

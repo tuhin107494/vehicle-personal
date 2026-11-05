@@ -101,7 +101,7 @@ export default function CollectionsPage() {
   };
 
   const columns: Col<CallRow>[] = [
-    { header: "Customer", cell: ({ row }) => <span className="font-medium">{row.original.customer.name}</span> },
+    { header: "Customer", meta: { className: "!px-1.5" }, cell: ({ row }) => <span className="text-xs font-medium">{row.original.customer.name}</span> },
     {
       header: "Call", meta: { className: "!px-1" },
       cell: ({ row }) => (
@@ -134,7 +134,7 @@ export default function CollectionsPage() {
       },
     },
     { header: "For", cell: ({ row }) => <Badge tone={row.original.type === "installment" ? "blue" : "gray"}>{row.original.label}</Badge> },
-    { header: "Due date", meta: { className: "!px-1" }, cell: ({ row }) => <span className="flex flex-wrap items-center justify-end gap-2 md:justify-start">{fmtDate(row.original.due_date)} <When row={row.original} /></span> },
+    { header: "Due date", meta: { className: "!px-1" }, cell: ({ row }) => <span className="flex flex-col items-end gap-1 text-xs md:items-start [&_*]:!text-xs [&_*]:!px-1.5">{fmtDate(row.original.due_date)} <When row={row.original} /></span> },
     { header: "Amount", cell: ({ row }) => <b className={row.original.overdue_by ? "text-red-700" : "text-amber-700"}>{money(row.original.amount)}</b> },
     { header: "Total due", cell: ({ row }) => <b className="text-slate-800">{money(row.original.customer_total_due)}</b> },
     {
@@ -142,13 +142,13 @@ export default function CollectionsPage() {
       id: "actions",
       cell: ({ row }) => (
         <div className="flex flex-col items-end gap-1 md:items-start" onClick={(e) => e.stopPropagation()}>
-          <div className="flex flex-wrap items-center justify-end gap-1.5 md:flex-nowrap md:justify-start">
-          <Link className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-emerald-200 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50" href={`/sales/${row.original.sale_id}`}><Eye className="size-4" /> Sales details</Link>
-          <button type="button" onClick={() => showHistory(row.original)} className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-sky-300 bg-sky-50 px-3 py-1.5 text-sm font-medium text-sky-700 hover:bg-sky-100"><History className="size-4" /> Call history</button>
+          <div className="flex flex-nowrap items-center justify-end gap-1 md:justify-start">
+          <Link className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-emerald-200 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50" href={`/sales/${row.original.sale_id}`}><Eye className="size-3.5" /> Sales details</Link>
+          <button type="button" onClick={() => showHistory(row.original)} className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-sky-300 bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100"><History className="size-3.5" /> Call history</button>
           {row.original.called_until ? (
-            <button type="button" onClick={() => mark(row.original, false)} className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-700 hover:bg-rose-100"><Undo2 className="size-4" /> Undo</button>
+            <button type="button" onClick={() => mark(row.original, false)} className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-rose-300 bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"><Undo2 className="size-3.5" /> Undo</button>
           ) : (
-            <button type="button" onClick={() => startCall(row.original)} className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-green-300 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-700 hover:bg-green-100"><Check className="size-4" /> Call done</button>
+            <button type="button" onClick={() => startCall(row.original)} className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-green-300 bg-green-50 px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-100"><Check className="size-3.5" /> Call done</button>
           )}
           </div>
           {row.original.called_until && (
@@ -166,7 +166,7 @@ export default function CollectionsPage() {
   return (
     <>
       <PageHeader title="Due alert" />
-      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3">
+      <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-3 md:gap-3 [&>:last-child]:col-span-2 md:[&>:last-child]:col-span-1">
         <Stat compact color="teal-flat" label="Due now" value={money(summary.data?.current_due ?? 0)} />
         <Stat compact color="cyan-flat" label={`${current?.label ?? "List"}: amount`} value={money(shown?.amount ?? 0)} />
         <Stat compact color="amber-flat" label="Total due" value={money(summary.data?.total_due ?? 0)} />
@@ -185,7 +185,7 @@ export default function CollectionsPage() {
         ))}
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
         {(summary.data?.buckets ?? []).map((b) => {
           const active = bucket === b.key;
           const style = STYLE[b.key];
@@ -195,7 +195,7 @@ export default function CollectionsPage() {
               key={b.key}
               type="button"
               onClick={() => setBucket(b.key)}
-              className={`rounded-xl px-4 py-2 text-left text-sm ring-1 transition ${active ? style.active : `bg-white ${style.ring}`}`}
+              className={`rounded-xl px-3 py-2 text-left text-sm ring-1 sm:px-4 transition ${active ? style.active : `bg-white ${style.ring}`}`}
             >
               <span className="block font-semibold">{b.label}</span>
               <span className={`block text-xs ${active ? "text-white/85" : style.text}`}>{money(st.amount)}</span>
@@ -204,7 +204,7 @@ export default function CollectionsPage() {
         })}
       </div>
 
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <div className="relative w-full max-w-md">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
           <input
@@ -212,14 +212,14 @@ export default function CollectionsPage() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search customer, phone, vehicle or chassis"
-            className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+            className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-xs outline-none sm:text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
           />
         </div>
         <select
           value={callFilter}
           onChange={(e) => setCallFilter(e.target.value as "" | "done" | "pending")}
           aria-label="Call status"
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 sm:w-auto"
         >
           <option value="">All calls</option>
           <option value="done">Call done</option>

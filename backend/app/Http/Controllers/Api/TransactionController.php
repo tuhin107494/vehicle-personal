@@ -40,6 +40,15 @@ class TransactionController extends Controller
         return $this->success(['values' => $this->transactions->values($tx->fresh()), 'edits' => $this->transactions->history($type, $id)], 'Transaction updated');
     }
 
+    public function destroy(Request $request, string $type, int $id): JsonResponse
+    {
+        abort_unless($request->user()->hasPermission('transactions.delete'), 403, 'You do not have permission to do this.');
+
+        $this->transactions->delete($this->transactions->find($type, $id), $request->user());
+
+        return $this->success(null, 'Transaction deleted');
+    }
+
     private function authorizeEdit(Request $request): void
     {
         abort_unless($request->user()->hasPermission('transactions.edit'), 403, 'You do not have permission to do this.');

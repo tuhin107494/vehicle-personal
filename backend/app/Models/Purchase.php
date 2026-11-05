@@ -86,6 +86,12 @@ class Purchase extends Model
         return $this->hasMany(PurchasePayment::class);
     }
 
+    /** @return HasMany<PurchaseEdit, $this> */
+    public function edits(): HasMany
+    {
+        return $this->hasMany(PurchaseEdit::class)->latest('id');
+    }
+
     /** @return HasMany<Sale, $this> */
     public function sales(): HasMany
     {

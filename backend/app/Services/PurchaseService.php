@@ -83,9 +83,9 @@ class PurchaseService
         });
     }
 
-    public function update(Purchase $purchase, array $data): Purchase
+    public function update(Purchase $purchase, array $data, User $user): Purchase
     {
-        return DB::transaction(function () use ($purchase, $data) {
+        return DB::transaction(function () use ($purchase, $data, $user) {
             // the same lock a supplier payment takes, so a payment cannot land between these checks and the save
             $purchase = Purchase::lockForUpdate()->findOrFail($purchase->id);
 
@@ -109,10 +109,37 @@ class PurchaseService
                 throw new BusinessRuleException('Paid amount and the due adjustment cannot be more than the purchase price.');
             }
 
+            $before = $this->snapshot($purchase);
             $purchase->update($data + ['payment_status' => $this->paymentStatus($price, $settled)]);
+
+            $changes = [];
+            foreach ($this->snapshot($purchase->fresh()) as $field => $to) {
+                if (($before[$field] ?? null) !== $to) {
+                    $changes[] = ['field' => $field, 'from' => $before[$field] ?? null, 'to' => $to];
+                }
+            }
+
+            if ($changes) {
+                $purchase->edits()->create(['user_id' => $user->id, 'changes' => $changes]);
+            }
 
             return $purchase;
         });
+    }
+
+    /** @return array<string,?string> the figures an edit history shows */
+    private function snapshot(Purchase $purchase): array
+    {
+        $money = fn ($v) => number_format((float) $v, 2, '.', '');
+
+        return [
+            'Price' => $money($purchase->price),
+            'Paid amount' => $money($purchase->paid_amount),
+            'Extra cost' => $money($purchase->cost_extra),
+            'Date' => $purchase->purchase_date->toDateString(),
+            'Memo no.' => $purchase->memo_no,
+            'Notes' => $purchase->notes,
+        ];
     }
 
     public function delete(Purchase $purchase): void

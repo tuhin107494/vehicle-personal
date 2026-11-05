@@ -54,14 +54,14 @@ class PurchaseController extends Controller implements HasMiddleware
 
     public function show(Purchase $purchase): JsonResponse
     {
-        return $this->success(PurchaseResource::make($purchase->load(['vehicle', 'supplier', 'customer', 'creator'])));
+        return $this->success(PurchaseResource::make($purchase->load(['vehicle', 'supplier', 'customer', 'creator', 'edits.user'])->loadCount('payments')));
     }
 
     public function update(UpdatePurchaseRequest $request, Purchase $purchase): JsonResponse
     {
-        $purchase = $this->purchases->update($purchase, $request->validated());
+        $purchase = $this->purchases->update($purchase, $request->validated(), $request->user());
 
-        return $this->success(PurchaseResource::make($purchase->load(['vehicle', 'supplier', 'customer'])), 'Purchase updated');
+        return $this->success(PurchaseResource::make($purchase->load(['vehicle', 'supplier', 'customer', 'edits.user'])->loadCount('payments')), 'Purchase updated');
     }
 
     public function destroy(Purchase $purchase): JsonResponse
