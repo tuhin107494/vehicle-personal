@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BadgeDollarSign, CalendarClock, Car, ChartLine, FileCheck2, FileText, HandCoins, Languages, Shield, Smartphone, Ticket, Truck, UserCog, type LucideIcon } from "lucide-react";
 import { LandingActions, LandingContact, LandingInstall, LandingIosHint, LandingLanguage, LandingWhatsApp } from "@/components/LandingParts";
-import { VehicleScene } from "@/components/LoginPoster";
+import { LandingVideo } from "@/components/LandingVideo";
 
 export const metadata: Metadata = {
   title: "Gari Becho · Vehicle shop management",
@@ -105,7 +105,7 @@ export default function LandingPage() {
                 <LandingActions large />
               </div>
             </div>
-            <VehicleScene className="mx-auto w-full max-w-xl" />
+            <LandingVideo />
           </div>
         </section>
 

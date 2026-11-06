@@ -266,6 +266,11 @@ export function VehicleFields({ register, errors, lockIds, setValue, getValues, 
 
   const { defaultsFor, isAuto } = useTypeDefaults();
 
+  // The type list loads after the form opens, and a select cannot hold a value that has no option yet: set the saved type again once its options exist.
+  useEffect(() => {
+    if (categories.length && currentType && currentType !== "__new") setValue("vehicle_type", currentType);
+  }, [categories.length, currentType, setValue]);
+
   // Fill brand, model, colour and CC from the type, unless something custom was already typed or picked.
   const applyDefaults = (key: string, extra?: VehicleCategory) => {
     const d = defaultsFor(key, extra);
