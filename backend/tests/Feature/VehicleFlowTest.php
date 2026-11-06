@@ -76,6 +76,20 @@ class VehicleFlowTest extends TestCase
         $this->postJson('/api/sales', $this->saleData($v2))->assertCreated()->assertJsonPath('data.memo_no', null)->assertJsonPath('data.guarantor_name', null);
     }
 
+    public function test_a_collected_payment_keeps_an_optional_memo_number(): void
+    {
+        $v = $this->stockVehicle('MEMO-3');
+        $sale = $this->postJson('/api/sales', $this->saleData($v, ['payment_type' => 'due', 'down_payment' => 400000]))->assertCreated()->json('data');
+
+        $this->postJson("/api/sales/{$sale['id']}/payments", ['amount' => 100000, 'method' => 'cash', 'memo_no' => 'M-77'])->assertCreated();
+        $this->assertDatabaseHas('payments', ['sale_id' => $sale['id'], 'amount' => 100000, 'memo_no' => 'M-77']);
+
+        $this->postJson("/api/sales/{$sale['id']}/payments", ['amount' => 50000, 'method' => 'cash'])->assertCreated();
+        $this->assertDatabaseHas('payments', ['sale_id' => $sale['id'], 'amount' => 50000, 'memo_no' => null]);
+
+        $this->postJson("/api/sales/{$sale['id']}/payments", ['amount' => 1000, 'memo_no' => str_repeat('x', 101)])->assertJsonValidationErrors('memo_no');
+    }
+
     private function editBody(array $sale, array $extra = []): array
     {
         return $extra + [
