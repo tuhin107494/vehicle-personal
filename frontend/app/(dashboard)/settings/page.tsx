@@ -287,7 +287,7 @@ export default function SettingsPage() {
           }} />
           Fill in today&apos;s date automatically
         </label>
-        <p className="mb-3 mt-4 text-xs text-slate-500">Show the optional &quot;Memo no.&quot; field on the Sale and Due collection forms.</p>
+        <p className="mb-3 mt-4 text-xs text-slate-500">Show the optional "Memo no." field on the Sale and Due collection forms.</p>
         <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" className="size-4 accent-emerald-600" checked={memoNo ?? settings.data.forms?.memo_no ?? true} onChange={async (e) => {
             const value = e.target.checked;

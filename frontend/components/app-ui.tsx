@@ -65,8 +65,7 @@ export function Modal({ open, title: rawTitle, onClose, children, wide, compact 
   const { t } = useT();
   const title = t(rawTitle);
   return (
-    // only the cross button closes it: a click outside or the Escape key must not throw away what was typed
-    <Dialog open={open} onOpenChange={(o, details) => !o && details.reason === "close-press" && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className={cn("max-h-[calc(90vh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] gap-4 overflow-y-auto p-6 sm:max-w-lg", compact && "max-sm:gap-2 max-sm:p-3", wide && "sm:max-w-2xl")}>
         <DialogHeader>
           <DialogTitle className={cn("text-lg font-semibold text-emerald-700", compact && "max-sm:text-sm")}>{title}</DialogTitle>

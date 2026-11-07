@@ -245,9 +245,7 @@ class ReportController extends Controller implements HasMiddleware
             $vehicle = $sale->vehicle->chassis_no;
             $name = trim("{$sale->vehicle->brand} {$sale->vehicle->model}");
             $total = $sale->grandTotal();
-            // the sale row is what was sold; each charge has its own row below, so it is not counted twice
-            $sold = Money::add($total, -$sale->charges_total);
-            $out[] = $this->entry($sale->customer_id, $sale->sale_date->toDateString(), 0, $sale->id, 'sale', ucfirst($sale->payment_type).' sale', $vehicle, $sold, 0, null, "SALE-{$sale->id}", [
+            $out[] = $this->entry($sale->customer_id, $sale->sale_date->toDateString(), 0, $sale->id, 'sale', ucfirst($sale->payment_type).' sale', $vehicle, $total, 0, null, "SALE-{$sale->id}", [
                 ['Vehicle', $name ?: null], ['Chassis', $vehicle], ['Engine', $sale->vehicle->engine_no], ['Payment type', ucfirst($sale->payment_type)],
                 ['Sale price', number_format($sale->sale_price, 2)], ['Down payment', number_format($sale->down_payment, 2)],
             ]);
