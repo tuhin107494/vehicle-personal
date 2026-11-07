@@ -51,7 +51,13 @@ class TransactionService
     /** @return array{type:string,id:int}|null what the statement needs to offer an Edit button */
     public static function tx(Model $m): ?array
     {
-        return self::editable($m) ? ['type' => self::typeOf($m), 'id' => $m->id, 'deletable' => app(self::class)->deleteLock($m) === null] : null;
+        if (! self::editable($m)) {
+            return null;
+        }
+
+        $free = app(self::class)->deleteLock($m) === null; // asked once: it reads the sale, so a statement of many payments should not do it twice per row
+
+        return ['type' => self::typeOf($m), 'id' => $m->id, 'deletable' => $free, 'cancellable' => $free && ! $m instanceof Advance];
     }
 
     public function find(string $type, int $id): Model
@@ -272,14 +278,33 @@ class TransactionService
     /** Removes a payment or advance and takes its amount back out of every figure it fed. The deletion is kept in the history. */
     public function delete(Model $m, User $user): void
     {
-        DB::transaction(function () use ($m, $user) {
+        $this->retire($m, $user, null);
+    }
+
+    /** Cancels a customer or supplier payment: it stays on the statement as cancelled (with who and why), and its amount comes out of every figure it fed. */
+    public function cancel(Model $m, string $reason, User $user): void
+    {
+        if (! ($m instanceof Payment || $m instanceof PurchasePayment)) {
+            throw new BusinessRuleException('Only a customer or supplier payment can be cancelled.');
+        }
+
+        $this->retire($m, $user, $reason);
+    }
+
+    /** Takes a payment or advance out of the figures it fed, then deletes it (no reason) or marks it cancelled (with a reason). */
+    private function retire(Model $m, User $user, ?string $reason): void
+    {
+        DB::transaction(function () use ($m, $user, $reason) {
             $m = $m::lockForUpdate()->findOrFail($m->id);
 
             if ($lock = $this->deleteLock($m)) {
-                throw new BusinessRuleException($lock);
+                throw new BusinessRuleException($reason === null ? $lock : str_replace('cannot be deleted', 'cannot be cancelled', $lock));
             }
 
             $summary = $this->plain($m->amount).' on '.$m->paid_at->toDateString().' ('.$m->method.')';
+            $leave = fn () => $reason === null
+                ? $m->delete()
+                : $m->forceFill(['cancelled_at' => now(), 'cancelled_by' => $user->id, 'cancel_reason' => $reason])->save(); // not fillable: only this method may cancel
 
             if ($m instanceof Payment) {
                 $sale = Sale::lockForUpdate()->with('plan')->findOrFail($m->sale_id);
@@ -291,23 +316,24 @@ class TransactionService
                     app(PaymentService::class)->refreshInstallment($installment, $m->paid_at);
                 }
 
-                $m->delete();
+                $leave();
                 app(PaymentService::class)->recalculate($sale);
             } elseif ($m instanceof PurchasePayment) {
                 $purchase = Purchase::lockForUpdate()->findOrFail($m->purchase_id);
                 $paid = max(Money::paisa($purchase->paid_amount) - Money::paisa($m->amount), 0);
                 $settled = $paid + Money::paisa($purchase->due_adjustment);
 
-                $m->delete();
+                $leave();
                 $purchase->update([
                     'paid_amount' => Money::taka($paid),
                     'payment_status' => $settled >= Money::paisa($purchase->price) ? 'paid' : ($settled > 0 ? 'partial' : 'unpaid'),
                 ]);
             } else {
-                $m->delete();
+                $leave();
             }
 
-            TransactionEdit::create(['type' => self::typeOf($m), 'subject_id' => $m->id, 'user_id' => $user->id, 'changes' => [['field' => 'Deleted', 'from' => $summary, 'to' => null]]]);
+            $change = $reason === null ? ['field' => 'Deleted', 'from' => $summary, 'to' => null] : ['field' => 'Cancelled', 'from' => $summary, 'to' => $reason];
+            TransactionEdit::create(['type' => self::typeOf($m), 'subject_id' => $m->id, 'user_id' => $user->id, 'changes' => [$change]]);
         });
     }
 

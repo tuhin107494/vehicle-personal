@@ -38,6 +38,7 @@ class PermissionCatalog
             ['sales.charge', 'Add charges to sales', 'sales'],
             ['transactions.edit', 'Edit customer and supplier transactions', 'accounts'],
             ['transactions.delete', 'Delete customer and supplier transactions', 'accounts'],
+            ['transactions.cancel', 'Cancel customer and supplier transactions', 'accounts'],
             ['sales.cancel', 'Cancel sales', 'sales'],
             ['payments.collect', 'Collect payments', 'collections'],
             ['promises.view', 'View due promises', 'collections'],
@@ -59,6 +60,6 @@ class PermissionCatalog
     public static function moderatorDefaults(): array
     {
         return array_values(array_filter(array_column(self::all(), 0), fn ($k) => ! str_ends_with($k, '.delete')
-            && ! in_array($k, ['sales.edit', 'sales.charge', 'transactions.edit', 'sales.cancel', 'settlements.manage', 'settlements.view', 'reports.view', 'settings.manage'], true)));
+            && ! in_array($k, ['sales.edit', 'sales.charge', 'transactions.edit', 'transactions.cancel', 'sales.cancel', 'settlements.manage', 'settlements.view', 'reports.view', 'settings.manage'], true)));
     }
 }

@@ -258,6 +258,24 @@ class VehicleFlowTest extends TestCase
         $this->getJson("/api/charges/{$charge['id']}")->assertOk()->assertJsonPath('data.edits.0.changes.0.field', 'Amount');
     }
 
+    public function test_a_charge_is_counted_once_in_the_customer_statement(): void
+    {
+        $v = $this->stockVehicle('CHG-2');
+        $sale = $this->postJson('/api/sales', $this->saleData($v, ['payment_type' => 'due', 'sale_price' => 645000, 'down_payment' => 325000]))->assertCreated()->json('data');
+        $this->postJson("/api/sales/{$sale['id']}/charges", ['purpose' => 'Transfer fee', 'amount' => 3200, 'charged_on' => today()->toDateString()])->assertCreated();
+
+        $statement = $this->getJson("/api/reports/person-transactions?side=customer&customer_id={$sale['customer_id']}")->assertOk()
+            ->assertJsonFragment(['description' => 'Due sale', 'charge' => 645000])
+            ->assertJsonFragment(['description' => 'Transfer fee', 'charge' => 3200])
+            ->assertJsonPath('data.total_charge', 648200)
+            ->assertJsonPath('data.total_paid', 325000)
+            ->assertJsonPath('data.closing_balance', 323200);
+
+        // the statement agrees with the sale: 645,000 + 3,200 - 325,000 still due
+        $this->assertDatabaseHas('sales', ['id' => $sale['id'], 'due_amount' => 323200]);
+        $this->assertSame(323200.0, (float) $statement->json('data.closing_balance'));
+    }
+
     public function test_charge_payments_on_an_installment_sale_come_after_the_installments(): void
     {
         $v = $this->stockVehicle('CHG-2');
