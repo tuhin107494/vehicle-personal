@@ -11,7 +11,7 @@ export type Settings = {
   purchase: { vehicle_type: string | null; prices: Record<string, number>; from_customer: boolean };
   sale: { vehicle_type: string | null; prices: Record<string, number> };
   collections: { recall_days: number; keep_selection: boolean };
-  forms: { auto_date: boolean; memo_no: boolean };
+  forms: { auto_date: boolean; memo_no: boolean; removal: "delete" | "cancel" };
   booking: { days: number; on_cancel: "refund" | "keep"; on_expire: "refund" | "keep" };
 };
 
@@ -34,4 +34,9 @@ export function useFillDate(date: string, isEmpty: () => boolean, fill: (date: s
 /** Whether the shop shows the optional memo number field on the Sale and Due collection forms (on unless turned off). */
 export function useMemoField(): boolean {
   return useSettings().data?.forms?.memo_no !== false;
+}
+
+/** What the statements offer on a payment entered by mistake: "delete" removes it, "cancel" keeps it as cancelled with a reason (delete unless the shop chose otherwise). */
+export function useRemovalMode(): "delete" | "cancel" {
+  return useSettings().data?.forms?.removal === "cancel" ? "cancel" : "delete";
 }

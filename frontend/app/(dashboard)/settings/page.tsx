@@ -60,6 +60,7 @@ export default function SettingsPage() {
   const dash = useHiddenDashboard();
   const [recallDays, setRecallDays] = useState<number | null>(null); // saved on its own, apart from the settings table
   const [memoNo, setMemoNo] = useState<boolean | null>(null); // same, for the memo number field
+  const [removal, setRemoval] = useState<"delete" | "cancel" | null>(null); // same, for removing a payment
   const [autoDate, setAutoDate] = useState<boolean | null>(null); // same, for the date setting
   const [keepSelection, setKeepSelection] = useState<boolean | null>(null); // same, for the payment forms
   const [fromCustomer, setFromCustomer] = useState<boolean | null>(null); // what was just saved, until the settings are fetched again
@@ -301,6 +302,24 @@ export default function SettingsPage() {
           }} />
           Show the memo number field
         </label>
+        <p className="mb-3 mt-4 text-xs text-slate-500">For a wrong payment: Delete removes it, Cancel keeps it with a reason.</p>
+        <div role="radiogroup" aria-label="Remove a payment by" className="flex flex-wrap gap-x-6 gap-y-2">
+          {(["delete", "cancel"] as const).map((mode) => (
+            <label key={mode} className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+              <input type="radio" name="removal" className="size-4 accent-emerald-600" value={mode} checked={(removal ?? settings.data?.forms?.removal ?? "delete") === mode} onChange={async () => {
+                try {
+                  await api("/settings", { method: "PUT", body: { forms: { removal: mode } } });
+                  setRemoval(mode);
+                  settings.reload();
+                  toast.success("Saved");
+                } catch (err) {
+                  toast.error(err instanceof ApiError ? err.message : "Failed to save");
+                }
+              }} />
+              {mode === "delete" ? "Delete" : "Cancel"}
+            </label>
+          ))}
+        </div>
       </Card>
       <Card title="Bookings" className="mb-4">
         <p className="mb-3 text-xs text-slate-500">On cancel or expiry the vehicle returns to stock and the advance follows this rule. Staff can change the refund when cancelling.</p>
