@@ -1,0 +1,32 @@
+# Gari Becho
+
+> Gari Becho (গাড়ি বেচো) is web software for vehicle dealers and resellers in Bangladesh. One shop keeps its stock, purchases, sales, installments, due collection, investors and reports in one place, in English and Bangla, on phone and computer. It is made by Beacon Soft Ltd.
+
+Who it is for: owners and staff of shops that buy and sell used or new vehicles (CNG, auto-rickshaws, motorcycles and cars), especially shops that sell on installments or use investor money to buy stock.
+
+## What a shop can do
+
+- Stock and purchases: record each purchase from a supplier and see every vehicle in stock, with its chassis and engine number.
+- Sales: sell for cash or on installments, and print the sale memo.
+- Bookings: hold a vehicle for a buyer with an advance payment and track the deadline.
+- Installments and dues: follow every installment and promise to pay, and see which customers to call today.
+- Investors: record who funded each vehicle and settle their share of the profit when it sells.
+- Registration: follow each vehicle's registration, from bank chalan to documents handed over.
+- Reports: daily, stock, sales, purchase and due reports, ready to print or save as PDF.
+- Team: give staff their own sign-in and choose what each role can do.
+- Each shop's records are private to that shop.
+
+## How it works
+
+1. Buy: record the purchase; the vehicle joins the stock.
+2. Sell: choose the vehicle and the buyer, then take cash or set up installments.
+3. Collect: take payments as they fall due; the balance updates by itself.
+4. Settle: pay investors their share and see the figures in the reports.
+
+## Pages
+
+- [Home](https://garibecho.com/): features, how it works and contact details
+- [Create an account](https://garibecho.com/signup): sign up a new shop
+- [Sign in](https://garibecho.com/login)
+- [Privacy policy](https://garibecho.com/privacy)
+- [Terms of service](https://garibecho.com/terms)

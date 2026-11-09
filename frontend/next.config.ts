@@ -28,6 +28,17 @@ const csp = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  async redirects() {
+    // one address for search engines: www would otherwise be indexed as a duplicate site
+    return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.garibecho.com" }],
+        destination: "https://garibecho.com/:path*",
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {
