@@ -8,7 +8,6 @@ use App\Http\Resources\PurchaseResource;
 use App\Http\Resources\SaleResource;
 use App\Http\Resources\VehicleResource;
 use App\Models\Advance;
-use App\Services\TransactionService;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Investor;
@@ -20,11 +19,13 @@ use App\Models\Sale;
 use App\Models\Supplier;
 use App\Models\Vehicle;
 use App\Services\InvestorPortfolioService;
+use App\Services\TransactionService;
 use App\Support\Money;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Collection;
 
 class ReportController extends Controller implements HasMiddleware
 {
@@ -215,7 +216,7 @@ class ReportController extends Controller implements HasMiddleware
     /**
      * How one collection was spread: the months it covers (from the installments it paid) and the amount on each part.
      *
-     * @param  \Illuminate\Support\Collection<int,\App\Models\Payment>  $rows
+     * @param  Collection<int,Payment>  $rows
      * @return array<int,array{0:string,1:?string}>
      */
     private function splitOf($rows): array
@@ -236,6 +237,9 @@ class ReportController extends Controller implements HasMiddleware
     {
         $out = [];
         $sales = Sale::with(['vehicle:id,chassis_no,brand,model,engine_no', 'plan', 'charges', 'payments.receiver:id,name', 'payments.installment:id,seq_no,due_date', 'payments.charge:id,purpose'])->when($customerId, fn ($q) => $q->where('customer_id', $customerId))->get();
+
+        // cancelled payments are left out of every total, but the statement still lists them
+        $cancelled = Payment::onlyCancelled()->with('canceller:id,name')->whereIn('sale_id', $sales->pluck('id'))->get()->groupBy('sale_id');
 
         foreach ($sales as $sale) {
             $vehicle = $sale->vehicle->chassis_no;
@@ -260,6 +264,13 @@ class ReportController extends Controller implements HasMiddleware
                 ], TransactionService::tx($pay));
             }
 
+            foreach ($cancelled->get($sale->id, []) as $pay) {
+                $out[] = $this->entry($sale->customer_id, $pay->paid_at->toDateString(), 1, $pay->id, 'cancelled', "Cancelled payment ({$pay->method}): ".number_format($pay->amount, 2), $vehicle, 0, 0, $pay->reference, 'CX-'.$pay->id, [
+                    ['Vehicle', $name ?: null], ['Chassis', $vehicle], ['Sale', "#{$sale->id}"], ['Method', ucfirst($pay->method)], ['Amount', number_format($pay->amount, 2)],
+                    ['Cancelled by', $pay->canceller?->name], ['Reason', $pay->cancel_reason],
+                ]);
+            }
+
             foreach ($sale->charges as $charge) {
                 $out[] = $this->entry($sale->customer_id, $charge->charged_on->toDateString(), 0, $charge->id, 'charge', $charge->purpose, $vehicle, (float) $charge->amount, 0, null, "CHG-{$charge->id}", [
                     ['Vehicle', $name ?: null], ['Chassis', $vehicle], ['Sale', "#{$sale->id}"], ['Note', $charge->note],
@@ -278,6 +289,8 @@ class ReportController extends Controller implements HasMiddleware
     {
         $out = [];
         $purchases = Purchase::with(['vehicle:id,chassis_no,brand,model,engine_no', 'payments'])->whereNotNull('supplier_id')->when($supplierId, fn ($q) => $q->where('supplier_id', $supplierId))->get();
+
+        $cancelled = PurchasePayment::onlyCancelled()->with('canceller:id,name')->whereIn('purchase_id', $purchases->pluck('id'))->get()->groupBy('purchase_id');
 
         foreach ($purchases as $p) {
             $vehicle = $p->vehicle->chassis_no;
@@ -299,6 +312,12 @@ class ReportController extends Controller implements HasMiddleware
                 // money taken from an advance was counted when the advance was given
                 $fromAdvance = $pay->method === 'advance';
                 $out[] = $this->entry($p->supplier_id, $pay->paid_at->toDateString(), 1, $pay->id, 'payment', $fromAdvance ? 'Paid from advance' : "Payment ({$pay->method})", $vehicle, 0, $fromAdvance ? 0 : (float) $pay->amount, $pay->reference, 'SP-'.$pay->id, [...$car, ['Purchase', "#{$p->id}"], ['Method', ucfirst($pay->method)], ['Note', $pay->note]], TransactionService::tx($pay));
+            }
+
+            foreach ($cancelled->get($p->id, []) as $pay) {
+                $out[] = $this->entry($p->supplier_id, $pay->paid_at->toDateString(), 1, $pay->id, 'cancelled', "Cancelled payment ({$pay->method}): ".number_format($pay->amount, 2), $vehicle, 0, 0, $pay->reference, 'CXS-'.$pay->id, [
+                    ...$car, ['Purchase', "#{$p->id}"], ['Method', ucfirst($pay->method)], ['Amount', number_format($pay->amount, 2)], ['Cancelled by', $pay->canceller?->name], ['Reason', $pay->cancel_reason],
+                ]);
             }
         }
 

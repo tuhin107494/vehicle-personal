@@ -434,7 +434,7 @@ function PurchaseForm() {
               ]} />
             </div>
           ) : (
-            <div className="space-y-3"><VehicleFields register={register} errors={errors} lockIds={!!vehicle} setValue={setValue} getValues={getValues} watch={watch} onTypeAdded={(c) => { settings.reload(); if (c.purchase_price && !getValues("price")) setValue("price", String(c.purchase_price)); }} /></div>
+            <div className="space-y-3"><VehicleFields register={register} errors={errors} lockIds={!!vehicle} setValue={setValue} watch={watch} /></div>
           )}
         </Card>
 

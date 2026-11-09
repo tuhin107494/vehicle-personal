@@ -3,54 +3,44 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\CancelTransactionRequest;
+use App\Http\Requests\UpdateTransactionRequest;
 use App\Services\TransactionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
-/** The details of a customer payment, supplier payment or supplier advance, and their edit history. */
+/** The details of a customer payment, supplier payment or supplier advance, and their edit history. Permissions are set on the routes. */
 class TransactionController extends Controller
 {
     public function __construct(private TransactionService $transactions) {}
 
-    public function show(Request $request, string $type, int $id): JsonResponse
+    public function show(string $type, int $id): JsonResponse
     {
-        $this->authorizeEdit($request);
         $tx = $this->transactions->find($type, $id);
 
         return $this->success(['values' => $this->transactions->values($tx), 'edits' => $this->transactions->history($type, $id)]);
     }
 
-    public function update(Request $request, string $type, int $id): JsonResponse
+    public function update(UpdateTransactionRequest $request, string $type, int $id): JsonResponse
     {
-        $this->authorizeEdit($request);
         $tx = $this->transactions->find($type, $id);
 
-        $data = $request->validate([
-            'amount' => ['nullable', 'numeric', 'min:1'],
-            'paid_at' => ['required', 'date', 'before_or_equal:today'],
-            'method' => ['required', Rule::in(['cash', 'bank', 'mobile'])],
-            'reference' => ['nullable', 'string', 'max:255'],
-            'memo_no' => ['nullable', 'string', 'max:100'],
-            'note' => ['nullable', 'string', 'max:1000'],
-        ], ['paid_at.before_or_equal' => 'Date cannot be in the future.']);
-
-        $this->transactions->update($tx, $data, $request->user());
+        $this->transactions->update($tx, $request->validated(), $request->user());
 
         return $this->success(['values' => $this->transactions->values($tx->fresh()), 'edits' => $this->transactions->history($type, $id)], 'Transaction updated');
     }
 
     public function destroy(Request $request, string $type, int $id): JsonResponse
     {
-        abort_unless($request->user()->hasPermission('transactions.delete'), 403, 'You do not have permission to do this.');
-
         $this->transactions->delete($this->transactions->find($type, $id), $request->user());
 
         return $this->success(null, 'Transaction deleted');
     }
 
-    private function authorizeEdit(Request $request): void
+    public function cancel(CancelTransactionRequest $request, string $type, int $id): JsonResponse
     {
-        abort_unless($request->user()->hasPermission('transactions.edit'), 403, 'You do not have permission to do this.');
+        $this->transactions->cancel($this->transactions->find($type, $id), $request->validated('reason'), $request->user());
+
+        return $this->success(null, 'Transaction cancelled');
     }
 }

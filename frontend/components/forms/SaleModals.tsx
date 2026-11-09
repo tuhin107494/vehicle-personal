@@ -1,6 +1,6 @@
 "use client";
 
-import { useAutoDate } from "@/lib/settings";
+import { useAutoDate, useMemoField } from "@/lib/settings";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -31,17 +31,19 @@ export function CollectPaymentModal({ open, sale, onClose, onDone }: { open: boo
     method: z.enum(["cash", "bank", "mobile"]),
     paid_at: z.string().min(1, "Payment date is required.").refine((v) => v <= todayStr(), "Payment date cannot be in the future."),
     reference: z.string(),
+    memo_no: z.string().max(100, "Memo no. is too long."),
     note: z.string(),
   });
   type Values = z.infer<typeof schema>;
   const autoDate = useAutoDate();
+  const showMemo = useMemoField();
   const { register, handleSubmit, reset, setError, formState: { errors, isSubmitting } } = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { amount: "", installment_id: "", method: "cash", paid_at: autoDate, reference: "", note: "" },
+    defaultValues: { amount: "", installment_id: "", method: "cash", paid_at: autoDate, reference: "", memo_no: "", note: "" },
   });
 
   useEffect(() => {
-    if (open) reset({ amount: "", installment_id: "", method: "cash", paid_at: autoDate, reference: "", note: "" });
+    if (open) reset({ amount: "", installment_id: "", method: "cash", paid_at: autoDate, reference: "", memo_no: "", note: "" });
   }, [open, reset, autoDate]);
 
   const unpaid = (sale.plan?.installments ?? []).filter((i) => !["paid", "cancelled"].includes(i.status));
@@ -79,6 +81,7 @@ export function CollectPaymentModal({ open, sale, onClose, onDone }: { open: boo
           </Field>
           <Field label="Reference" error={errors.reference?.message}><Input className={inputCls} {...register("reference")} /></Field>
         </div>
+        {showMemo && <Field label="Memo no. (optional)" error={errors.memo_no?.message}><Input className={inputCls} {...register("memo_no")} /></Field>}
         <Field label="Note" error={errors.note?.message}><Input className={inputCls} {...register("note")} /></Field>
         <Actions onClose={onClose} busy={isSubmitting} submit="Collect" />
       </form>

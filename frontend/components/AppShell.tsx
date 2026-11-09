@@ -31,6 +31,7 @@ export const NAV: Item[] = [
   { href: "/settings", text: "Settings", icon: Settings, color: "text-slate-600", permission: "settings.manage" },
   { href: "/users", text: "Users", icon: UserCog, color: "text-sky-600", roles: ["shop_owner"] },
   { href: "/roles", text: "Roles", icon: ShieldCheck, color: "text-emerald-600", roles: ["shop_owner"] },
+  { href: "/categories", text: "Categories", icon: Tags, color: "text-sky-600", permission: "vehicles.edit" },
 ];
 
 /** The menu items this user may open, before any the device has hidden. */

@@ -14,6 +14,7 @@ class StorePaymentRequest extends ApiRequest
             'method' => ['nullable', Rule::in(['cash', 'bank', 'mobile'])],
             'paid_at' => ['nullable', 'date', 'before_or_equal:today'],
             'reference' => ['nullable', 'string', 'max:255'],
+            'memo_no' => ['nullable', 'string', 'max:100'],
             'note' => ['nullable', 'string', 'max:1000'],
         ];
     }

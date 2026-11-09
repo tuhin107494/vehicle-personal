@@ -167,8 +167,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('charges/{charge}', [SaleChargeController::class, 'show']);
         Route::put('charges/{charge}', [SaleChargeController::class, 'update']);
         Route::delete('charges/{charge}', [SaleChargeController::class, 'destroy']);
-        Route::get('transactions/{type}/{id}', [TransactionController::class, 'show']);
-        Route::put('transactions/{type}/{id}', [TransactionController::class, 'update']);
-        Route::delete('transactions/{type}/{id}', [TransactionController::class, 'destroy']);
+        Route::get('transactions/{type}/{id}', [TransactionController::class, 'show'])->middleware('permission:transactions.edit');
+        Route::put('transactions/{type}/{id}', [TransactionController::class, 'update'])->middleware('permission:transactions.edit');
+        Route::delete('transactions/{type}/{id}', [TransactionController::class, 'destroy'])->middleware('permission:transactions.delete');
+        Route::post('transactions/{type}/{id}/cancel', [TransactionController::class, 'cancel'])->middleware('permission:transactions.cancel');
     });
 });
