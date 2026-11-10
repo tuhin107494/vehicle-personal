@@ -7,7 +7,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { api, applyServerErrors } from "@/lib/api";
 import { addDays, money, todayStr, toPayload } from "@/lib/format";
-import { useFetch } from "@/lib/hooks";
+import { useDebounced, useLoadMore } from "@/lib/hooks";
 import { useSettings } from "@/lib/settings";
 import { useCategories } from "@/lib/categories";
 import type { Booking, Vehicle } from "@/lib/types";
@@ -52,7 +52,10 @@ export function BookingForm({ open, booking, onClose, onSaved }: { open: boolean
       setVehiclesWanted(false);
     }
   }
-  const vehicles = useFetch<Vehicle[]>(open && vehiclesWanted ? "/vehicles?status=in_stock&per_page=100" : null);
+  // searched on the server: a shop can have far more than 100 vehicles in stock
+  const [vehicleSearch, setVehicleSearch] = useState("");
+  const searched = useDebounced(vehicleSearch.trim());
+  const vehicles = useLoadMore<Vehicle>(open && vehiclesWanted ? `/vehicles?status=in_stock${searched ? `&search=${encodeURIComponent(searched)}` : ""}` : null);
 
   // choosing a vehicle fills in the shop's usual sale price for its type
   const chooseVehicle = (id: string) => {
@@ -88,8 +91,11 @@ export function BookingForm({ open, booking, onClose, onSaved }: { open: boolean
           <SearchSelect
             value={w.vehicle_id}
             onChange={chooseVehicle}
+            onQueryChange={setVehicleSearch}
             onOpen={() => setVehiclesWanted(true)}
-            loading={vehicles.loading}
+            loading={vehicles.loading || vehicleSearch.trim() !== searched}
+            hasMore={vehicles.hasMore}
+            onLoadMore={vehicles.loadMore}
             placeholder="Search by chassis, model or brand..."
             fallbackLabel={booking?.vehicle ? `${booking.vehicle.chassis_no} - ${[booking.vehicle.brand, booking.vehicle.model, booking.vehicle.year].filter(Boolean).join(" ")}` : undefined}
             options={(vehicles.data ?? []).map((v) => ({ value: String(v.id), label: `${v.chassis_no} - ${[v.brand, v.model, v.year].filter(Boolean).join(" ")}`, hint: nameOf(v.vehicle_type) }))}

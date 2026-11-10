@@ -10,7 +10,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { api, ApiError, applyServerErrors } from "@/lib/api";
 import { addDays, fmtDate, money, todayStr, toPayload, savedMsg } from "@/lib/format";
-import { useFetch } from "@/lib/hooks";
+import { useDebounced, useFetch, useLoadMore } from "@/lib/hooks";
 import type { Booking, DraftT, Customer, Investor, Sale, Vehicle } from "@/lib/types";
 import { ProfitCalculator } from "@/components/forms/ProfitCalculator";
 import { draftValues } from "@/components/DraftsBar";
@@ -174,10 +174,21 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
     setAdvanceOpen(false);
   };
   const [draftId, setDraftId] = useState<number | null>(null); // the draft being edited: it holds the vehicle chosen in it
-  const vehicles = useFetch<Vehicle[]>(booking ? "/vehicles?status=booked&per_page=100" : vehicleListOpened || w.vehicle_id ? (investorMode ? "/vehicles?per_page=100" : `/vehicles?status=in_stock&per_page=100${draftId ? `&draft_id=${draftId}` : ""}`) : null);
+  // The list is searched on the server (a shop can have far more than 100 vehicles in stock), so what is typed goes with the request.
+  const [vehicleSearch, setVehicleSearch] = useState("");
+  const searched = useDebounced(vehicleSearch.trim());
+  const [chosenVehicle, setChosenVehicle] = useState<Vehicle | null>(null); // kept after choosing: a later search may not list it any more
+  const filters = [searched && `search=${encodeURIComponent(searched)}`, typeFilter && `vehicle_type=${encodeURIComponent(typeFilter)}`].filter(Boolean);
+  const vehiclesUrl = (query: string) => `/vehicles${[query, ...filters].filter(Boolean).length ? `?${[query, ...filters].filter(Boolean).join("&")}` : ""}`;
+  const vehicles = useLoadMore<Vehicle>(booking ? vehiclesUrl("status=booked") : vehicleListOpened || w.vehicle_id ? vehiclesUrl(investorMode ? "" : `status=in_stock${draftId ? `&draft_id=${draftId}` : ""}`) : null);
   // from a booking: the booked vehicle is already chosen, and the buyer may take another one that is in stock (fetched when the field is first used)
-  const moreVehicles = useFetch<Vehicle[]>(booking && (vehicleListOpened || !booking.vehicle_id) ? "/vehicles?status=in_stock&per_page=100" : null);
-  const allVehicles = booking ? [...(vehicles.data ?? []), ...(moreVehicles.data ?? [])] : vehicles.data ?? [];
+  const moreVehicles = useLoadMore<Vehicle>(booking && (vehicleListOpened || !booking.vehicle_id) ? vehiclesUrl("status=in_stock") : null);
+  const listedVehicles = booking ? [...(vehicles.data ?? []), ...(moreVehicles.data ?? [])] : vehicles.data ?? [];
+  // a vehicle that is chosen (or came with a draft) but is not in the current list, such as an older one: fetched on its own
+  const unlisted = w.vehicle_id && !vehicles.loading && !listedVehicles.some((v) => String(v.id) === w.vehicle_id) && String(chosenVehicle?.id) !== w.vehicle_id;
+  const oneVehicle = useFetch<Vehicle>(unlisted ? `/vehicles/${w.vehicle_id}` : null);
+  const known = [chosenVehicle, oneVehicle.data].filter((v): v is Vehicle => !!v && !listedVehicles.some((l) => l.id === v.id));
+  const allVehicles = [...listedVehicles, ...known];
   const [promiseChoice, setPromiseChoice] = useState("");
   // A resumed draft keeps the date it has; a quick choice follows the sale date.
   const choice = promiseChoice || (w.promised_date ? "other" : "");
@@ -388,11 +399,15 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
             <Field required label={investorMode ? "Vehicle (in stock or sold)" : "Vehicle (in stock)"} error={errors.vehicle_id?.message}>
               <SearchSelect
                 value={w.vehicle_id}
-                onChange={(id) => setValue("vehicle_id", id, { shouldValidate: true })}
+                onChange={(id) => { setValue("vehicle_id", id, { shouldValidate: true }); setChosenVehicle(allVehicles.find((v) => String(v.id) === id) ?? null); }}
+                onQueryChange={setVehicleSearch}
                 onOpen={() => setVehicleListOpened(true)}
-                loading={vehicles.loading}
+                loading={vehicles.loading || moreVehicles.loading || vehicleSearch.trim() !== searched}
+                hasMore={vehicles.hasMore || moreVehicles.hasMore}
+                emptyText={typeFilter ? "No match in this vehicle type. Choose All types above to search every type." : undefined}
+                onLoadMore={() => { if (vehicles.hasMore) vehicles.loadMore(); if (moreVehicles.hasMore) moreVehicles.loadMore(); }}
                 placeholder="Search by chassis, model or brand..."
-                options={allVehicles.filter((v) => !typeFilter || v.vehicle_type === typeFilter).map((v) => ({ value: String(v.id), label: `${v.chassis_no} - ${[v.brand, v.model, v.year].filter(Boolean).join(" ")}${investorMode ? (v.status === "in_stock" ? " · In stock" : " · Sold") : ""}`, hint: [nameOf(v.vehicle_type), v.engine_no].join(" · ") }))}
+                options={listedVehicles.map((v) => ({ value: String(v.id), label: `${v.chassis_no} - ${[v.brand, v.model, v.year].filter(Boolean).join(" ")}${investorMode ? (v.status === "in_stock" ? " · In stock" : " · Sold") : ""}`, hint: [nameOf(v.vehicle_type), v.engine_no].join(" · ") }))}
               />
             </Field>
           </div>
