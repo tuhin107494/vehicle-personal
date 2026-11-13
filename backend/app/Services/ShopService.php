@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Permission;
 use App\Models\Shop;
 use App\Models\User;
+use App\Services\Billing\SubscriptionService;
 use App\Support\PermissionCatalog;
 use Illuminate\Support\Facades\DB;
 
@@ -19,6 +20,8 @@ class ShopService
             // listed first so they win: whatever $owner holds, this user owns this shop
             User::create(['shop_id' => $shop->id, 'role' => 'shop_owner'] + $owner);
             $this->seedDefaultPermissions($shop);
+            // a new shop starts on the trial plan (none when no plan offers a trial yet)
+            app(SubscriptionService::class)->startTrial($shop);
 
             return $shop;
         });

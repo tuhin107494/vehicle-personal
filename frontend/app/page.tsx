@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BadgeDollarSign, CalendarClock, Car, ChartLine, FileCheck2, FileText, HandCoins, Languages, Shield, Smartphone, Ticket, Truck, UserCog, type LucideIcon } from "lucide-react";
-import { LandingActions, LandingContact, LandingInstall, LandingIosHint, LandingLanguage, LandingWhatsApp } from "@/components/LandingParts";
+import { LandingActions, LandingContact, LandingInstall, LandingIosHint, LandingLanguage, LandingPlans, LandingWhatsApp } from "@/components/LandingParts";
 import { LandingVideo } from "@/components/LandingVideo";
+import { CARD, TILE, tint } from "@/lib/landing";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -78,18 +79,6 @@ const STEPS = [
   { title: "Settle", text: "Pay your investors their share and see the figures in your reports." },
 ];
 
-/** One look for every card on the page, so they are all the same size. */
-const CARD = "h-full rounded-2xl p-6 shadow-sm ring-1 transition duration-200 hover:-translate-y-1 hover:shadow-lg";
-/** Each card has a slight tint of its icon's colour; the sections behind them are plain. */
-const TINT: Record<string, string> = {
-  emerald: "bg-emerald-50/40 ring-emerald-200 hover:ring-emerald-400",
-  sky: "bg-sky-50/40 ring-sky-200 hover:ring-sky-400",
-  amber: "bg-amber-50/40 ring-amber-200 hover:ring-amber-400",
-  rose: "bg-rose-50/40 ring-rose-200 hover:ring-rose-400",
-  teal: "bg-teal-50/40 ring-teal-200 hover:ring-teal-400",
-};
-const tint = (tone: string) => TINT[tone.match(/text-(\w+)-/)?.[1] ?? "emerald"];
-const TILE = "mb-4 flex size-12 items-center justify-center rounded-xl";
 
 const SECTION = "mx-auto w-full max-w-6xl scroll-mt-[calc(5rem+env(safe-area-inset-top))] px-4 py-8 sm:py-10";
 const NAV_LINK = "text-sm font-medium text-slate-600 hover:text-emerald-700";
@@ -119,6 +108,7 @@ export default function LandingPage() {
           <nav aria-label="Page sections" className="hidden items-center gap-6 lg:flex">
             <a className={NAV_LINK} href="#features">Features</a>
             <a className={NAV_LINK} href="#how-it-works">How it works</a>
+            <a className={NAV_LINK} href="#pricing">Pricing</a>
             <a className={NAV_LINK} href="#contact">Contact</a>
           </nav>
           <div className="flex items-center gap-2">
@@ -193,6 +183,11 @@ export default function LandingPage() {
               </li>
             ))}
           </ol>
+        </section>
+
+        <section id="pricing" className={SECTION}>
+          <SectionHeading title="Plans and pricing" text="Start with a free trial. Change or cancel your plan any time from your dashboard." />
+          <LandingPlans />
         </section>
 
         <section id="contact" className={SECTION}>

@@ -116,3 +116,68 @@ export type Booking = {
   vehicle?: { id: number; chassis_no: string; engine_no: string; brand: string | null; model: string | null; year: number | null; vehicle_type: string; status: string };
   customer?: { id: number; name: string; phone: string; alt_phone: string | null };
 };
+
+/** One setting a payment gateway needs; the configure form is built from these (GatewayConfigController@show → details.schema). */
+export type CredentialFieldT = { name: string; label: string; type: "text" | "password" | "textarea" | "url" | "select" | "boolean"; required: boolean; is_secret: boolean; help: string | null; options: Record<string, string> };
+export type GatewayMode = "sandbox" | "live";
+/** A payment gateway as the super admin sees it. Secrets are never sent: a saved one shows as a masked tail. */
+export type GatewayConfigT = {
+  id: number; code: string; display_name: string; logo_url: string | null; description: string | null; is_active: boolean; sort_order: number;
+  active_mode: GatewayMode; min_amount_paisa: number | null; max_amount_paisa: number | null; fee_percent: number; fee_fixed_paisa: number; webhook_ips: string | null;
+  configured: { sandbox: boolean; live: boolean } | null; updated_at: string | null;
+  details?: { schema: CredentialFieldT[]; sandbox: Record<string, string | boolean | null>; live: Record<string, string | boolean | null>; configured: { sandbox: boolean; live: boolean }; urls: Record<string, string> };
+};
+export type PaymentAttemptStatus = "initiated" | "pending" | "success" | "failed" | "cancelled" | "expired";
+export type PaymentAttemptT = {
+  id: number; invoice_id: number; shop_id: number; gateway: string; amount_paisa: number; currency: string; status: PaymentAttemptStatus; failure_reason: string | null;
+  reference: string | null; proof_url: string | null; submitted_at: string | null; expires_at: string | null; verified_at: string | null; created_at: string | null;
+  invoice?: { invoice_no: string; total_paisa: number; status: string } | null; shop?: { id: number; name: string } | null;
+  initiation?: { kind: "redirect" | "instructions"; redirect_url: string | null; instructions: string | null; details: Record<string, string> } | null;
+};
+/** The shop's checkout: which gateways it may pay an invoice through (GET /billing/invoices/{id}/gateways). */
+export type GatewayOptionT = { code: string; display_name: string; logo_url: string | null; description: string | null; mode: GatewayMode };
+export type FeatureType = "boolean" | "limit";
+export type FeatureT = { key: string; type: FeatureType; description: string };
+/** How long one paid period of a plan lasts: 1, 3, 6 or 12 months (Plan::INTERVALS). */
+export type BillingInterval = "monthly" | "quarterly" | "half_yearly" | "yearly";
+/** A platform plan. `features` is key => "1"/"0" for a switch, a number or null (unlimited) for a limit. */
+export type PlanT = {
+  /** price_paisa is what the shop pays; original_price_paisa is the regular price before discount (display only), null without one */
+  id: number; name: string; slug: string; price_paisa: number; original_price_paisa: number | null; discount_paisa: number; discount_percent: number; currency: string; billing_interval: BillingInterval; trial_days: number; is_active: boolean; sort_order: number;
+  description: string | null; features?: Record<string, string | null>; subscriptions_count?: number;
+};
+export type SubscriptionStatus = "trialing" | "active" | "past_due" | "expired" | "cancelled";
+export type SubscriptionT = {
+  id: number; shop_id: number; status: SubscriptionStatus; starts_at: string; ends_at: string; trial_ends_at: string | null; grace_ends_at: string | null; cancelled_at: string | null;
+  auto_renew: boolean; days_left: number; plan?: PlanT; pending_plan?: PlanT | null; shop?: { id: number; name: string; phone: string | null; is_active: boolean } | null; updated_at: string | null;
+};
+export type InvoiceT = {
+  id: number; shop_id: number; subscription_id: number; invoice_no: string; status: "unpaid" | "paid" | "void"; payable: boolean; amount_paisa: number; discount_paisa: number; total_paisa: number; currency: string;
+  period_starts_at: string; period_ends_at: string; due_date: string; paid_at: string | null; created_at: string | null;
+  plan?: { id: number; name: string; billing_interval: string } | null; coupon?: { id: number; code: string; type: string; value: number } | null; shop?: { id: number; name: string; phone: string | null; address: string | null } | null;
+};
+/** What a limit or switch allows this shop right now (GET /billing/subscription → usage). */
+export type UsageT = { type: "limit"; limit: number | null; used: number; remaining: number | null } | { type: "boolean"; allowed: boolean };
+export type BillingOverviewT = { subscription: SubscriptionT | null; usage: Record<string, UsageT>; open_invoice: InvoiceT | null; grace_days: number };
+export type CouponT = { id: number; code: string; type: "percent" | "fixed"; value: number; max_uses: number | null; used_count: number; expires_at: string | null; is_active: boolean; redeemable: boolean; created_at: string | null };
+export type GatewayRefundT = {
+  id: number; gateway_payment_id: number; shop_id: number; amount_paisa: number; reason: string; status: "pending" | "success" | "failed"; gateway_refund_id: string | null; failure_reason: string | null;
+  requested_by?: { id: number; name: string } | null; payment?: { id: number; gateway_code: string; gateway_trx_id: string; amount_paisa: number } | null; shop?: { id: number; name: string } | null; created_at: string | null;
+};
+export type GatewayPaymentT = {
+  id: number; attempt_id: number; invoice_id: number; shop_id: number; gateway: string; gateway_trx_id: string; amount_paisa: number; fee_paisa: number; refunded_paisa: number; refundable_paisa: number;
+  status: "success" | "partially_refunded" | "refunded"; paid_at: string; invoice?: { id: number; invoice_no: string; status: string; total_paisa: number } | null; shop?: { id: number; name: string } | null; refunds?: GatewayRefundT[];
+};
+export type MismatchT = {
+  id: number; shop_id: number | null; gateway: string; reference_type: string; reference_id: number; kind: "amount" | "status" | "ledger"; expected_paisa: number | null; actual_paisa: number | null; message: string;
+  details: unknown; resolved_at: string | null; resolved_by?: { id: number; name: string } | null; note: string | null; shop?: { id: number; name: string } | null; created_at: string | null;
+};
+export type RevenueReportT = {
+  from: string; to: string;
+  totals: { payments: number; amount_paisa: number; fee_paisa: number; refunded_paisa: number; net_paisa: number };
+  by_gateway: { gateway: string; payments: number; amount_paisa: number; fee_paisa: number }[];
+  by_month: { month: string; payments: number; amount_paisa: number; fee_paisa: number; refunded_paisa: number }[];
+  subscriptions: { by_status: Record<string, number>; by_plan: { plan: string; shops: number; paying: number }[]; mrr_paisa: number };
+  outstanding: { invoices: number; amount_paisa: number };
+};
+export type GatewayLogT = { id: number; shop_id: number | null; attempt_id: number | null; gateway: string; direction: "request" | "response" | "webhook" | "error"; action: string; http_status: number | null; ip: string | null; payload: unknown; created_at: string };

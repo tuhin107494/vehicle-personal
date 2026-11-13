@@ -7,13 +7,14 @@ use App\Models\Purchase;
 use App\Models\Sale;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Services\Billing\FeatureGateService;
 use App\Support\Money;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 
 class PurchaseService
 {
-    public function __construct(private PaymentService $payments) {}
+    public function __construct(private PaymentService $payments, private FeatureGateService $gate) {}
 
     /** Facts about the vehicle that can be refreshed on every purchase (chassis and engine numbers never change). */
     private const DETAIL_FIELDS = [
@@ -27,6 +28,9 @@ class PurchaseService
     public function create(array $data, User $user): Purchase
     {
         return DB::transaction(function () use ($data, $user) {
+            // a new vehicle or a bought-back one: either way one more comes into stock, so the plan's cap applies first
+            $this->gate->ensureCanAdd($user->shop_id, 'max_vehicles_in_stock');
+
             if (! empty($data['vehicle_id'])) {
                 $vehicle = Vehicle::lockForUpdate()->findOrFail($data['vehicle_id']);
 

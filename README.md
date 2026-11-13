@@ -201,6 +201,10 @@ cd backend  && vendor/bin/pint && vendor/bin/phpstan analyse && composer test
 cd frontend && npm run lint && npm run build
 ```
 
+### Subscriptions and payments
+
+Shops subscribe to plans and pay by bKash or bank transfer. **Production needs a queue worker and the scheduler** (`php artisan queue:work --queue=payments,notifications,reports` and `php artisan schedule:run` every minute), or payments are never applied. Setup, gateway configuration, the job list and how to add a gateway are in [docs/subscriptions-and-payments.md](docs/subscriptions-and-payments.md).
+
 ---
 
 ## Adding a feature: checklist

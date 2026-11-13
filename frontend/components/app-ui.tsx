@@ -142,13 +142,14 @@ function BackButton() {
   );
 }
 
-export function PageHeader({ title, actions, titleClass }: { title: string; actions?: ReactNode; titleClass?: string }) {
+/** `back={false}` hides the Back button on a page that is itself a menu destination (it only looks like a details page by its URL). */
+export function PageHeader({ title, actions, titleClass, back = true }: { title: string; actions?: ReactNode; titleClass?: string; back?: boolean }) {
   const { t } = useT();
   // back button, title and action buttons share one row when they fit; several buttons drop to their own row
   return (
     <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
       <div className="flex min-w-0 items-center gap-2">
-        <BackButton />
+        {back && <BackButton />}
         <h1 className={cn("min-w-0 text-2xl font-bold tracking-tight text-emerald-700 sm:text-3xl", titleClass)}>{t(title)}</h1>
       </div>
       <div className="ml-auto flex max-w-full flex-wrap justify-end gap-1.5 max-sm:[&_a]:px-2.5 max-sm:[&_a]:py-1.5 max-sm:[&_a]:text-xs max-sm:[&_button]:h-8 max-sm:[&_button]:gap-1 max-sm:[&_button]:px-2.5 max-sm:[&_button]:text-xs sm:gap-2">{actions}</div>

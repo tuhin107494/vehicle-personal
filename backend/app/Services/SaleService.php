@@ -12,13 +12,14 @@ use App\Models\Payment;
 use App\Models\Sale;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Services\Billing\FeatureGateService;
 use App\Support\Money;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class SaleService
 {
-    public function __construct(private PaymentService $payments) {}
+    public function __construct(private PaymentService $payments, private FeatureGateService $gate) {}
 
     public function create(array $data, User $user): Sale
     {
@@ -60,6 +61,13 @@ class SaleService
                 throw new BusinessRuleException('Down payment must be less than the sale price for due and installment sales.');
             }
 
+            // the plan's caps: how many sales this month, and whether installment sales are included at all
+            $this->gate->ensureCanAdd($user->shop_id, 'max_sales_per_month');
+
+            if ($type === 'installment') {
+                $this->gate->ensureCanUse($user->shop_id, 'installments');
+            }
+
             $sale = Sale::create([
                 'vehicle_id' => $vehicle->id,
                 'purchase_id' => $vehicle->current_purchase_id,
@@ -80,6 +88,7 @@ class SaleService
             $vehicle->update(['status' => 'sold', 'current_sale_id' => $sale->id]);
             $draft && app(DraftService::class)->delete($draft); // the draft became this sale: it goes, and a vehicle it held is released unless this sale sold it
             $booking?->update(['status' => 'completed', 'sale_id' => $sale->id, 'closed_on' => today()]);
+            DB::afterCommit(fn () => $this->gate->increment($user->shop_id, 'max_sales_per_month'));
 
             return $sale;
         });
@@ -218,7 +227,7 @@ class SaleService
         if ($type === 'due') {
             $promise = $sale->promises->sortBy('id')->first();
 
-            return ($promise?->promised_date?->toDateString()) !== (empty($data['promised_date']) ? null : Carbon::parse($data['promised_date'])->toDateString())
+            return $promise?->promised_date?->toDateString() !== (empty($data['promised_date']) ? null : Carbon::parse($data['promised_date'])->toDateString())
                 || ($promise?->note) !== ($data['promise_note'] ?? null);
         }
 

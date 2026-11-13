@@ -1,14 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Clock, Download, Mail, MapPin, MessageCircle, Phone, Share, X, type LucideIcon } from "lucide-react";
+import { ArrowRight, Check, Clock, Download, Mail, MapPin, MessageCircle, Minus, Package, Phone, Share, X, type LucideIcon } from "lucide-react";
 import { homePath, useAuth } from "@/lib/auth";
+import { featureLabel } from "@/lib/billing";
+import { CARD, TILE, TONES, tint } from "@/lib/landing";
 import { useFetch } from "@/lib/hooks";
 import { useT } from "@/lib/i18n";
 import { dismissIosHint, installApp, useCanInstall, useShowIosHint } from "@/lib/install";
-import type { LandingInfo } from "@/lib/types";
+import type { LandingInfo, PlanT } from "@/lib/types";
 import { Loading } from "@/components/app-ui";
 import { ContactForm } from "@/components/forms/ContactForm";
+import { PlanPrice } from "@/components/PlanPrice";
 
 const PRIMARY = "inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-emerald-700 to-green-700 font-semibold text-white shadow-sm hover:from-emerald-800 hover:to-green-800";
 const OUTLINE = "inline-flex items-center justify-center rounded-lg border border-emerald-300 bg-white font-semibold text-emerald-700 hover:bg-emerald-50";
@@ -112,6 +115,53 @@ export function LandingContact() {
         {data?.support_hours && <ContactCard icon={Clock} tone="bg-amber-100 text-amber-600" label="Support hours" value={data.support_hours} />}
         {data?.address && <ContactCard icon={MapPin} tone="bg-rose-100 text-rose-600" label="Address" value={data.address} />}
       </div>
+    </div>
+  );
+}
+
+/** Every plan the super admin offers, with what each one includes. Signed-out visitors go to sign up; a shop owner goes to billing to choose. */
+export function LandingPlans() {
+  const { user } = useAuth();
+  const { t } = useT();
+  const { data, loading, error } = useFetch<PlanT[]>("/plans");
+  if (loading && !data) return <Loading />;
+  if (error) return <p role="status" className="text-center text-sm text-slate-500">{t("Plans could not be loaded. Please refresh the page.")}</p>;
+  const plans = data ?? [];
+  if (!plans.length) return <p role="status" className="text-center text-sm text-slate-500">{t("Plans will be announced soon.")}</p>;
+
+  // the middle of the list is the usual pick
+  const featured = plans.length > 2 ? plans[Math.floor(plans.length / 2)].id : null;
+  const cta = user ? (user.role === "shop_owner" ? "/billing" : homePath(user)) : "/signup";
+
+  return (
+    <div className={`mx-auto grid gap-4 ${plans.length === 1 ? "max-w-sm" : plans.length === 2 ? "max-w-3xl sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3"}`}>
+      {plans.map((plan, i) => {
+        const top = plan.id === featured;
+        const tone = TONES[i % TONES.length];
+        return (
+          <article key={plan.id} className={`${CARD} ${tint(tone)} relative flex flex-col`}>
+            {top && <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-emerald-600 px-3 py-0.5 text-xs font-semibold text-white">{t("Most popular")}</span>}
+            <span className={`${TILE} ${tone}`}><Package className="size-6" /></span>
+            <h3 className="font-semibold text-slate-800">{plan.name}</h3>
+            <p className="mt-3"><PlanPrice plan={plan} large /></p>
+            {plan.trial_days > 0 && <p className="mt-1 text-sm font-medium text-emerald-700">{`${plan.trial_days} ${t("days free trial")}`}</p>}
+            {plan.description && <p className="mt-3 text-sm text-slate-600">{plan.description}</p>}
+            <ul className="mt-4 flex-1 space-y-2 text-sm">
+              {Object.entries(plan.features ?? {}).map(([key, value]) => {
+                const off = value === "0";
+                const amount = value === null ? t("Unlimited") : value !== "1" && value !== "0" ? value : null;
+                return (
+                  <li key={key} className={`flex items-start gap-2 ${off ? "text-slate-400" : "text-slate-700"}`}>
+                    {off ? <Minus className="mt-0.5 size-4 shrink-0" aria-hidden="true" /> : <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" aria-hidden="true" />}
+                    <span>{off && <span className="sr-only">{t("Not included")}: </span>}{t(featureLabel(key))}{amount !== null && <>: <strong className="font-semibold">{amount}</strong></>}</span>
+                  </li>
+                );
+              })}
+            </ul>
+            <Link href={cta} className={`mt-6 h-11 px-4 text-sm ${PRIMARY}`}>{t(user ? "Choose plan" : plan.trial_days > 0 ? "Start free trial" : "Get started")}</Link>
+          </article>
+        );
+      })}
     </div>
   );
 }

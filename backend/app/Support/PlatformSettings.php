@@ -33,6 +33,8 @@ class PlatformSettings
         'landing.whatsapp' => 'string', // international format: wa.me links need the country code
         'landing.address' => 'string',
         'landing.support_hours' => 'string',
+        'billing.trial_plan' => 'string', // slug of the plan new shops start a trial on; blank = the cheapest plan with a trial
+        'billing.grace_days' => 'int', // days a shop keeps working after its period ends, before it is expired
     ];
 
     /** Values used until the super admin saves one. Sign-up is open by default: new shops still wait for approval. */

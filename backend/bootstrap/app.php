@@ -1,7 +1,9 @@
 <?php
 
 use App\Exceptions\BusinessRuleException;
+use App\Http\Middleware\CheckFeature;
 use App\Http\Middleware\CheckPermission;
+use App\Http\Middleware\EnsureActiveSubscription;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\EnsureShopUser;
 use Illuminate\Auth\AuthenticationException;
@@ -28,11 +30,13 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => EnsureRole::class,
             'permission' => CheckPermission::class,
             'shop' => EnsureShopUser::class,
+            'subscription' => EnsureActiveSubscription::class,
+            'feature' => CheckFeature::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // a refused action ("cannot delete", "overpayment") is an answer to the user, not a bug: keep it out of the error log
-        $exceptions->dontReport(\App\Exceptions\BusinessRuleException::class);
+        $exceptions->dontReport(BusinessRuleException::class);
 
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),

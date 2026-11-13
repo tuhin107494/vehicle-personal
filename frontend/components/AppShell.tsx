@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useT } from "@/lib/i18n";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { BadgeDollarSign, CalendarDays, HandCoins, Menu, X, Building2, Car, ChartColumn, KeyRound, LayoutDashboard, Landmark, LogOut, Settings, ShieldCheck, ShoppingCart, Tags, Truck, UserCog, Users, Wallet } from "lucide-react";
+import { BadgeDollarSign, Banknote, CalendarDays, HandCoins, Menu, X, Building2, Car, ChartColumn, KeyRound, LayoutDashboard, Landmark, LogOut, Package, Receipt, Repeat, Settings, ShieldCheck, ShoppingCart, Tags, Truck, UserCog, Users, Wallet, CreditCard } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Avatar } from "@/components/Avatar";
 import { useHiddenMenu } from "@/lib/menu";
@@ -16,6 +16,10 @@ export const NAV: Item[] = [
   { href: "/categories", text: "Categories", icon: Tags, color: "text-sky-600", roles: ["super_admin"] },
   { href: "/permissions", text: "Permissions", icon: KeyRound, color: "text-amber-500", roles: ["super_admin"] },
   { href: "/platform-settings", text: "System settings", icon: Settings, color: "text-slate-600", roles: ["super_admin"] },
+  { href: "/platform-gateways", text: "Payment gateways", icon: CreditCard, color: "text-violet-600", roles: ["super_admin"] },
+  { href: "/platform-plans", text: "Plans", icon: Package, color: "text-emerald-600", roles: ["super_admin"] },
+  { href: "/platform-subscriptions", text: "Subscriptions", icon: Repeat, color: "text-sky-600", roles: ["super_admin"] },
+  { href: "/platform-payments", text: "Payments", icon: Banknote, color: "text-green-600", roles: ["super_admin"] },
   { href: "/dashboard", text: "Dashboard", icon: LayoutDashboard, color: "text-emerald-600", permission: "dashboard.view" },
   { href: "/sales/new", text: "Sales", icon: BadgeDollarSign, color: "text-green-600", permission: "sales.create" },
   { href: "/purchases/new", text: "Purchases", icon: ShoppingCart, color: "text-orange-500", permission: "purchases.create" },
@@ -31,6 +35,7 @@ export const NAV: Item[] = [
   { href: "/settings", text: "Settings", icon: Settings, color: "text-slate-600", permission: "settings.manage" },
   { href: "/users", text: "Users", icon: UserCog, color: "text-sky-600", roles: ["shop_owner"] },
   { href: "/roles", text: "Roles", icon: ShieldCheck, color: "text-emerald-600", roles: ["shop_owner"] },
+  { href: "/billing", text: "Billing", icon: Receipt, color: "text-violet-600", roles: ["shop_owner"] },
   { href: "/categories", text: "Categories", icon: Tags, color: "text-sky-600", permission: "vehicles.edit" },
 ];
 

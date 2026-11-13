@@ -2,11 +2,23 @@
 
 use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\Billing\Admin\CouponController;
+use App\Http\Controllers\Api\Billing\Admin\PlanController as AdminPlanController;
+use App\Http\Controllers\Api\Billing\Admin\RevenueReportController;
+use App\Http\Controllers\Api\Billing\Admin\SubscriptionController as AdminSubscriptionController;
+use App\Http\Controllers\Api\Billing\BillingController;
+use App\Http\Controllers\Api\Billing\CheckoutController;
+use App\Http\Controllers\Api\Billing\PlanController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\CollectionController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DraftController;
+use App\Http\Controllers\Api\Gateway\Admin\GatewayConfigController;
+use App\Http\Controllers\Api\Gateway\Admin\ManualPaymentController;
+use App\Http\Controllers\Api\Gateway\Admin\PaymentController as AdminPaymentController;
+use App\Http\Controllers\Api\Gateway\Admin\ReconciliationController;
+use App\Http\Controllers\Api\Gateway\WebhookController;
 use App\Http\Controllers\Api\InstallmentController;
 use App\Http\Controllers\Api\InvestorController;
 use App\Http\Controllers\Api\InvestorSettlementController;
@@ -46,6 +58,12 @@ Route::post('signup', [SignupController::class, 'store'])->middleware('throttle:
 Route::post('signup/google', [SignupController::class, 'google'])->middleware('throttle:5,1');
 Route::post('signup/confirm', [SignupController::class, 'confirm'])->middleware('throttle:10,1');
 Route::post('signup/resend', [SignupController::class, 'resend'])->middleware('throttle:signup-resend');
+// the plans on offer, for the landing page
+Route::get('plans', [PlanController::class, 'index'])->middleware('throttle:60,1,landing');
+
+// Payment gateways calling back (no user): the signature is checked inside, the raw call is logged, and verification is queued.
+Route::match(['get', 'post'], 'gateways/{code}/callback', [WebhookController::class, 'callback'])->middleware('throttle:webhook');
+Route::post('gateways/{code}/webhook', [WebhookController::class, 'webhook'])->middleware('throttle:webhook');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('logout', [AuthController::class, 'logout']);
@@ -63,6 +81,32 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('platform-settings', [PlatformSettingsController::class, 'show']);
         Route::put('platform-settings', [PlatformSettingsController::class, 'update']);
         Route::post('platform-settings/test-mail', [PlatformSettingsController::class, 'testMail'])->middleware('throttle:5,1');
+
+        // payment gateways and the bank transfers waiting for approval
+        Route::get('admin/gateways', [GatewayConfigController::class, 'index']);
+        Route::post('admin/gateways', [GatewayConfigController::class, 'store']);
+        Route::get('admin/gateways/{gateway:code}', [GatewayConfigController::class, 'show']);
+        Route::put('admin/gateways/{gateway:code}', [GatewayConfigController::class, 'update']);
+        Route::post('admin/gateways/{gateway:code}/logo', [GatewayConfigController::class, 'logo']);
+        Route::post('admin/gateways/{gateway:code}/test', [GatewayConfigController::class, 'test'])->middleware('throttle:10,1');
+        Route::get('admin/gateways/{gateway:code}/logs', [GatewayConfigController::class, 'logs']);
+        Route::get('admin/manual-payments', [ManualPaymentController::class, 'index']);
+        Route::post('admin/manual-payments/{attempt}/approve', [ManualPaymentController::class, 'approve']);
+        Route::post('admin/manual-payments/{attempt}/reject', [ManualPaymentController::class, 'reject']);
+
+        // billing: plans, coupons, every shop's subscription, payments, refunds, the settlement check and the revenue report
+        Route::apiResource('admin/plans', AdminPlanController::class)->except('destroy');
+        Route::apiResource('admin/coupons', CouponController::class)->only(['index', 'store', 'update']);
+        Route::get('admin/subscriptions', [AdminSubscriptionController::class, 'index']);
+        Route::get('admin/shops/{shop}/subscription', [AdminSubscriptionController::class, 'show']);
+        Route::post('admin/shops/{shop}/subscription/extend', [AdminSubscriptionController::class, 'extend']);
+        Route::get('admin/payments', [AdminPaymentController::class, 'index']);
+        Route::get('admin/payments/{payment}', [AdminPaymentController::class, 'show']);
+        Route::post('admin/payments/{payment}/refund', [AdminPaymentController::class, 'refund'])->middleware('throttle:10,1');
+        Route::get('admin/refunds', [AdminPaymentController::class, 'refunds']);
+        Route::get('admin/reconciliation', [ReconciliationController::class, 'index']);
+        Route::post('admin/reconciliation/{mismatch}/resolve', [ReconciliationController::class, 'resolve']);
+        Route::get('admin/reports/revenue', RevenueReportController::class);
     });
 
     Route::get('vehicle-categories', [VehicleCategoryController::class, 'index']);
@@ -71,8 +115,19 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('vehicle-categories/{category}', [VehicleCategoryController::class, 'destroy']);
     Route::get('permissions', [PermissionController::class, 'index'])->middleware('role:super_admin,shop_owner');
 
-    // Shop owner: manage the shop's users and what each role may do.
-    Route::middleware(['shop', 'role:shop_owner'])->group(function () {
+    // Shop owner: manage the shop's users and what each role may do, and pay the shop's invoices (/billing stays open to an expired shop).
+    Route::middleware(['shop', 'subscription', 'role:shop_owner'])->group(function () {
+        Route::get('billing/subscription', [BillingController::class, 'subscription']);
+        Route::post('billing/subscribe', [BillingController::class, 'subscribe']);
+        Route::post('billing/upgrade', [BillingController::class, 'upgrade']);
+        Route::post('billing/downgrade', [BillingController::class, 'downgrade']);
+        Route::post('billing/cancel', [BillingController::class, 'cancel']);
+        Route::get('billing/invoices', [BillingController::class, 'invoices']);
+        Route::get('billing/invoices/{invoice}', [BillingController::class, 'invoice']);
+        Route::get('billing/invoices/{invoice}/gateways', [CheckoutController::class, 'gateways']);
+        Route::post('billing/invoices/{invoice}/pay', [CheckoutController::class, 'pay'])->middleware('throttle:payment-initiate');
+        Route::get('billing/payments/{attempt}', [CheckoutController::class, 'show']);
+        Route::post('billing/payments/{attempt}/reference', [CheckoutController::class, 'submitReference']);
         Route::get('roles', [RoleController::class, 'index']);
         Route::put('roles/{role}/permissions', [RoleController::class, 'update']);
         Route::get('users', [UserController::class, 'index']);
@@ -82,8 +137,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('users/{user}/photo', [PhotoController::class, 'destroyUser']);
     });
 
-    // Shop data: requires a shop user holding the matching permission (see each controller).
-    Route::middleware('shop')->group(function () {
+    // Shop data: requires a shop user holding the matching permission (see each controller), on a shop whose subscription still runs
+    // (an expired one may only read and reach /billing). `feature:<key>` marks what only some plans include.
+    Route::middleware(['shop', 'subscription'])->group(function () {
         Route::get('dashboard', DashboardController::class);
 
         // photos of customers, suppliers and investors: whoever may edit them may change the photo
@@ -92,7 +148,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::delete("$type/{id}/photo", [PhotoController::class, 'destroy'])->defaults('type', $type)->middleware("permission:$permission");
         }
         // every report lives under /api/reports/...
-        Route::prefix('reports')->controller(ReportController::class)->group(function () {
+        Route::prefix('reports')->middleware('feature:reports')->controller(ReportController::class)->group(function () {
             Route::get('stock', 'stock');
             Route::get('dues', 'dues');
             Route::get('purchases', 'purchases');
@@ -105,16 +161,21 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('investors', 'investors');
         });
 
-        Route::post('customers/import', [CustomerController::class, 'import'])->middleware('throttle:10,1');
+        Route::post('customers/import', [CustomerController::class, 'import'])->middleware(['throttle:10,1', 'feature:customer_import']);
         Route::apiResource('customers', CustomerController::class)->except('destroy');
         Route::get('customers/{customer}/history', [CustomerController::class, 'history']);
         Route::apiResource('suppliers', SupplierController::class)->except('destroy');
         Route::get('suppliers/{supplier}/history', [SupplierController::class, 'history']);
 
-        Route::apiResource('investors', InvestorController::class)->except('destroy');
-        Route::put('investors/{investor}/profit-formula', [InvestorController::class, 'saveProfitFormula']);
-        Route::get('investors/{investor}/vehicle-payments', [InvestorController::class, 'vehiclePayments']);
-        Route::get('investors/{investor}/portfolio', [InvestorController::class, 'portfolio']);
+        Route::middleware('feature:investors')->group(function () {
+            Route::apiResource('investors', InvestorController::class)->except('destroy');
+            Route::put('investors/{investor}/profit-formula', [InvestorController::class, 'saveProfitFormula']);
+            Route::get('investors/{investor}/vehicle-payments', [InvestorController::class, 'vehiclePayments']);
+            Route::get('investors/{investor}/portfolio', [InvestorController::class, 'portfolio']);
+            Route::apiResource('investor-settlements', InvestorSettlementController::class)
+                ->parameters(['investor-settlements' => 'settlement'])
+                ->only(['index', 'show', 'store', 'update', 'destroy']);
+        });
 
         Route::get('vehicles/lookup', [VehicleController::class, 'lookup']);
         Route::get('vehicles/owned', [VehicleController::class, 'owned']);
@@ -130,8 +191,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('advances', [PayableController::class, 'advances']);
         Route::post('advances', [PayableController::class, 'storeAdvance']);
         Route::apiResource('sales', SaleController::class)->only(['index', 'store', 'show', 'update']);
-        Route::apiResource('bookings', BookingController::class)->only(['index', 'store', 'show', 'update']);
-        Route::post('bookings/{booking}/cancel', [BookingController::class, 'cancel']);
+        Route::apiResource('bookings', BookingController::class)->only(['index', 'store', 'show', 'update'])->middleware('feature:bookings');
+        Route::post('bookings/{booking}/cancel', [BookingController::class, 'cancel'])->middleware('feature:bookings');
         Route::post('sales/{sale}/payments', [PaymentController::class, 'store']);
         Route::get('promises', [PromiseController::class, 'index']);
         Route::post('sales/{sale}/promises', [PromiseController::class, 'store']);
@@ -139,9 +200,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('installments', [InstallmentController::class, 'index']);
 
-        Route::apiResource('investor-settlements', InvestorSettlementController::class)
-            ->parameters(['investor-settlements' => 'settlement'])
-            ->only(['index', 'show', 'store', 'update', 'destroy']);
         Route::get('vehicle-colors', [VehicleColorController::class, 'index']);
         Route::post('vehicle-colors', [VehicleColorController::class, 'store']);
         Route::get('drafts', [DraftController::class, 'index']);
