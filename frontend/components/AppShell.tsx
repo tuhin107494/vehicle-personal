@@ -7,6 +7,7 @@ import { useState } from "react";
 import { BadgeDollarSign, CalendarDays, HandCoins, Menu, X, Building2, Car, ChartColumn, KeyRound, LayoutDashboard, Landmark, LogOut, Settings, ShieldCheck, ShoppingCart, Tags, Truck, UserCog, Users, Wallet } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Avatar } from "@/components/Avatar";
+import { TrialBanner } from "@/components/TrialBanner";
 import { useHiddenMenu } from "@/lib/menu";
 
 export type Item = { href: string; text: string; icon: typeof Car; color: string; permission?: string; roles?: string[] };
@@ -104,6 +105,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
       <div className="min-w-0 flex-1">
+        <TrialBanner />
         <main className="min-w-0 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:p-6 md:pb-[calc(1.5rem+env(safe-area-inset-bottom))] print:p-0 print:pb-0">{children}</main>
       </div>
     </div>

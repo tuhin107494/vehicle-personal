@@ -1,8 +1,9 @@
 "use client";
 
-import { savedMsg } from "@/lib/format";
+import { fmtDate, savedMsg } from "@/lib/format";
+import { trialDateInput, trialState } from "@/lib/trial";
 import { useEffect, useState } from "react";
-import { Plus, Pencil } from "lucide-react";
+import { CalendarPlus, Plus, Pencil } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -12,6 +13,7 @@ import { usePagedList } from "@/lib/hooks";
 import type { Shop } from "@/lib/types";
 import { Badge, Button, Field, inputCls, Modal, PageHeader, Pagination } from "@/components/app-ui";
 import { Col, DataTable } from "@/components/DataTable";
+import { ExtendTrialModal } from "@/components/forms/ExtendTrialModal";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -20,19 +22,20 @@ const schema = z.object({
   phone: z.string(),
   address: z.string(),
   is_active: z.boolean(),
+  trial_ends_at: z.string(),
   owner_name: z.string(),
   owner_email: z.string(),
   owner_password: z.string(),
 });
 type Values = z.infer<typeof schema>;
-const blank: Values = { name: "", phone: "", address: "", is_active: true, owner_name: "", owner_email: "", owner_password: "" };
+const blank: Values = { name: "", phone: "", address: "", is_active: true, trial_ends_at: "", owner_name: "", owner_email: "", owner_password: "" };
 
 function ShopForm({ open, shop, onClose, onSaved }: { open: boolean; shop: Shop | null; onClose: () => void; onSaved: () => void }) {
   const { register, handleSubmit, reset, setError, formState: { errors, isSubmitting } } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: blank });
 
   useEffect(() => {
     if (!open) return;
-    reset(shop ? { ...blank, name: shop.name, phone: shop.phone ?? "", address: shop.address ?? "", is_active: shop.is_active, owner_name: shop.owner?.name ?? "", owner_email: shop.owner?.email ?? "" } : blank);
+    reset(shop ? { ...blank, name: shop.name, phone: shop.phone ?? "", address: shop.address ?? "", is_active: shop.is_active, trial_ends_at: trialDateInput(shop.trial_ends_at), owner_name: shop.owner?.name ?? "", owner_email: shop.owner?.email ?? "" } : blank);
   }, [open, shop, reset]);
 
   const onSubmit = async (v: Values) => {
@@ -46,7 +49,7 @@ function ShopForm({ open, shop, onClose, onSaved }: { open: boolean; shop: Shop 
     try {
       await api(shop ? `/shops/${shop.id}` : "/shops", {
         method: shop ? "PUT" : "POST",
-        body: { ...v, phone: v.phone || null, address: v.address || null, owner_password: v.owner_password || undefined },
+        body: { ...v, phone: v.phone || null, address: v.address || null, trial_ends_at: v.trial_ends_at || null, owner_password: v.owner_password || undefined },
       });
       toast.success(savedMsg("Shop", !!shop));
       onSaved();
@@ -67,6 +70,7 @@ function ShopForm({ open, shop, onClose, onSaved }: { open: boolean; shop: Shop 
         <Field required label="Owner email" error={errors.owner_email?.message}><Input type="email" className={inputCls} {...register("owner_email")} /></Field>
         <Field required={!shop} label={shop ? "New password (leave blank to keep)" : "Password"} error={errors.owner_password?.message}><Input type="password" className={inputCls} {...register("owner_password")} /></Field>
         {shop && !shop.approved_at && <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-800">This shop signed up and its owner has not confirmed their email yet. It opens on its own when they do; to open it now anyway, tick &quot;Shop is active&quot; and save.</p>}
+        {shop && <Field label="Free trial ends on (leave empty for no time limit)" error={errors.trial_ends_at?.message}><Input type="date" className={inputCls} {...register("trial_ends_at")} /></Field>}
         <label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" className="accent-emerald-600" {...register("is_active")} /> Shop is active (owner and staff can sign in)</label>
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
@@ -81,6 +85,7 @@ export default function ShopsPage() {
   const list = usePagedList<Shop>("/shops");
   const [editing, setEditing] = useState<Shop | null>(null);
   const [open, setOpen] = useState(false);
+  const [extending, setExtending] = useState<Shop | null>(null);
 
   const columns: Col<Shop>[] = [
     { header: "Shop", cell: ({ row }) => <span className="font-medium">{row.original.name}</span> },
@@ -91,7 +96,17 @@ export default function ShopsPage() {
     { header: "Status", cell: ({ row }) => !row.original.approved_at
       ? <Badge tone="yellow">Pending</Badge>
       : <Badge tone={row.original.is_active ? "green" : "gray"}>{row.original.is_active ? "Active" : "Disabled"}</Badge> },
-    { header: "Action", id: "actions", cell: ({ row }) => <Button variant="outline" onClick={() => { setEditing(row.original); setOpen(true); }}><Pencil className="size-4 text-sky-600" /> Edit</Button> },
+    { header: "Trial", cell: ({ row }) => {
+      const ends = row.original.trial_ends_at;
+      if (!ends) return "-";
+      return trialState(ends).ended ? <Badge tone="red">Ended {fmtDate(ends)}</Badge> : <Badge tone="yellow">Until {fmtDate(ends)}</Badge>;
+    } },
+    { header: "Action", id: "actions", cell: ({ row }) => (
+      <div className="flex gap-1.5">
+        <Button variant="outline" onClick={() => { setEditing(row.original); setOpen(true); }}><Pencil className="size-4 text-sky-600" /> Edit</Button>
+        {row.original.trial_ends_at && <Button variant="outline" onClick={() => setExtending(row.original)}><CalendarPlus className="size-4 text-amber-600" /> Extend</Button>}
+      </div>
+    ) },
   ];
 
   return (
@@ -100,6 +115,7 @@ export default function ShopsPage() {
       <Input className={`${inputCls} mb-3 max-w-xs`} placeholder="Search shop" value={list.search} onChange={(e) => list.setSearch(e.target.value)} />
       <DataTable serverPaged columns={columns} data={list.rows} loading={list.loading} />
       <Pagination meta={list.meta} onPage={list.setPage} />
+      <ExtendTrialModal shop={extending} onClose={() => setExtending(null)} onSaved={list.reload} />
       <ShopForm open={open} shop={editing} onClose={() => setOpen(false)} onSaved={() => (editing ? list.reload() : list.showFirst())} />
     </>
   );

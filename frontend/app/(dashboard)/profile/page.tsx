@@ -11,6 +11,7 @@ import { Button, Card, Field, inputCls, PageHeader } from "@/components/app-ui";
 import { Input } from "@/components/ui/input";
 import { PhotoField } from "@/components/PhotoField";
 import { savePhoto, type PhotoChange } from "@/lib/photo";
+import { TrialCard } from "@/components/TrialCard";
 
 const schema = z.object({
   name: z.string().min(1, "Name is required."),
@@ -67,6 +68,7 @@ export default function ProfilePage() {
             <Field required label="Email" error={errors.email?.message}><Input type="email" className={inputCls} autoComplete="email" {...register("email")} /></Field>
           </div>
         </Card>
+        <TrialCard />
         <Card title="Change password">
           <p className="mb-3 text-xs text-slate-500">Leave blank to keep your current password.</p>
           <div className="space-y-3">
