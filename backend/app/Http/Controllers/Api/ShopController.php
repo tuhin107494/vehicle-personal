@@ -8,6 +8,7 @@ use App\Http\Resources\ShopResource;
 use App\Models\Shop;
 use App\Models\User;
 use App\Services\ShopService;
+use App\Services\TrialService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -39,15 +40,20 @@ class ShopController extends Controller
         return $this->success(ShopResource::make($shop->load('owner')->loadCount('users')));
     }
 
-    public function update(ShopRequest $request, Shop $shop): JsonResponse
+    public function update(ShopRequest $request, Shop $shop, TrialService $trials): JsonResponse
     {
         // shop, owner and sign-outs change together or not at all
-        DB::transaction(function () use ($request, $shop) {
+        DB::transaction(function () use ($request, $shop, $trials) {
             $shop->fill($request->safe()->only(['name', 'phone', 'address']) + ['is_active' => $request->boolean('is_active', $shop->is_active)]);
             if ($shop->is_active && $shop->isPending()) {
                 $shop->approved_at = now(); // switching a signed-up shop on approves it
+                $trials->start($shop);
             }
             $shop->save();
+
+            if ($request->exists('trial_ends_at')) {
+                $trials->set($shop, $request->input('trial_ends_at'));
+            }
 
             if ($owner = $shop->owner) {
                 $owner->fill(array_filter([

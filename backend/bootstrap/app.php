@@ -4,6 +4,7 @@ use App\Exceptions\BusinessRuleException;
 use App\Http\Middleware\CheckPermission;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\EnsureShopUser;
+use App\Http\Middleware\EnsureTrialActive;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
@@ -28,11 +29,12 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => EnsureRole::class,
             'permission' => CheckPermission::class,
             'shop' => EnsureShopUser::class,
+            'trial' => EnsureTrialActive::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // a refused action ("cannot delete", "overpayment") is an answer to the user, not a bug: keep it out of the error log
-        $exceptions->dontReport(\App\Exceptions\BusinessRuleException::class);
+        $exceptions->dontReport(BusinessRuleException::class);
 
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),

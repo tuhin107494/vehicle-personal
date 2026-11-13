@@ -7,6 +7,7 @@ use App\Http\Requests\ProfileRequest;
 use App\Models\User;
 use App\Models\VehicleCategory;
 use App\Models\VehicleColor;
+use App\Services\TrialService;
 use App\Support\GoogleOAuth;
 use App\Support\PlatformSettings;
 use App\Support\ShopSettings;
@@ -71,6 +72,8 @@ class AuthController extends Controller
     }
 
     /** Hands out a token once the account and its shop are both active. */
+    public function __construct(private TrialService $trial) {}
+
     private function signIn(User $user): JsonResponse
     {
         // a signed-up shop is off until its owner confirms their email (or the super admin approves it): say why, instead of "disabled"
@@ -88,6 +91,10 @@ class AuthController extends Controller
 
         if ($user->shop_id && ! $user->shop->is_active) {
             throw ValidationException::withMessages(['email' => ['This shop is currently disabled. Contact support.']]);
+        }
+
+        if ($this->trial->ended($user->shop)) {
+            throw ValidationException::withMessages(['email' => [TrialService::ENDED_MESSAGE]]);
         }
 
         return $this->success($user->newSession(), 'Logged in');

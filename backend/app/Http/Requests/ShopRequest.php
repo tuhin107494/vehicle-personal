@@ -16,6 +16,7 @@ class ShopRequest extends ApiRequest
             'phone' => ['nullable', 'string', 'max:30'],
             'address' => ['nullable', 'string', 'max:1000'],
             'is_active' => ['nullable', 'boolean'],
+            'trial_ends_at' => ['nullable', 'date_format:Y-m-d'],
             'owner_name' => [$shop ? 'sometimes' : 'required', 'string', 'max:255'],
             'owner_email' => [$shop ? 'sometimes' : 'required', 'email', Rule::unique('users', 'email')->ignore($ownerId)],
             'owner_password' => [$shop ? 'nullable' : 'required', 'string', 'min:8'],

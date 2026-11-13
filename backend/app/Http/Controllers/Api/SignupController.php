@@ -7,6 +7,7 @@ use App\Models\Shop;
 use App\Models\User;
 use App\Notifications\ConfirmSignupEmail;
 use App\Services\ShopService;
+use App\Services\TrialService;
 use App\Support\GoogleOAuth;
 use App\Support\PlatformSettings;
 use App\Support\SignupConfirmation;
@@ -40,7 +41,7 @@ class SignupController extends Controller
         'password.confirmed' => 'The two passwords do not match.',
     ];
 
-    public function __construct(private ShopService $shops) {}
+    public function __construct(private ShopService $shops, private TrialService $trial) {}
 
     public function store(Request $request): JsonResponse
     {
@@ -84,6 +85,7 @@ class SignupController extends Controller
             $user->forceFill(['email_verified_at' => now(), 'is_active' => true])->save();
         });
 
+        $this->trial->start($user->shop);
         $this->tellSuperAdmins($user->shop, 'confirmed their email');
 
         return $this->success($user->newSession(), 'Email confirmed. Welcome! Your shop is ready.');
@@ -135,6 +137,7 @@ class SignupController extends Controller
         });
         $owner = $shop->owner;
 
+        $this->trial->start($shop);
         $this->tellSuperAdmins($shop, 'signed up with Google');
 
         return $this->success($owner->load('shop')->newSession(), 'Welcome! Your shop is ready.', 201);

@@ -14,11 +14,12 @@ class Shop extends Model
         'address',
         'is_active',
         'approved_at',
+        'trial_ends_at',
     ];
 
     protected function casts(): array
     {
-        return ['is_active' => 'boolean', 'approved_at' => 'datetime'];
+        return ['is_active' => 'boolean', 'approved_at' => 'datetime', 'trial_ends_at' => 'datetime'];
     }
 
     /** Signed itself up and the super admin has not switched it on yet. */

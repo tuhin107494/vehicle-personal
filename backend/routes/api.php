@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\ShopController;
 use App\Http\Controllers\Api\SignupController;
 use App\Http\Controllers\Api\SupplierController;
 use App\Http\Controllers\Api\TransactionController;
+use App\Http\Controllers\Api\TrialController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\VehicleCategoryController;
 use App\Http\Controllers\Api\VehicleColorController;
@@ -57,6 +58,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Platform: super admin only.
     Route::middleware('role:super_admin')->group(function () {
         Route::apiResource('shops', ShopController::class)->except('destroy');
+        Route::post('shops/{shop}/extend-trial', [TrialController::class, 'extend']);
         Route::post('permissions', [PermissionController::class, 'store']);
         Route::put('permissions/{permission}', [PermissionController::class, 'update']);
         Route::delete('permissions/{permission}', [PermissionController::class, 'destroy']);
@@ -65,14 +67,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('platform-settings/test-mail', [PlatformSettingsController::class, 'testMail'])->middleware('throttle:5,1');
     });
 
-    Route::get('vehicle-categories', [VehicleCategoryController::class, 'index']);
-    Route::post('vehicle-categories', [VehicleCategoryController::class, 'store']);
-    Route::put('vehicle-categories/{category}', [VehicleCategoryController::class, 'update']);
-    Route::delete('vehicle-categories/{category}', [VehicleCategoryController::class, 'destroy']);
+    // not in the shop group, because the super admin manages the platform's categories too; the trial lock still applies to a shop
+    Route::middleware('trial')->group(function () {
+        Route::get('vehicle-categories', [VehicleCategoryController::class, 'index']);
+        Route::post('vehicle-categories', [VehicleCategoryController::class, 'store']);
+        Route::put('vehicle-categories/{category}', [VehicleCategoryController::class, 'update']);
+        Route::delete('vehicle-categories/{category}', [VehicleCategoryController::class, 'destroy']);
+    });
     Route::get('permissions', [PermissionController::class, 'index'])->middleware('role:super_admin,shop_owner');
 
     // Shop owner: manage the shop's users and what each role may do.
-    Route::middleware(['shop', 'role:shop_owner'])->group(function () {
+    Route::middleware(['shop', 'trial', 'role:shop_owner'])->group(function () {
         Route::get('roles', [RoleController::class, 'index']);
         Route::put('roles/{role}/permissions', [RoleController::class, 'update']);
         Route::get('users', [UserController::class, 'index']);
@@ -83,7 +88,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // Shop data: requires a shop user holding the matching permission (see each controller).
-    Route::middleware('shop')->group(function () {
+    Route::middleware(['shop', 'trial'])->group(function () {
         Route::get('dashboard', DashboardController::class);
 
         // photos of customers, suppliers and investors: whoever may edit them may change the photo
