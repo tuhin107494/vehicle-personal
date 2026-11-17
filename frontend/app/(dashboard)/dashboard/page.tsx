@@ -13,7 +13,7 @@ import { useHiddenDashboard } from "@/lib/dashboard";
 import { useHiddenMenu } from "@/lib/menu";
 import { TodayCard, type TodayFigures } from "@/components/TodayCard";
 
-type InvestorToday = { plan_id: number; sale_id: number; investor: { id: number; name: string; phone: string | null }; vehicle: { chassis_no: string; engine_no: string | null }; amount: number };
+type InvestorToday = { plan_id: number | null; investor_sale_id: number | null; sale_id: number; investor: { id: number; name: string; phone: string | null }; vehicle: { chassis_no: string; engine_no: string | null }; amount: number };
 
 type Dashboard = Stats & {
   stock_count: number; sales_this_month: number; sales_amount_this_month: number; purchases_this_month: number; purchases_amount_this_month: number; total_sales: number; total_sales_amount: number; total_purchases: number; total_purchases_amount: number; total_due: number; overdue_count: number;

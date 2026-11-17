@@ -14,8 +14,9 @@ import { Col, DataTable } from "@/components/DataTable";
 import { CancelSaleModal, CollectPaymentModal, PromiseModal } from "@/components/forms/SaleModals";
 import { SaleEditModal } from "@/components/forms/SaleEditModal";
 import { SaleChargeModal } from "@/components/forms/SaleChargeModal";
-import { Ban, CalendarClock, HandCoins, Pencil, Plus, Printer, Trash2 } from "lucide-react";
+import { Ban, CalendarClock, HandCoins, Landmark, Pencil, Plus, Printer, Trash2 } from "lucide-react";
 import { openSaleMemo } from "@/components/SaleMemo";
+import { InvestorSaleCard } from "@/components/InvestorSaleCard";
 
 const STEPS = ["pending", "bank_chalan_done", "file_received", "file_processing", "registration_complete", "document_provided"];
 
@@ -160,6 +161,9 @@ export default function SaleDetailPage() {
           {active && can("payments.collect") && sale.due_amount > 0 && <Button onClick={() => setModal("pay")}><HandCoins className="size-4 " /> Collect payment</Button>}
           {active && can("promises.manage") && sale.due_amount > 0 && sale.payment_type === "due" && <Button variant="outline" onClick={() => setModal("promise")}><CalendarClock className="size-4 text-amber-500" /> Add promise</Button>}
           {active && can("sales.charge") && <Button variant="outline" onClick={() => setChargeFor("new")}><Plus className="size-4 text-amber-600" /> Add charge</Button>}
+          {active && can("sales.create") && sale.payment_type !== "cash" && !sale.investor && !sale.investor_sale && (
+            <Link className="inline-flex items-center gap-1.5 rounded-lg border border-sky-300 bg-white px-3 py-2 text-sm font-medium text-sky-700 hover:bg-sky-50" href={`/sales/new?tab=investor&vehicle=${sale.vehicle_id}`}><Landmark className="size-4" /> Add investor sale</Link>
+          )}
           {active && can("sales.edit") && <Button variant="outline" onClick={() => setModal("edit")}><Pencil className="size-4 text-emerald-600" /> Edit</Button>}
           {active && can("sales.cancel") && <Button variant="danger" onClick={() => setModal("cancel")}><Ban className="size-4 " /> Cancel sale</Button>}
         </>}
@@ -170,6 +174,7 @@ export default function SaleDetailPage() {
         <KV items={[
           ["Vehicle", <Link key="v" className="underline" href={`/vehicles/${sale.vehicle_id}`}>{sale.vehicle?.chassis_no}</Link>],
           ["Buyer", <Link key="b" className="underline" href={`/customers/${sale.customer_id}`}>{sale.customer?.name}</Link>],
+          ...(sale.additional_customer ? [["Additional customer", <Link key="ac" className="underline" href={`/customers/${sale.additional_customer.id}`}>{sale.additional_customer.name}{sale.additional_customer.phone ? ` · ${sale.additional_customer.phone}` : ""}</Link>] as [string, React.ReactNode]] : []),
           ["Sale date", fmtDate(sale.sale_date)], ["Sale price", money(sale.sale_price)], ["Down payment", money(Number(sale.down_payment) - Number(sale.advance?.amount ?? 0))],
           ["Type", <Badge key="t" tone="blue">{sale.payment_type}</Badge>], ["Status", <StatusBadge key="s" status={sale.status} />],
           ...(sale.advance ? [[sale.advance.booking_id ? "Booking advance" : "Advance", `${money(sale.advance.amount)} received on ${fmtDate(sale.advance.date)} (${sale.advance.method})`] as [string, React.ReactNode]] : []),
@@ -194,6 +199,8 @@ export default function SaleDetailPage() {
           ]} />
         </Card>
       )}
+
+      {sale.investor_sale && <InvestorSaleCard investorSale={sale.investor_sale} onChanged={reload} />}
 
       <Card title="Registration" className="mb-4"><Stepper sale={sale} onChanged={reload} /></Card>
 

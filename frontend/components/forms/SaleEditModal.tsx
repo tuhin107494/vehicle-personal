@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { Plus } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { api, applyServerErrors } from "@/lib/api";
 import { toPayload } from "@/lib/format";
-import { useMemoField } from "@/lib/settings";
+import { useAdditionalCustomer, useMemoField } from "@/lib/settings";
 import type { Sale } from "@/lib/types";
 import { Button, Field, inputCls, Modal } from "@/components/app-ui";
 import { CustomerSelect, InvestorSelect } from "@/components/Selects";
@@ -13,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 
 type Values = {
-  party_id: string; sale_date: string; sale_price: string; payment_type: "cash" | "due" | "installment"; down_payment: string; method: string;
+  party_id: string; additional_customer_id: string; sale_date: string; sale_price: string; payment_type: "cash" | "due" | "installment"; down_payment: string; method: string;
   installment_count: string; first_due_date: string; frequency: string; interest_amount: string; investor_id: string; investor_share_percent: string;
   promised_date: string; promise_note: string; memo_no: string; guarantor_name: string; guarantor_phone: string;
 };
@@ -24,7 +25,7 @@ function valuesOf(sale: Sale): Values {
   const promise = [...(sale.promises ?? [])].sort((a, b) => a.id - b.id)[0];
   const atSale = (sale.payments ?? []).find((p) => ["Down payment", "Full payment at sale"].includes(p.note ?? ""));
   return {
-    party_id: String(sale.customer_id), sale_date: sale.sale_date, sale_price: String(sale.sale_price), payment_type: sale.payment_type,
+    party_id: String(sale.customer_id), additional_customer_id: sale.additional_customer_id ? String(sale.additional_customer_id) : "", sale_date: sale.sale_date, sale_price: String(sale.sale_price), payment_type: sale.payment_type,
     down_payment: sale.payment_type === "cash" ? "" : String(sale.down_payment), method: atSale?.method ?? "cash",
     installment_count: plan ? String(plan.number_of_installments) : "12", first_due_date: plan?.start_date ?? "", frequency: plan?.frequency ?? "monthly",
     interest_amount: plan ? String(plan.interest_amount) : "", investor_id: plan && sale.investor ? String(sale.investor.id) : "",
@@ -37,8 +38,10 @@ function valuesOf(sale: Sale): Values {
 /** Edit a sale: every field can change, and each edit is kept in the sale's history. Money terms lock once a payment is collected (the server says so). */
 export function SaleEditModal({ open, sale, onClose, onDone }: { open: boolean; sale: Sale; onClose: () => void; onDone: () => void }) {
   const showMemo = useMemoField() || !!sale.memo_no;
+  const showExtra = useAdditionalCustomer() || !!sale.additional_customer_id; // off in Settings, but a sale that has one keeps it
   const { register, handleSubmit, reset, setValue, setError, watch, formState: { errors, isSubmitting } } = useForm<Values>({ defaultValues: valuesOf(sale) });
   const w = watch();
+  const [extraOpen, setExtraOpen] = useState(false); // the additional customer field, shown only when asked for (or when the sale has one)
 
   useEffect(() => {
     if (open) reset(valuesOf(sale));
@@ -48,12 +51,13 @@ export function SaleEditModal({ open, sale, onClose, onDone }: { open: boolean; 
 
   const onSubmit = async (v: Values) => {
     if (!v.party_id) return setError("party_id", { message: "Select the buyer." });
+    if (v.additional_customer_id && v.additional_customer_id === v.party_id) return setError("additional_customer_id", { message: "The additional customer must be someone other than the buyer." });
     if (!v.sale_date) return setError("sale_date", { message: "Sale date is required." });
     if (!v.sale_price || Number(v.sale_price) < 1) return setError("sale_price", { message: "Sale price is required." });
     if (type !== "cash" && v.down_payment === "") return setError("down_payment", { message: "Enter the down payment." });
     try {
       const body = toPayload({
-        customer_id: v.party_id, sale_date: v.sale_date, sale_price: v.sale_price, payment_type: type, method: v.method, memo_no: v.memo_no,
+        customer_id: v.party_id, additional_customer_id: v.additional_customer_id, sale_date: v.sale_date, sale_price: v.sale_price, payment_type: type, method: v.method, memo_no: v.memo_no,
         down_payment: type === "cash" ? v.sale_price : v.down_payment,
         ...(type !== "cash" && { guarantor_name: v.guarantor_name, guarantor_phone: v.guarantor_phone }),
         ...(type === "due" && { promised_date: v.promised_date, promise_note: v.promise_note }),
@@ -61,7 +65,7 @@ export function SaleEditModal({ open, sale, onClose, onDone }: { open: boolean; 
           installment_count: v.installment_count, first_due_date: v.first_due_date, frequency: v.frequency, interest_amount: v.interest_amount || "0",
           investor_id: v.investor_id, ...(v.investor_id && { investor_share_percent: v.investor_share_percent || "0" }),
         }),
-      }, ["customer_id", "sale_price", "down_payment", "installment_count", "interest_amount", "investor_id", "investor_share_percent"]);
+      }, ["customer_id", "additional_customer_id", "sale_price", "down_payment", "installment_count", "interest_amount", "investor_id", "investor_share_percent"]);
       const res = await api<Sale>(`/sales/${sale.id}`, { method: "PUT", body });
       toast.success(res.message);
       onDone();
@@ -74,8 +78,17 @@ export function SaleEditModal({ open, sale, onClose, onDone }: { open: boolean; 
   return (
     <Modal open={open} onClose={onClose} title="Edit sale" wide>
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-3">
-        <p className="text-xs text-slate-500">Every change is saved in the sale's history. The price, type and installments can change until a payment is collected.</p>
+        <p className="text-xs text-slate-500">Every change is saved in the sale&apos;s history. The price, type and installments can change until a payment is collected.</p>
         <CustomerSelect value={w.party_id} selectedLabel={sale.customer?.name} allowCreate={false} onChange={(id) => setValue("party_id", id)} error={errors.party_id?.message} />
+        {/* hidden until needed: shown when the sale has one, or when the button asks for it */}
+        {showExtra && <div>
+          {extraOpen || w.additional_customer_id ? (
+            <>
+              <CustomerSelect optional label="Additional customer (optional)" value={w.additional_customer_id} selectedLabel={sale.additional_customer?.name} onChange={(id) => setValue("additional_customer_id", id)} error={errors.additional_customer_id?.message} />
+              <button type="button" className="mt-1 text-xs font-medium text-emerald-700 hover:underline" onClick={() => { setValue("additional_customer_id", ""); setExtraOpen(false); }}>Remove customer</button>
+            </>
+          ) : <Button variant="outline" onClick={() => setExtraOpen(true)}><Plus className="size-4 text-emerald-600" /> Additional customer</Button>}
+        </div>}
         <div className="grid gap-3 sm:grid-cols-2">
           <Field required label="Sale date" error={errors.sale_date?.message}><Input type="date" className={inputCls} {...register("sale_date")} /></Field>
           <Field required label="Sale price" error={errors.sale_price?.message}><Input type="number" step="0.01" className={inputCls} {...register("sale_price")} /></Field>

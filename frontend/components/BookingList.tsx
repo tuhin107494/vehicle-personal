@@ -96,7 +96,7 @@ export function BookingList() {
         if (b.draft) {
           return (
             <div className="flex items-center justify-end gap-1.5">
-              <Link className="inline-flex h-8 items-center rounded-lg border border-emerald-200 px-2.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50" href={`/sales/new?${(b.draft.data as { investor?: boolean } | undefined)?.investor ? "tab=investor&" : ""}resume=${b.draft.id}`}>Resume</Link>
+              <Link className="inline-flex h-8 items-center rounded-lg border border-emerald-200 px-2.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50" href={`/sales/new?resume=${b.draft.id}`}>Resume</Link>
               <Button size="sm" variant="outline" className="h-8 border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800" onClick={() => removeDraft(b.draft!)}><Trash2 className="size-4" /> Delete</Button>
             </div>
           );

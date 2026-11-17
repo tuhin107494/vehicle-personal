@@ -29,7 +29,7 @@ type Values = z.infer<typeof schema>;
 const TITLE: Record<SettlementMode, string> = { invest: "Add investment", pay: "Pay investor installment", other: "Record settlement" };
 const blank = (mode: SettlementMode, d?: { principal?: number; profit?: number }): Values => ({ type: mode === "invest" ? "investment" : "withdrawal", amount: "", principal: d?.principal ? String(d.principal) : "", profit: d?.profit ? String(d.profit) : "", date: "", note: "" });
 
-export function SettlementForm({ open, investorId, mode = "other", name, outstanding, planId, defaults, onClose, onSaved }: { open: boolean; investorId: number; mode?: SettlementMode; name?: string; outstanding?: number; planId?: number; defaults?: { principal?: number; profit?: number }; onClose: () => void; onSaved: () => void }) {
+export function SettlementForm({ open, investorId, mode = "other", name, outstanding, planId, investorSaleId, defaults, onClose, onSaved }: { open: boolean; investorId: number; mode?: SettlementMode; name?: string; outstanding?: number; planId?: number | null; investorSaleId?: number | null; defaults?: { principal?: number; profit?: number }; onClose: () => void; onSaved: () => void }) {
   const autoDate = useAutoDate();
   const { register, handleSubmit, reset, setValue, getValues, setError, watch, formState: { errors, isSubmitting } } = useForm<Values>({
     resolver: zodResolver(schema),
@@ -45,7 +45,7 @@ export function SettlementForm({ open, investorId, mode = "other", name, outstan
   const total = Number(w.principal || 0) + Number(w.profit || 0);
 
   const post = (type: Values["type"], amount: number, v: Values) =>
-    api("/investor-settlements", { method: "POST", body: { type, amount, date: v.date, note: v.note || null, investor_id: investorId, ...(planId && { plan_id: planId }) } });
+    api("/investor-settlements", { method: "POST", body: { type, amount, date: v.date, note: v.note || null, investor_id: investorId, ...(planId && { plan_id: planId }), ...(investorSaleId && { investor_sale_id: investorSaleId }) } });
 
   const onSubmit = async (v: Values) => {
     const lines: [Values["type"], number][] =

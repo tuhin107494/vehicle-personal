@@ -34,7 +34,8 @@ type Values = z.infer<typeof schema>;
 
 const blank: Values = { name: "", phone: "", alt_phone: "", nid: "", address: "", bank_name: "", bank_branch: "", bank_account_name: "", bank_account_no: "", bank_info: "", opening_balance: "0", notes: "", is_active: true };
 
-export function InvestorForm({ open, investor, onClose, onSaved }: { open: boolean; investor?: Investor | null; onClose: () => void; onSaved: () => void }) {
+/** Add or edit an investor. `initialText` pre-fills the name (or the mobile number, if it looks like one) from a search box. */
+export function InvestorForm({ open, investor, onClose, onSaved, initialText = "" }: { open: boolean; investor?: Investor | null; onClose: () => void; onSaved: (i: Investor) => void; initialText?: string }) {
   const { register, handleSubmit, reset, setValue, setError, watch, formState: { errors, isSubmitting } } = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: blank,
@@ -49,8 +50,8 @@ export function InvestorForm({ open, investor, onClose, onSaved }: { open: boole
       name: investor.name, phone: investor.phone ?? "", alt_phone: investor.alt_phone ?? "", nid: investor.nid ?? "", address: investor.address ?? "",
       bank_name: investor.bank_name ?? "", bank_branch: investor.bank_branch ?? "", bank_account_name: investor.bank_account_name ?? "", bank_account_no: investor.bank_account_no ?? "", bank_info: investor.bank_info ?? "", opening_balance: String(investor.opening_balance ?? 0),
       notes: investor.notes ?? "", is_active: investor.is_active,
-    } : blank);
-  }, [open, investor, reset]);
+    } : /^[+\d][\d\s-]{4,}$/.test(initialText) ? { ...blank, phone: initialText } : { ...blank, name: initialText });
+  }, [open, investor, reset, initialText]);
 
   const onSubmit = async (v: Values) => {
     try {
@@ -67,7 +68,7 @@ export function InvestorForm({ open, investor, onClose, onSaved }: { open: boole
         toast.error("The investor was saved, but the photo could not be uploaded.");
       }
       toast.success(savedMsg("Investor", !!investor));
-      onSaved();
+      onSaved(res.data);
       onClose();
     } catch (e) {
       toast.error(applyServerErrors(e, setError));

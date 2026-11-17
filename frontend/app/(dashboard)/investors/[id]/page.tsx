@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { fmtDate, label, money } from "@/lib/format";
 import { useFetch } from "@/lib/hooks";
-import type { Investor, Sale, Settlement, Summary } from "@/lib/types";
+import type { Investor, InvestorSale, Sale, Settlement, Summary } from "@/lib/types";
 import { Button, Card, ErrorText, KV, Loading, PageHeader, Stat, StatusBadge } from "@/components/app-ui";
 import { Avatar } from "@/components/Avatar";
 import { Col, DataTable } from "@/components/DataTable";
@@ -15,7 +15,7 @@ import { ProfitCalculator } from "@/components/forms/ProfitCalculator";
 import { SettlementForm, type SettlementMode } from "@/components/forms/SettlementForm";
 import { Calculator, Landmark, PiggyBank, Wallet } from "lucide-react";
 
-type Portfolio = { investor: Investor; summary: Summary; sales: Sale[]; settlements: Settlement[] };
+type Portfolio = { investor: Investor; summary: Summary; sales: Sale[]; investor_sales: InvestorSale[]; settlements: Settlement[] };
 
 export default function InvestorPortfolioPage() {
   const { id } = useParams<{ id: string }>();
@@ -29,7 +29,7 @@ export default function InvestorPortfolioPage() {
 
   if (loading && !data) return <Loading />;
   if (error || !data) return <ErrorText message={error ?? "Not found"} />;
-  const { investor, summary, sales, settlements } = data;
+  const { investor, summary, sales, investor_sales: investorSales, settlements } = data;
 
   const saleCols: Col<Sale>[] = [
     { header: "Sale", cell: ({ row }) => <span className="font-medium">#{row.original.id}</span> },
@@ -40,6 +40,16 @@ export default function InvestorPortfolioPage() {
     { header: "Due", cell: ({ row }) => money(row.original.due_amount) },
     { header: "Status", cell: ({ row }) => <StatusBadge status={row.original.status} /> },
     viewCol<Sale>((x) => `/sales/${x.id}`),
+  ];
+  const investorSaleCols: Col<InvestorSale>[] = [
+    { header: "Sale", cell: ({ row }) => <span className="font-medium">#{row.original.sale_id}</span> },
+    { header: "Vehicle", cell: ({ row }) => row.original.sale?.vehicle?.chassis_no },
+    { header: "Buyer", cell: ({ row }) => row.original.sale?.customer?.name },
+    { header: "Investor amount", cell: ({ row }) => money(row.original.principal) },
+    { header: "Payable", cell: ({ row }) => money(row.original.total_payable) },
+    { header: "Still to pay", cell: ({ row }) => money(row.original.position?.total_due) },
+    { header: "Status", cell: ({ row }) => <StatusBadge status={row.original.status} /> },
+    viewCol<InvestorSale>((x) => `/sales/${x.sale_id}`),
   ];
   const setCols: Col<Settlement>[] = [
     { header: "Date", cell: ({ row }) => fmtDate(row.original.date) },
@@ -67,6 +77,7 @@ export default function InvestorPortfolioPage() {
       <Card className="mb-4"><div className="mb-3"><Avatar name={investor.name} url={investor.photo_url} size="lg" /></div><KV items={[["Phone", investor.phone], ["Alt. phone", investor.alt_phone], ["NID", investor.nid], ["Opening balance", money(investor.opening_balance)], ["Bank", investor.bank_name], ["Branch", investor.bank_branch], ["Account name", investor.bank_account_name], ["Account no", investor.bank_account_no], ["Other bank details", investor.bank_info], ["Address", investor.address]]} /></Card>
       <h2 className="mb-2 font-semibold">Assigned sales</h2>
       <DataTable columns={saleCols} data={sales} empty="No sales assigned." />
+      {investorSales.length > 0 && (<><h2 className="mb-2 mt-6 font-semibold">Investor sales</h2><DataTable columns={investorSaleCols} data={investorSales} /></>)}
       <div className="mb-2 mt-6 flex items-center justify-between gap-2">
         <h2 className="font-semibold">Statement <span className="text-sm font-normal text-slate-500">({settlements.length})</span></h2>
         <Button variant="outline" onClick={() => setStatement((v) => !v)}>{statement ? "Hide statement" : "Show statement"}</Button>

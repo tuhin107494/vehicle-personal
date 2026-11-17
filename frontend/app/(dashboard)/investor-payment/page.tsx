@@ -14,7 +14,7 @@ import { SettlementForm } from "@/components/forms/SettlementForm";
 import type { Investor } from "@/lib/types";
 
 type Row = {
-  plan_id: number; sale_id: number; vehicle: string; vehicle_name: string; buyer: string;
+  plan_id: number | null; investor_sale_id: number | null; sale_id: number; vehicle: string; vehicle_name: string; buyer: string;
   principal: number; principal_paid: number; principal_due: number; profit: number; profit_paid: number; profit_due: number;
 };
 type Data = { rows: Row[]; totals: { principal_due: number; profit_due: number; paid: number } };
@@ -59,7 +59,7 @@ export default function InvestorPaymentPage() {
       {investorId && <Input className={`${inputCls} mb-3 max-w-xs`} placeholder="Search chassis, vehicle or buyer" value={q} onChange={(e) => setQ(e.target.value)} />}
       {investorId && <DataTable columns={cols} data={(data?.rows ?? []).filter((r) => `${r.vehicle} ${r.vehicle_name} ${r.buyer}`.toLowerCase().includes(q.trim().toLowerCase()))} loading={loading} empty="This investor has not financed any active sale." />}
       {pay && investor.data && (
-        <SettlementForm open mode="pay" name={`${investor.data.name} · ${pay.vehicle}`} investorId={investor.data.id} planId={pay.plan_id} outstanding={pay.principal_due}
+        <SettlementForm open mode="pay" name={`${investor.data.name} · ${pay.vehicle}`} investorId={investor.data.id} planId={pay.plan_id} investorSaleId={pay.investor_sale_id} outstanding={pay.principal_due}
           defaults={payDefaults} onClose={() => setPay(null)} onSaved={reload} />
       )}
     </>
