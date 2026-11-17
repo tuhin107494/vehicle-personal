@@ -18,6 +18,8 @@ class StoreSaleRequest extends ApiRequest
             'booking_id' => ['nullable', 'integer', $this->shopExists('bookings')], // the booking this sale completes: its advance is part of the down payment
             'vehicle_id' => ['required', $this->shopExists('vehicles')],
             'customer_id' => ['required', $this->shopExists('customers')],
+            // one more customer besides the buyer (a co-buyer or guarantor), never the buyer again
+            'additional_customer_id' => ['nullable', 'different:customer_id', $this->shopExists('customers')],
             'sale_date' => ['required', 'date', 'before_or_equal:today'],
             'sale_price' => ['required', 'numeric', 'min:1'],
             'payment_type' => ['required', Rule::in(['cash', 'due', 'installment'])],
@@ -45,6 +47,7 @@ class StoreSaleRequest extends ApiRequest
         return [
             'vehicle_id.required' => 'Select a vehicle.',
             'customer_id.required' => 'Select the buyer.',
+            'additional_customer_id.different' => 'The additional customer must be someone other than the buyer.',
             'guarantor_phone.regex' => 'Enter a valid mobile number (7 to 20 digits).',
             'sale_price.required' => 'Sale price is required.',
             'sale_date.before_or_equal' => 'Sale date cannot be in the future.',

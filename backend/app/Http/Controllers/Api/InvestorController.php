@@ -7,12 +7,15 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\InvestorProfitFormulaRequest;
 use App\Http\Requests\InvestorRequest;
 use App\Http\Resources\InvestorResource;
+use App\Http\Resources\InvestorSaleResource;
 use App\Http\Resources\InvestorSettlementResource;
 use App\Http\Resources\SaleResource;
 use App\Models\InstallmentPlan;
 use App\Models\Investor;
+use App\Models\InvestorSale;
 use App\Models\InvestorSettlement;
 use App\Services\InvestorPortfolioService;
+use App\Services\InvestorSaleService;
 use App\Support\Money;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,6 +25,8 @@ use Illuminate\Routing\Controllers\Middleware;
 
 class InvestorController extends Controller implements HasMiddleware
 {
+    public function __construct(private InvestorSaleService $investorSales) {}
+
     public static function middleware(): array
     {
         return [
@@ -68,7 +73,7 @@ class InvestorController extends Controller implements HasMiddleware
             $dueCount = $plan->installments->filter(fn ($i) => $i->due_date->lte(today()))->count();
 
             return [
-                'plan_id' => $plan->id, 'sale_id' => $plan->sale_id, 'vehicle' => $vehicle->chassis_no,
+                'plan_id' => $plan->id, 'investor_sale_id' => null, 'sale_id' => $plan->sale_id, 'vehicle' => $vehicle->chassis_no,
                 'vehicle_name' => trim("{$vehicle->brand} {$vehicle->model}"), 'buyer' => $plan->sale->customer->name,
                 'principal' => Money::taka($principal), 'principal_paid' => Money::taka($returned), 'principal_due' => Money::taka(max($principal - $returned, 0)),
                 'profit' => Money::taka($profit), 'profit_paid' => Money::taka($profitPaid), 'profit_due' => Money::taka(max($profit - $profitPaid, 0)),
@@ -82,7 +87,7 @@ class InvestorController extends Controller implements HasMiddleware
                 'current_due' => Money::taka(max(min($monthly * $dueCount, $principal + $profit) - $returned - $profitPaid, 0)),
                 'total_due' => Money::taka(max($principal + $profit - $returned - $profitPaid, 0)),
             ];
-        })->values();
+        })->concat($this->investorSaleRows($investor))->values();
 
         return $this->success([
             'rows' => $rows,
@@ -90,14 +95,51 @@ class InvestorController extends Controller implements HasMiddleware
         ]);
     }
 
+    /**
+     * The investor's active investor sales, as rows of the vehicle-payments list: each on its own schedule.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function investorSaleRows(Investor $investor): array
+    {
+        return $investor->investorSales()->where('status', 'active')
+            ->with(['sale.vehicle:id,chassis_no,brand,model', 'sale.customer:id,name', 'settlements:id,investor_sale_id,type,amount'])->get()
+            ->map(function (InvestorSale $investorSale) {
+                $position = $this->investorSalePosition($investorSale);
+                $vehicle = $investorSale->sale->vehicle;
+
+                return [
+                    'plan_id' => null, 'investor_sale_id' => $investorSale->id, 'sale_id' => $investorSale->sale_id, 'vehicle' => $vehicle->chassis_no,
+                    'vehicle_name' => trim("{$vehicle->brand} {$vehicle->model}"), 'buyer' => $investorSale->sale->customer->name,
+                    'principal' => Money::taka($position['principal']), 'principal_paid' => Money::taka($position['principal_paid']),
+                    'principal_due' => Money::taka(max($position['principal'] - $position['principal_paid'], 0)),
+                    'profit' => Money::taka($position['profit']), 'profit_paid' => Money::taka($position['profit_paid']),
+                    'profit_due' => Money::taka(max($position['profit'] - $position['profit_paid'], 0)),
+                    'installments' => $position['installments'], 'next_date' => $position['next_date'],
+                    'installments_due' => $position['installments_due'], 'installments_left' => $position['installments_left'],
+                    'monthly' => Money::taka($position['monthly']), 'current_due' => Money::taka($position['current_due']), 'total_due' => Money::taka($position['total_due']),
+                ];
+            })->values()->all();
+    }
+
+    /** @return array<string,mixed> the investor sale's position (paisa), from its loaded settlements */
+    private function investorSalePosition(InvestorSale $investorSale): array
+    {
+        $sum = fn (string $type) => Money::paisa($investorSale->settlements->where('type', $type)->sum('amount'));
+
+        return $this->investorSales->position($investorSale, $sum('principal_return'), $sum('profit_share'));
+    }
+
     /** Adds what each investor is owed now: the installment dates that have come, less what was paid to the investor. */
     private function attachDue($investors): void
     {
-        $paid = InvestorSettlement::whereIn('investor_id', $investors->pluck('id'))->whereIn('type', ['principal_return', 'profit_share'])
+        $paid = InvestorSettlement::whereIn('investor_id', $investors->pluck('id'))->whereIn('type', ['principal_return', 'profit_share'])->whereNotNull('plan_id')
             ->selectRaw('plan_id, SUM(amount) as total')->groupBy('plan_id')->pluck('total', 'plan_id');
         $plans = InstallmentPlan::whereIn('investor_id', $investors->pluck('id'))->with('installments:id,plan_id,due_date,status')
             ->whereHas('sale', fn ($q) => $q->where('status', 'active'))->get()->groupBy('investor_id');
-        $investors->each(function (Investor $i) use ($paid, $plans) {
+        $investorSales = InvestorSale::whereIn('investor_id', $investors->pluck('id'))->where('status', 'active')
+            ->with('settlements:id,investor_sale_id,type,amount')->get()->groupBy('investor_id');
+        $investors->each(function (Investor $i) use ($paid, $plans, $investorSales) {
             $due = 0; // paisa
             $count = 0;
             foreach ($plans[$i->id] ?? [] as $plan) {
@@ -106,6 +148,11 @@ class InvestorController extends Controller implements HasMiddleware
                 $come = $plan->installments->filter(fn ($x) => $x->due_date->lte(today()));
                 $due += max(min($monthly * $come->count(), $owed) - Money::paisa($paid[$plan->id] ?? 0), 0);
                 $count += $come->whereNotIn('status', ['paid', 'cancelled'])->count();
+            }
+            foreach ($investorSales[$i->id] ?? [] as $investorSale) {
+                $position = $this->investorSalePosition($investorSale);
+                $due += $position['current_due'];
+                $count += $position['installments_due'];
             }
             $i->setAttribute('current_due', Money::taka($due));
             $i->setAttribute('installments_due', $count);
@@ -175,6 +222,7 @@ class InvestorController extends Controller implements HasMiddleware
             'investor' => InvestorResource::make($investor),
             'summary' => $portfolio->summary($investor),
             'sales' => SaleResource::collection($investor->sales()->with(['vehicle', 'customer', 'plan'])->latest('id')->get()),
+            'investor_sales' => InvestorSaleResource::collection($investor->investorSales()->with(['sale.vehicle', 'sale.customer', 'settlements'])->latest('id')->get()),
             'settlements' => InvestorSettlementResource::collection($investor->settlements()->latest('date')->latest('id')->get()),
         ]);
     }

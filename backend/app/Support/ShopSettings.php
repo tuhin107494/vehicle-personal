@@ -17,7 +17,7 @@ class ShopSettings
             'sale' => ['vehicle_type' => self::primaryType('sale'), 'prices' => (object) self::prices('sale')],
             'type_defaults' => (object) self::typeDefaults(),
             'collections' => ['recall_days' => self::recallDays(), 'keep_selection' => self::keepSelection()],
-            'forms' => ['auto_date' => self::autoDate(), 'memo_no' => self::memoNo(), 'removal' => self::removal()],
+            'forms' => ['auto_date' => self::autoDate(), 'memo_no' => self::memoNo(), 'additional_customer' => self::additionalCustomer(), 'removal' => self::removal()],
             'booking' => ['days' => self::bookingDays(), 'on_cancel' => self::bookingPolicy('on_cancel'), 'on_expire' => self::bookingPolicy('on_expire')],
         ];
     }
@@ -52,6 +52,12 @@ class ShopSettings
     public static function memoNo(): bool
     {
         return ShopSetting::where('key', 'forms.memo_no')->value('value') !== '0';
+    }
+
+    /** Whether the sale forms offer an additional customer besides the buyer (on unless the shop turns it off). */
+    public static function additionalCustomer(): bool
+    {
+        return ShopSetting::where('key', 'forms.additional_customer')->value('value') !== '0';
     }
 
     /** What the statements offer on a payment that was entered by mistake: "delete" removes it (the default), "cancel" keeps it as cancelled with a reason. */
@@ -121,6 +127,10 @@ class ShopSettings
 
             if (isset($input['forms']['memo_no'])) {
                 ShopSetting::updateOrCreate(['key' => 'forms.memo_no'], ['value' => $input['forms']['memo_no'] ? '1' : '0']);
+            }
+
+            if (isset($input['forms']['additional_customer'])) {
+                ShopSetting::updateOrCreate(['key' => 'forms.additional_customer'], ['value' => $input['forms']['additional_customer'] ? '1' : '0']);
             }
 
             if (isset($input['forms']['removal'])) {

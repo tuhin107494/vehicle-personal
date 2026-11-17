@@ -7,6 +7,7 @@ use App\Models\Booking;
 use App\Models\Draft;
 use App\Models\DuePromise;
 use App\Models\InstallmentPlan;
+use App\Models\InvestorSale;
 use App\Models\InvestorSettlement;
 use App\Models\Payment;
 use App\Models\Sale;
@@ -64,6 +65,7 @@ class SaleService
                 'vehicle_id' => $vehicle->id,
                 'purchase_id' => $vehicle->current_purchase_id,
                 'customer_id' => $data['customer_id'],
+                'additional_customer_id' => $data['additional_customer_id'] ?? null,
                 'sale_date' => $data['sale_date'],
                 'sale_price' => Money::taka($price),
                 'down_payment' => Money::taka($down),
@@ -165,6 +167,7 @@ class SaleService
 
             $sale->update([
                 'customer_id' => $data['customer_id'],
+                'additional_customer_id' => $data['additional_customer_id'] ?? null,
                 'sale_date' => $data['sale_date'],
                 'guarantor_phone' => $data['guarantor_phone'] ?? null,
                 'guarantor_name' => $data['guarantor_name'] ?? null,
@@ -184,7 +187,7 @@ class SaleService
                 }
             }
 
-            $sale = Sale::with(['plan.installments', 'payments', 'promises', 'customer', 'investor'])->findOrFail($sale->id);
+            $sale = Sale::with(['plan.installments', 'payments', 'promises', 'customer', 'additionalCustomer', 'investor'])->findOrFail($sale->id);
             $changes = $this->diff($before, $this->snapshot($sale));
 
             if ($changes) {
@@ -218,7 +221,7 @@ class SaleService
         if ($type === 'due') {
             $promise = $sale->promises->sortBy('id')->first();
 
-            return ($promise?->promised_date?->toDateString()) !== (empty($data['promised_date']) ? null : Carbon::parse($data['promised_date'])->toDateString())
+            return $promise?->promised_date?->toDateString() !== (empty($data['promised_date']) ? null : Carbon::parse($data['promised_date'])->toDateString())
                 || ($promise?->note) !== ($data['promise_note'] ?? null);
         }
 
@@ -231,6 +234,12 @@ class SaleService
 
         if ($collected) {
             throw new BusinessRuleException('Payments have been collected on this sale, so its price, payment type and installments cannot be changed. Cancel the sale and enter it again.');
+        }
+
+        $investorSale = InvestorSale::where('sale_id', $sale->id)->where('status', 'active')->lockForUpdate()->first();
+
+        if ($investorSale && ($type === 'cash' || $price - $down < Money::paisa($investorSale->principal))) {
+            throw new BusinessRuleException('An investor sale funds this sale, so it must keep at least '.Money::format(Money::paisa($investorSale->principal)).' to be paid later. Cancel the investor sale first.');
         }
 
         $plan = $sale->plan;
@@ -269,7 +278,7 @@ class SaleService
     /** @return array<string,string> what a person would want to see changed, by label */
     private function snapshot(Sale $sale): array
     {
-        $sale->loadMissing(['customer', 'investor', 'plan', 'promises']);
+        $sale->loadMissing(['customer', 'additionalCustomer', 'investor', 'plan', 'promises']);
         $plan = $sale->plan;
         $promise = $sale->promises->sortBy('id')->first();
         $money = fn ($v) => number_format((float) $v, 2, '.', '');
@@ -277,6 +286,7 @@ class SaleService
         return array_filter([
             'Sale date' => $sale->sale_date->toDateString(),
             'Buyer' => $sale->customer?->name,
+            'Additional customer' => $sale->additionalCustomer?->name,
             'Sale price' => $money($sale->sale_price),
             'Down payment' => $money($sale->down_payment),
             'Payment type' => $sale->payment_type,

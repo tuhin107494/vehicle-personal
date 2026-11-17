@@ -18,6 +18,7 @@ class InvestorSettlement extends Model
         'shop_id',
         'investor_id',
         'plan_id',
+        'investor_sale_id',
         'type',
         'amount',
         'date',
@@ -43,5 +44,11 @@ class InvestorSettlement extends Model
     public function plan(): BelongsTo
     {
         return $this->belongsTo(InstallmentPlan::class, 'plan_id');
+    }
+
+    /** @return BelongsTo<InvestorSale, $this> */
+    public function investorSale(): BelongsTo
+    {
+        return $this->belongsTo(InvestorSale::class);
     }
 }

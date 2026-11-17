@@ -2,8 +2,9 @@
 
 namespace App\Services;
 
-use App\Models\Investor;
 use App\Models\InstallmentPlan;
+use App\Models\Investor;
+use App\Models\InvestorSale;
 use App\Models\InvestorSettlement;
 use App\Models\Payment;
 use App\Models\Sale;
@@ -38,15 +39,22 @@ class InvestorPortfolioService
         $returned = InvestorSettlement::whereIn('plan_id', $plans->flatten()->pluck('id'))->where('type', 'principal_return')
             ->selectRaw('plan_id, SUM(amount) as total')->groupBy('plan_id')->pluck('total', 'plan_id');
 
+        // investor sales: the amount each funded, less the principal already paid back
+        $investorSales = InvestorSale::whereIn('investor_id', $ids)->where('status', 'active')
+            ->withSum(['settlements as returned' => fn ($q) => $q->where('type', 'principal_return')], 'amount')
+            ->get(['id', 'investor_id', 'principal'])->groupBy('investor_id');
+
         $sales = Sale::whereIn('investor_id', $ids)->where('status', 'active')->get(['id', 'investor_id', 'due_amount'])->groupBy('investor_id');
         $collected = Payment::whereIn('sale_id', $sales->flatten()->pluck('id'))->whereNotNull('installment_id')
             ->selectRaw('sale_id, SUM(amount) as total')->groupBy('sale_id')->pluck('total', 'sale_id');
 
-        return $investors->mapWithKeys(function (Investor $investor) use ($byType, $plans, $returned, $sales, $collected) {
+        return $investors->mapWithKeys(function (Investor $investor) use ($byType, $plans, $returned, $investorSales, $sales, $collected) {
             $type = ($byType[$investor->id] ?? collect())->pluck('total', 'type');
             $mine = $sales[$investor->id] ?? collect();
 
-            $outstanding = ($plans[$investor->id] ?? collect())->sum(fn ($plan) => max(Money::paisa($plan->principal) - Money::paisa($returned[$plan->id] ?? 0), 0));
+            $funded = $investorSales[$investor->id] ?? collect();
+            $outstanding = ($plans[$investor->id] ?? collect())->sum(fn ($plan) => max(Money::paisa($plan->principal) - Money::paisa($returned[$plan->id] ?? 0), 0))
+                + $funded->sum(fn ($x) => max(Money::paisa($x->principal) - Money::paisa($x->returned ?? 0), 0));
 
             return [$investor->id => [
                 'opening_balance' => (float) $investor->opening_balance,
@@ -56,7 +64,7 @@ class InvestorPortfolioService
                 'profit_earned' => (float) ($type['profit_share'] ?? 0),
                 'withdrawn' => (float) ($type['withdrawal'] ?? 0),
                 'outstanding' => Money::taka($outstanding),
-                'sales_count' => $mine->count(),
+                'sales_count' => $mine->count() + $funded->count(),
                 'collected' => (float) $mine->sum(fn ($sale) => (float) ($collected[$sale->id] ?? 0)),
                 'sales_due' => (float) $mine->sum('due_amount'),
             ]];

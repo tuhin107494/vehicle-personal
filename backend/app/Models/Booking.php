@@ -11,7 +11,7 @@ use Illuminate\Support\Carbon;
  * A vehicle held for a customer who paid an advance. It ends as completed (a sale is made), cancelled, or expired.
  *
  * @property Carbon $booked_on
- * @property Carbon $expires_on
+ * @property Carbon|null $expires_on
  */
 class Booking extends Model
 {

@@ -76,6 +76,30 @@ class VehicleFlowTest extends TestCase
         $this->postJson('/api/sales', $this->saleData($v2))->assertCreated()->assertJsonPath('data.memo_no', null)->assertJsonPath('data.guarantor_name', null);
     }
 
+    public function test_a_sale_can_name_an_additional_customer_besides_the_buyer(): void
+    {
+        $v = $this->stockVehicle('ADD-1');
+        $buyer = $this->buyer();
+        $second = Customer::create(['name' => 'Co-buyer', 'phone' => '01799990001']);
+
+        // the buyer again, or a customer that does not exist, is refused
+        $this->postJson('/api/sales', $this->saleData($v, ['customer_id' => $buyer->id, 'additional_customer_id' => $buyer->id]))->assertJsonValidationErrors('additional_customer_id');
+        $this->postJson('/api/sales', $this->saleData($v, ['additional_customer_id' => 999999]))->assertJsonValidationErrors('additional_customer_id');
+
+        $sale = $this->postJson('/api/sales', $this->saleData($v, ['customer_id' => $buyer->id, 'additional_customer_id' => $second->id]))->assertCreated()
+            ->assertJsonPath('data.additional_customer.name', 'Co-buyer')->json('data');
+
+        // it can be removed in an edit, which the history records
+        $this->putJson("/api/sales/{$sale['id']}", $this->editBody($sale))->assertOk()->assertJsonPath('data.additional_customer_id', null);
+        $this->getJson("/api/sales/{$sale['id']}")->assertJsonPath('data.edits.0.changes.0.field', 'Additional customer');
+
+        // while named on a sale, the additional customer cannot be deleted
+        $v2 = $this->stockVehicle('ADD-2');
+        $this->postJson('/api/sales', $this->saleData($v2, ['additional_customer_id' => $second->id]))->assertCreated();
+        $this->deleteJson("/api/customers/{$second->id}")->assertStatus(409);
+        $this->assertNotSoftDeleted('customers', ['id' => $second->id]);
+    }
+
     public function test_a_collected_payment_keeps_an_optional_memo_number(): void
     {
         $v = $this->stockVehicle('MEMO-3');
