@@ -3,11 +3,12 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, tokenStore } from "@/lib/api";
+import type { SubscriptionSummary } from "@/lib/subscription";
 
 export type Role = "super_admin" | "shop_owner" | "admin" | "moderator";
 export type User = {
   id: number; name: string; email: string; role: Role; role_label: string; photo_url?: string | null;
-  shop: { id: number; name: string } | null; permissions: string[];
+  shop: { id: number; name: string; subscription?: SubscriptionSummary | null } | null; permissions: string[];
 };
 
 export type Session = { token: string; user: User };

@@ -15,6 +15,7 @@ class ShopResource extends JsonResource
             ...parent::toArray($request),
             'owner' => $this->whenLoaded('owner', fn () => $this->owner?->only(['id', 'name', 'email', 'is_active'])),
             'users_count' => $this->whenCounted('users'),
+            'subscription' => $this->whenLoaded('subscription', fn () => $this->subscription?->summary()),
         ];
     }
 }

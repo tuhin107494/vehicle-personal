@@ -7,6 +7,7 @@ use App\Http\Requests\ProfileRequest;
 use App\Models\User;
 use App\Models\VehicleCategory;
 use App\Models\VehicleColor;
+use App\Services\Billing\SubscriptionService;
 use App\Support\GoogleOAuth;
 use App\Support\PlatformSettings;
 use App\Support\ShopSettings;
@@ -88,6 +89,10 @@ class AuthController extends Controller
 
         if ($user->shop_id && ! $user->shop->is_active) {
             throw ValidationException::withMessages(['email' => ['This shop is currently disabled. Contact support.']]);
+        }
+
+        if (app(SubscriptionService::class)->locked($user->shop)) {
+            throw ValidationException::withMessages(['email' => [SubscriptionService::ENDED_MESSAGE]]);
         }
 
         return $this->success($user->newSession(), 'Logged in');
