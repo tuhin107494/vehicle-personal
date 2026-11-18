@@ -23,7 +23,7 @@ export function SubscriptionCard() {
           <dd>{ended ? <Badge tone="red">Ended</Badge> : <Badge tone={trial ? "yellow" : "green"}>{daysLeft(days)}</Badge>}</dd>
         </div>
       </dl>
-      <p className="mt-3 text-xs text-slate-500">{ended ? "Contact support to continue using the app." : "Contact support before it ends to keep using the app."}</p>
+      <p className="mt-3 text-xs text-slate-500">{ended ? "Your shop is read-only: you can view and export, but not make changes. Contact support to continue." : "Contact support before it ends to keep using the app."}</p>
     </Card>
   );
 }

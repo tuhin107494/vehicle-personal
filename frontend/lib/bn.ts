@@ -255,8 +255,9 @@ export const BN: Record<string, string> = {
   "Role-Based Staff": "রোলভিত্তিক স্টাফ", "Granular access controls for staff logins.": "স্টাফের লগইনের জন্য সূক্ষ্ম অ্যাক্সেস নিয়ন্ত্রণ।",
   // subscription and free trial
   Subscription: "সাবস্ক্রিপশন", "Free trial": "ফ্রি ট্রায়াল", "Ends on": "শেষ হবে", "Ended on": "শেষ হয়েছে", Ended: "শেষ", "1 day left": "আর ১ দিন বাকি",
-  "Your subscription has ended. Contact support to continue.": "আপনার সাবস্ক্রিপশন শেষ হয়েছে। চালিয়ে যেতে সাপোর্টে যোগাযোগ করুন।",
-  "Contact support to continue using the app.": "অ্যাপ চালিয়ে যেতে সাপোর্টে যোগাযোগ করুন।", "Contact support before it ends to keep using the app.": "অ্যাপ চালিয়ে যেতে শেষ হওয়ার আগে সাপোর্টে যোগাযোগ করুন।",
+  "Your subscription has ended. Your shop is read-only: you can view and export, but not make changes. Contact support to continue.": "আপনার সাবস্ক্রিপশন শেষ হয়েছে। দোকানটি এখন শুধু দেখার জন্য: দেখা ও এক্সপোর্ট করা যাবে, কিন্তু কোনো পরিবর্তন করা যাবে না। চালিয়ে যেতে সাপোর্টে যোগাযোগ করুন।",
+  "Your subscription has ended, so your shop is read-only. Contact support to make changes again.": "আপনার সাবস্ক্রিপশন শেষ হয়েছে, তাই দোকানটি শুধু দেখার জন্য। আবার পরিবর্তন করতে সাপোর্টে যোগাযোগ করুন।",
+  "Your shop is read-only: you can view and export, but not make changes. Contact support to continue.": "দোকানটি এখন শুধু দেখার জন্য: দেখা ও এক্সপোর্ট করা যাবে, কিন্তু কোনো পরিবর্তন করা যাবে না। চালিয়ে যেতে সাপোর্টে যোগাযোগ করুন।", "Contact support before it ends to keep using the app.": "অ্যাপ চালিয়ে যেতে শেষ হওয়ার আগে সাপোর্টে যোগাযোগ করুন।",
   "Extend subscription": "সাবস্ক্রিপশন বাড়ান", "Subscription extended": "সাবস্ক্রিপশন বাড়ানো হয়েছে", Extend: "বাড়ান", "Add days": "দিন যোগ করুন",
   "In English and Bangla": "ইংরেজি ও বাংলায়", "On phone and computer": "ফোন ও কম্পিউটারে", "Your records stay private to your shop": "আপনার হিসাব শুধু আপনার দোকানের",
   "Everything your shop keeps track of": "আপনার দোকানের সব হিসাব",

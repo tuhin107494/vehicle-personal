@@ -7,6 +7,7 @@ use App\Models\Billing\Plan;
 use App\Models\Billing\Subscription;
 use App\Models\Scopes\ShopScope;
 use App\Models\Shop;
+use App\Notifications\SubscriptionEndingSoon;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -15,7 +16,11 @@ use Illuminate\Support\Facades\DB;
  */
 class SubscriptionService
 {
-    public const ENDED_MESSAGE = 'Your subscription has ended. Contact support to continue.';
+    /** What a locked shop is told when it tries to change something. It can still sign in, view and export. */
+    /** Days before the end when the shop owner is emailed. */
+    public const REMINDER_DAYS = [3, 1];
+
+    public const ENDED_MESSAGE = 'Your subscription has ended, so your shop is read-only. Contact support to make changes again.';
 
     /** The shop's current subscription (its latest), from anywhere: a request, a worker or the scheduler. */
     public function current(int $shopId): ?Subscription
@@ -84,10 +89,48 @@ class SubscriptionService
                 'trial_ends_at' => $trial ? $end : $current->trial_ends_at,
                 'cancelled_at' => null,
                 'grace_ends_at' => null,
+                'last_reminder_days' => null, // a new end date: its reminders go out again
             ]);
 
             return $current->fresh('plan');
         });
+    }
+
+    /**
+     * Emails the owner of each running trial or subscription that ends within 3 days: once at 3 days left, once at 1.
+     * Days are calendar days. last_reminder_days remembers the last one sent, so a daily run never repeats it, and a
+     * shop first seen at 1 day left (say, extended by one day) only gets the 1-day email. Returns how many were sent.
+     */
+    public function sendExpiryReminders(): int
+    {
+        $sent = 0;
+        $first = max(self::REMINDER_DAYS);
+
+        Subscription::withoutGlobalScope(ShopScope::class)
+            ->whereIn('status', ['trialing', 'active'])
+            ->where('ends_at', '>', now())
+            ->where('ends_at', '<=', today()->addDays($first)->endOfDay())
+            ->whereHas('shop', fn ($q) => $q->where('is_active', true))
+            ->with(['plan', 'shop.owner'])
+            ->each(function (Subscription $subscription) use (&$sent) {
+                $days = (int) today()->diffInDays($subscription->ends_at->copy()->startOfDay());
+                $window = collect(self::REMINDER_DAYS)->sort()->first(fn (int $d) => $days <= $d); // 3 → 3, 2 → 3, 1 → 1, 0 → 1
+                $owner = $subscription->shop->owner;
+
+                if (! $owner || ($subscription->last_reminder_days !== null && $subscription->last_reminder_days <= $window)) {
+                    return;
+                }
+
+                try {
+                    $owner->notify(new SubscriptionEndingSoon($subscription, $days));
+                    $subscription->update(['last_reminder_days' => $window]);
+                    $sent++;
+                } catch (\Throwable $e) {
+                    report($e); // one bad address must not stop the others; it is tried again on the next run
+                }
+            });
+
+        return $sent;
     }
 
     /** The plan new shops start a trial on: the cheapest active plan that offers one. */

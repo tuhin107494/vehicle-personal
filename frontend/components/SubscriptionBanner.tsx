@@ -15,6 +15,6 @@ export function SubscriptionBanner() {
   if (!ended && days > SHOW_WITHIN_DAYS) return null;
 
   return ended
-    ? <p role="alert" className="bg-red-50 px-4 py-2 text-center text-sm font-medium text-red-800 print:hidden">Your subscription has ended. Contact support to continue.</p>
+    ? <p role="alert" className="bg-red-50 px-4 py-2 text-center text-sm font-medium text-red-800 print:hidden">Your subscription has ended. Your shop is read-only: you can view and export, but not make changes. Contact support to continue.</p>
     : <p className="bg-amber-50 px-4 py-2 text-center text-sm font-medium text-amber-800 print:hidden">{trial ? "Free trial" : "Subscription"}: {daysLeft(days)}.</p>;
 }

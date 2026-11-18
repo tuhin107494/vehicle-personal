@@ -120,21 +120,35 @@ class SubscriptionTrialTest extends TestCase
         $this->getJson('/api/customers')->assertOk();
     }
 
-    public function test_an_ended_trial_blocks_sign_in_and_every_shop_screen(): void
+    public function test_an_ended_trial_makes_the_shop_read_only(): void
     {
         $shop = $this->shop();
+        $this->as($shop->owner);
+        $customer = $this->postJson('/api/customers', ['name' => 'Kept', 'phone' => '01700000001'])->assertCreated()->json('data.id');
         $this->endsIn($shop, '-1 minute');
-        $owner = $shop->owner;
 
-        $this->postJson('/api/login', ['email' => $owner->email, 'password' => 'password'])
-            ->assertStatus(422)->assertJsonValidationErrors(['email' => SubscriptionService::ENDED_MESSAGE]);
+        // they can still sign in, and the app can say why it is read-only
+        auth()->forgetGuards();
+        $this->postJson('/api/login', ['email' => $shop->owner->email, 'password' => 'password'])->assertOk();
+        $this->as($shop->owner);
+        $this->getJson('/api/me')->assertOk()->assertJsonPath('data.shop.subscription.status', 'expired');
 
-        $this->as($owner);
-        $this->getJson('/api/customers')->assertForbidden()->assertJsonPath('message', SubscriptionService::ENDED_MESSAGE);
-        $this->postJson('/api/customers', ['name' => 'X'])->assertForbidden();
-        $this->getJson('/api/users')->assertForbidden(); // owner screens too
-        $this->getJson('/api/vehicle-categories')->assertForbidden(); // and routes outside the shop group
-        $this->getJson('/api/me')->assertOk()->assertJsonPath('data.shop.subscription.status', 'expired'); // the app can still say why
+        // viewing (and so exporting) still works, data kept
+        $this->getJson('/api/customers')->assertOk();
+        $this->getJson("/api/customers/{$customer}")->assertOk();
+        $this->getJson('/api/dashboard')->assertOk();
+        $this->getJson('/api/sales')->assertOk();
+        $this->getJson('/api/vehicle-categories')->assertOk();
+
+        // creating, editing and deleting are refused, in the shop group and outside it
+        $this->postJson('/api/customers', ['name' => 'X', 'phone' => '01700000002'])->assertForbidden()
+            ->assertJsonPath('message', SubscriptionService::ENDED_MESSAGE);
+        $this->putJson("/api/customers/{$customer}", ['name' => 'Changed', 'phone' => '01700000001'])->assertForbidden();
+        $this->deleteJson("/api/customers/{$customer}")->assertForbidden();
+        $this->postJson('/api/sales', [])->assertForbidden();
+        $this->postJson('/api/users', [])->assertForbidden(); // owner screens too
+        $this->postJson('/api/vehicle-categories', ['name' => 'X'])->assertForbidden();
+        $this->assertDatabaseHas('customers', ['id' => $customer, 'name' => 'Kept']);
     }
 
     public function test_a_running_trial_works_and_the_super_admin_is_never_locked(): void
@@ -165,8 +179,8 @@ class SubscriptionTrialTest extends TestCase
         $this->postJson("/api/shops/{$running->id}/subscription/extend", ['days' => 7])->assertOk();
         $this->assertEqualsWithDelta(now()->addDays(9)->timestamp, $this->current($running)->ends_at->timestamp, 5);
 
-        $this->as($ended->owner); // an extended shop can work again
-        $this->getJson('/api/customers')->assertOk();
+        $this->as($ended->owner); // an extended shop can make changes again
+        $this->postJson('/api/customers', ['name' => 'Back', 'phone' => '01700000003'])->assertCreated();
     }
 
     public function test_extending_an_ended_paid_subscription_makes_it_active(): void
