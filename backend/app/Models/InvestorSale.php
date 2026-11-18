@@ -47,6 +47,9 @@ class InvestorSale extends Model
     protected function casts(): array
     {
         return [
+            'sale_id' => 'integer',
+            'investor_id' => 'integer',
+            'customer_id' => 'integer',
             'date' => 'date:Y-m-d',
             'sale_price' => 'float',
             'down_payment' => 'float',

@@ -207,7 +207,8 @@ class InvestorController extends Controller implements HasMiddleware
 
     public function destroy(Investor $investor): JsonResponse
     {
-        if ($investor->sales()->exists() || $investor->settlements()->exists()) {
+        // a cancelled investor sale has no settlements left, but its row still names the investor
+        if ($investor->sales()->exists() || $investor->settlements()->exists() || $investor->investorSales()->exists()) {
             throw new BusinessRuleException('This investor has sales or settlements and cannot be deleted. Mark them inactive instead.');
         }
 

@@ -282,6 +282,17 @@ class InvestorSaleTest extends TestCase
         $this->assertDatabaseHas('investor_sales', ['id' => $id, 'status' => 'active']);
     }
 
+    public function test_an_investor_with_only_a_cancelled_investor_sale_cannot_be_deleted(): void
+    {
+        $sale = $this->installmentSale();
+        $id = $this->postJson("/api/sales/{$sale['id']}/investor-sale", $this->investorSaleData())->assertCreated()->json('data.id');
+        $this->postJson("/api/investor-sales/{$id}/cancel")->assertOk();
+
+        // no settlements are left, but the cancelled investor sale still names the investor
+        $this->deleteJson("/api/investors/{$this->investor->id}")->assertStatus(409);
+        $this->assertDatabaseHas('investors', ['id' => $this->investor->id]);
+    }
+
     public function test_the_investor_sale_stays_when_the_customer_sale_changes(): void
     {
         $sale = $this->installmentSale();

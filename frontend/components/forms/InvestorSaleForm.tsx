@@ -124,19 +124,25 @@ export function InvestorSaleForm() {
   const showExtra = useAdditionalCustomer(); // the shop can turn the additional customer option off in Settings
   const [extraOpen, setExtraOpen] = useState(false); // the additional customer field, shown only when asked for
   const investor = useFetch<Investor>(w.investor_id ? `/investors/${w.investor_id}` : null);
+  // the saved formula and the calculator give a rate per year; the profit is a flat percentage for the whole schedule,
+  // so the yearly rate is spread over the schedule's length (and follows it while the count or frequency changes)
+  const [yearRate, setYearRate] = useState<number | null>(null);
+  const termYears = (Number(w.installment_count) || 0) / (w.frequency === "weekly" ? 52 : 12);
+  useEffect(() => {
+    if (yearRate === null || !(termYears > 0)) return;
+    setValue("profit_rate", String(r2(yearRate * termYears)), { shouldValidate: true });
+  }, [yearRate, termYears, setValue]);
+  const applyRate = (rate: number) => {
+    setValue("profit_mode", "percent");
+    setYearRate(rate);
+  };
   useEffect(() => {
     const inv = investor.data;
     if (!inv || String(inv.id) !== w.investor_id) return;
-    if (inv.formula_rate_year != null) {
-      setValue("profit_mode", "percent");
-      setValue("profit_rate", String(inv.formula_rate_year), { shouldValidate: true });
-    } else setCalcOpen(true);
+    if (inv.formula_rate_year != null) applyRate(inv.formula_rate_year);
+    else setCalcOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [investor.data]);
-  const applyRate = (rate: number) => {
-    setValue("profit_mode", "percent");
-    setValue("profit_rate", String(rate), { shouldValidate: true });
-  };
 
   // the due amount the investor funds: the price less the down payment
   const salePrice = Number(w.sale_price || 0);
@@ -154,6 +160,7 @@ export function InvestorSaleForm() {
 
   const clear = () => {
     reset(blank);
+    setYearRate(null);
     setChosen(null);
     setExtraOpen(false);
   };
@@ -282,13 +289,16 @@ export function InvestorSaleForm() {
               <Field required label="First installment date" error={errors.first_due_date?.message}><Input type="date" min={w.date} className={inputCls} {...register("first_due_date")} /></Field>
               <Field required label="Investor profit" error={errors.profit_rate?.message ?? errors.profit_amount?.message}>
                 <div className="flex gap-2">
-                  <NativeSelect className={`${inputCls} w-28 shrink-0`} {...register("profit_mode")}>
+                  <NativeSelect className={`${inputCls} w-28 shrink-0`} {...register("profit_mode", { onChange: () => setYearRate(null) })}>
                     <option value="percent">Percent %</option><option value="amount">Amount (Tk)</option>
                   </NativeSelect>
                   {w.profit_mode === "amount"
                     ? <Input key="amount" type="number" step="0.01" placeholder="Amount" className={inputCls} {...register("profit_amount")} />
-                    : <Input key="percent" type="number" step="0.01" placeholder="Percent" className={inputCls} {...register("profit_rate")} />}
+                    : <Input key="percent" type="number" step="0.01" placeholder="Percent" className={inputCls} {...register("profit_rate", { onChange: () => setYearRate(null) })} />}
                 </div>
+                {yearRate !== null && w.profit_mode === "percent" && termYears > 0 && (
+                  <p className="mt-1 text-xs text-slate-500">{yearRate}% a year × {r2(termYears)} {termYears === 1 ? "year" : "years"} = {w.profit_rate}% for the whole schedule</p>
+                )}
               </Field>
             </div>
             {plan && s && !blocked && (
