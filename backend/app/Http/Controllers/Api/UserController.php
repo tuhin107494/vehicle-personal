@@ -7,7 +7,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\ShopUserRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
-use App\Services\Billing\FeatureGateService;
 use App\Support\PermissionCatalog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -23,10 +22,8 @@ class UserController extends Controller
         return $this->success(UserResource::collection($users));
     }
 
-    public function store(ShopUserRequest $request, FeatureGateService $gate): JsonResponse
+    public function store(ShopUserRequest $request): JsonResponse
     {
-        $gate->ensureCanAdd($request->user()->shop_id, 'max_staff');
-
         $user = User::create($request->safe()->only(['name', 'email', 'password', 'role']) + [
             'shop_id' => $request->user()->shop_id,
             'is_active' => $request->boolean('is_active', true),

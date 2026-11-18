@@ -1,7 +1,6 @@
 <?php
 
 use App\Exceptions\BusinessRuleException;
-use App\Http\Middleware\CheckFeature;
 use App\Http\Middleware\CheckPermission;
 use App\Http\Middleware\EnsureActiveSubscription;
 use App\Http\Middleware\EnsureRole;

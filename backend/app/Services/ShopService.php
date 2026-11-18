@@ -20,8 +20,6 @@ class ShopService
             // listed first so they win: whatever $owner holds, this user owns this shop
             User::create(['shop_id' => $shop->id, 'role' => 'shop_owner'] + $owner);
             $this->seedDefaultPermissions($shop);
-            // a new shop starts on the trial plan (none when no plan offers a trial yet)
-            app(SubscriptionService::class)->startTrial($shop);
 
             // an open shop starts its free trial now; a signed-up one waits until it opens (email confirmed or approved)
             if (! $shop->isPending()) {

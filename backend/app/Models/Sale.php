@@ -94,17 +94,13 @@ class Sale extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    /**
-     * The booking this sale completed, if it came from one.
-     *
-     * @return HasOne<Booking, $this>
-     */
+    /** @return HasOne<InstallmentPlan, $this> */
+    /** The booking this sale completed, if it came from one. */
     public function booking(): HasOne
     {
         return $this->hasOne(Booking::class);
     }
 
-    /** @return HasOne<InstallmentPlan, $this> */
     public function plan(): HasOne
     {
         return $this->hasOne(InstallmentPlan::class);
