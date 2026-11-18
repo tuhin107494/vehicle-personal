@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Billing\Subscription;
+use App\Models\Scopes\ShopScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -31,6 +33,12 @@ class Shop extends Model
     public function users(): HasMany
     {
         return $this->hasMany(User::class);
+    }
+
+    /** The current subscription (the latest row). Unscoped, so the super admin sees every shop's. @return HasOne<Subscription, $this> */
+    public function subscription(): HasOne
+    {
+        return $this->hasOne(Subscription::class)->withoutGlobalScope(ShopScope::class)->latestOfMany();
     }
 
     /** @return HasOne<User, $this> */

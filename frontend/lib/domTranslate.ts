@@ -42,6 +42,7 @@ const RULES: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^Sale #(\d+)$/, (m) => `বিক্রয় #${bnNum(m[1])}`],
   // bookings: the deadline hints, and what happened to the advance
   [/^(\d+) days left$/, (m) => `${bnNum(m[1])} দিন বাকি`],
+  [/^(\d+) days$/, (m) => `${bnNum(m[1])} দিন`],
   [/^(\d+) days late$/, (m) => `${bnNum(m[1])} দিন দেরি`],
   [/^until (\d{1,2}) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept?|Oct|Nov|Dec) (\d{4})$/, (m) => `${bnNum(m[1])} ${MONTHS[m[2]]} ${bnNum(m[3])} পর্যন্ত`],
   [/^Auto-deleted (\d{1,2}) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept?|Oct|Nov|Dec) (\d{4})$/, (m) => `${bnNum(m[1])} ${MONTHS[m[2]]} ${bnNum(m[3])} তারিখে নিজে ডিলিট হবে`],

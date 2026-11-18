@@ -1,3 +1,5 @@
+import type { SubscriptionSummary } from "@/lib/subscription";
+
 /** GET /landing: what the public landing page shows. A detail left blank in System settings stays off the page. */
 export type LandingInfo = {
   signup_enabled: boolean; contact_form: boolean; support_email: string | null; support_phone: string | null; whatsapp: string | null; address: string | null; support_hours: string | null;
@@ -72,6 +74,7 @@ export type Summary = {
 export type Shop = {
   id: number; name: string; phone: string | null; address: string | null; is_active: boolean;
   approved_at: string | null; // empty: signed itself up and waits for the super admin to switch it on
+  subscription?: SubscriptionSummary | null; // empty: no subscription, so no time limit
   owner?: { id: number; name: string; email: string; is_active: boolean } | null; users_count?: number;
 };
 export type PermissionT = { id: number; key: string; name: string; group: string; description: string | null };

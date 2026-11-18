@@ -7,6 +7,7 @@ use App\Http\Requests\ShopRequest;
 use App\Http\Resources\ShopResource;
 use App\Models\Shop;
 use App\Models\User;
+use App\Services\Billing\SubscriptionService;
 use App\Services\ShopService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,7 +18,7 @@ class ShopController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $shops = Shop::with('owner')->withCount('users')
+        $shops = Shop::with('owner', 'subscription.plan')->withCount('users')
             ->when($request->search, fn ($q, $s) => $q->where('name', 'like', "%$s%"))
             ->latest('id')->paginate($this->perPage($request));
 
@@ -31,23 +32,27 @@ class ShopController extends Controller
             ['name' => $request->owner_name, 'email' => $request->owner_email, 'password' => $request->owner_password],
         );
 
-        return $this->success(ShopResource::make($shop->load('owner')), 'Shop created', 201);
+        return $this->success(ShopResource::make($shop->load('owner', 'subscription.plan')), 'Shop created', 201);
     }
 
     public function show(Shop $shop): JsonResponse
     {
-        return $this->success(ShopResource::make($shop->load('owner')->loadCount('users')));
+        return $this->success(ShopResource::make($shop->load('owner', 'subscription.plan')->loadCount('users')));
     }
 
-    public function update(ShopRequest $request, Shop $shop): JsonResponse
+    public function update(ShopRequest $request, Shop $shop, SubscriptionService $subscriptions): JsonResponse
     {
         // shop, owner and sign-outs change together or not at all
-        DB::transaction(function () use ($request, $shop) {
+        DB::transaction(function () use ($request, $shop, $subscriptions) {
             $shop->fill($request->safe()->only(['name', 'phone', 'address']) + ['is_active' => $request->boolean('is_active', $shop->is_active)]);
             if ($shop->is_active && $shop->isPending()) {
                 $shop->approved_at = now(); // switching a signed-up shop on approves it
             }
             $shop->save();
+
+            if ($shop->wasChanged('approved_at')) {
+                $subscriptions->startTrial($shop); // approving opens it: the free trial starts
+            }
 
             if ($owner = $shop->owner) {
                 $owner->fill(array_filter([
@@ -64,6 +69,6 @@ class ShopController extends Controller
             }
         });
 
-        return $this->success(ShopResource::make($shop->load('owner')), 'Shop updated');
+        return $this->success(ShopResource::make($shop->load('owner', 'subscription.plan')), 'Shop updated');
     }
 }

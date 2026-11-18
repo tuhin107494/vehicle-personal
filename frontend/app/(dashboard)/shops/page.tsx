@@ -1,8 +1,9 @@
 "use client";
 
-import { savedMsg } from "@/lib/format";
+import { fmtDate, savedMsg } from "@/lib/format";
+import { subscriptionState } from "@/lib/subscription";
 import { useEffect, useState } from "react";
-import { Plus, Pencil } from "lucide-react";
+import { CalendarPlus, Plus, Pencil } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -12,6 +13,7 @@ import { usePagedList } from "@/lib/hooks";
 import type { Shop } from "@/lib/types";
 import { Badge, Button, Field, inputCls, Modal, PageHeader, Pagination } from "@/components/app-ui";
 import { Col, DataTable } from "@/components/DataTable";
+import { ExtendSubscriptionModal } from "@/components/forms/ExtendSubscriptionModal";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -81,6 +83,7 @@ export default function ShopsPage() {
   const list = usePagedList<Shop>("/shops");
   const [editing, setEditing] = useState<Shop | null>(null);
   const [open, setOpen] = useState(false);
+  const [extending, setExtending] = useState<Shop | null>(null);
 
   const columns: Col<Shop>[] = [
     { header: "Shop", cell: ({ row }) => <span className="font-medium">{row.original.name}</span> },
@@ -91,7 +94,23 @@ export default function ShopsPage() {
     { header: "Status", cell: ({ row }) => !row.original.approved_at
       ? <Badge tone="yellow">Pending</Badge>
       : <Badge tone={row.original.is_active ? "green" : "gray"}>{row.original.is_active ? "Active" : "Disabled"}</Badge> },
-    { header: "Action", id: "actions", cell: ({ row }) => <Button variant="outline" onClick={() => { setEditing(row.original); setOpen(true); }}><Pencil className="size-4 text-sky-600" /> Edit</Button> },
+    { header: "Subscription", cell: ({ row }) => {
+      const sub = row.original.subscription;
+      if (!sub) return "-";
+      const { ended, trial } = subscriptionState(sub);
+      return (
+        <div className="text-xs">
+          <div className="font-medium text-slate-700">{sub.plan}</div>
+          {ended ? <Badge tone="red">Ended {fmtDate(sub.ends_at)}</Badge> : <Badge tone={trial ? "yellow" : "green"}>Until {fmtDate(sub.ends_at)}</Badge>}
+        </div>
+      );
+    } },
+    { header: "Action", id: "actions", cell: ({ row }) => (
+      <div className="flex gap-1.5">
+        <Button variant="outline" onClick={() => { setEditing(row.original); setOpen(true); }}><Pencil className="size-4 text-sky-600" /> Edit</Button>
+        {row.original.subscription && <Button variant="outline" onClick={() => setExtending(row.original)}><CalendarPlus className="size-4 text-amber-600" /> Extend</Button>}
+      </div>
+    ) },
   ];
 
   return (
@@ -100,6 +119,7 @@ export default function ShopsPage() {
       <Input className={`${inputCls} mb-3 max-w-xs`} placeholder="Search shop" value={list.search} onChange={(e) => list.setSearch(e.target.value)} />
       <DataTable serverPaged columns={columns} data={list.rows} loading={list.loading} />
       <Pagination meta={list.meta} onPage={list.setPage} />
+      <ExtendSubscriptionModal shop={extending} onClose={() => setExtending(null)} onSaved={list.reload} />
       <ShopForm open={open} shop={editing} onClose={() => setOpen(false)} onSaved={() => (editing ? list.reload() : list.showFirst())} />
     </>
   );
