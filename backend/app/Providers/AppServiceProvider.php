@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Services\Sms\LogSmsSender;
+use App\Services\Sms\SmsSender;
 use App\Support\PlatformSettings;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -19,7 +21,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // text messages: only the log driver exists so far; a provider driver is added here, chosen by services.sms.driver
+        $this->app->bind(SmsSender::class, LogSmsSender::class);
     }
 
     /**
@@ -39,6 +42,13 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(3)->by('contact-minute|'.$request->ip()),
             Limit::perHour(10)->by('contact-hour|'.$request->ip()),
         ]);
+        // starting a payment talks to a gateway: 10 a minute for each shop and 20 for each address, so a loop or a script cannot flood it
+        RateLimiter::for('payment-initiate', fn (Request $request) => [
+            Limit::perMinute(10)->by('pay-shop|'.($request->user()?->shop_id ?: $request->ip())),
+            Limit::perMinute(20)->by('pay-ip|'.$request->ip()),
+        ]);
+        // gateways call back: 120 a minute for each address, on top of the signature check
+        RateLimiter::for('webhook', fn (Request $request) => Limit::perMinute(120)->by('webhook|'.$request->ip()));
         // every other request: 120 a minute for each signed-in user (or address)
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(120)->by($request->user()?->id ?: $request->ip()));
 

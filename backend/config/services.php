@@ -28,6 +28,11 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // text messages (renewal reminders): "log" writes them to the log; a provider driver is bound in AppServiceProvider
+    'sms' => [
+        'driver' => env('SMS_DRIVER', 'log'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

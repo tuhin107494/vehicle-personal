@@ -44,6 +44,12 @@ class User extends Authenticatable
         return $this->belongsTo(Shop::class);
     }
 
+    /** Texts go to the shop's phone: a user has no number of their own. */
+    public function routeNotificationForSms(): ?string
+    {
+        return $this->shop?->phone;
+    }
+
     public function isSuperAdmin(): bool
     {
         return $this->role === 'super_admin';
