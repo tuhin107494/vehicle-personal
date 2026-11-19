@@ -15,6 +15,7 @@ import { CancelSaleModal, CollectPaymentModal, PromiseModal } from "@/components
 import { SaleEditModal } from "@/components/forms/SaleEditModal";
 import { SaleChargeModal } from "@/components/forms/SaleChargeModal";
 import { Ban, CalendarClock, HandCoins, Pencil, Plus, Printer, Trash2 } from "lucide-react";
+import { SmsSwitch } from "@/components/SmsSwitch";
 import { openSaleMemo } from "@/components/SaleMemo";
 
 const STEPS = ["pending", "bank_chalan_done", "file_received", "file_processing", "registration_complete", "document_provided"];
@@ -160,6 +161,7 @@ export default function SaleDetailPage() {
           {active && can("payments.collect") && sale.due_amount > 0 && <Button onClick={() => setModal("pay")}><HandCoins className="size-4 " /> Collect payment</Button>}
           {active && can("promises.manage") && sale.due_amount > 0 && sale.payment_type === "due" && <Button variant="outline" onClick={() => setModal("promise")}><CalendarClock className="size-4 text-amber-500" /> Add promise</Button>}
           {active && can("sales.charge") && <Button variant="outline" onClick={() => setChargeFor("new")}><Plus className="size-4 text-amber-600" /> Add charge</Button>}
+          {active && sale.payment_type !== "cash" && <SmsSwitch path={`/sales/${sale.id}/sms`} enabled={sale.sms_enabled} what="sale" />}
           {active && can("sales.edit") && <Button variant="outline" onClick={() => setModal("edit")}><Pencil className="size-4 text-emerald-600" /> Edit</Button>}
           {active && can("sales.cancel") && <Button variant="danger" onClick={() => setModal("cancel")}><Ban className="size-4 " /> Cancel sale</Button>}
         </>}

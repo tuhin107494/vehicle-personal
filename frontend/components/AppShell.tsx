@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useT } from "@/lib/i18n";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { BadgeDollarSign, CalendarDays, HandCoins, Menu, X, Building2, Car, ChartColumn, KeyRound, LayoutDashboard, Landmark, LogOut, Settings, ShieldCheck, ShoppingCart, Tags, Truck, UserCog, Users, Wallet } from "lucide-react";
+import { BadgeDollarSign, CalendarDays, HandCoins, Menu, X, Building2, Car, ChartColumn, KeyRound, LayoutDashboard, Landmark, LogOut, MessageSquare, Settings, ShieldCheck, ShoppingCart, Tags, Truck, UserCog, Users, Wallet } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Avatar } from "@/components/Avatar";
 import { SubscriptionBanner } from "@/components/SubscriptionBanner";
@@ -22,6 +22,7 @@ export const NAV: Item[] = [
   { href: "/purchases/new", text: "Purchases", icon: ShoppingCart, color: "text-orange-500", permission: "purchases.create" },
   { href: "/vehicles", text: "Vehicles", icon: Car, color: "text-blue-600", permission: "vehicles.view" },
   { href: "/collections", text: "Due alert", icon: Wallet, color: "text-amber-500", permission: "collections.view" },
+  { href: "/sms", text: "SMS", icon: MessageSquare, color: "text-teal-600", permission: "sms.view" },
   { href: "/due-collection", text: "Due collection", icon: HandCoins, color: "text-green-600", permission: "payments.collect" },
   { href: "/supplier-payment", text: "Supplier payment", icon: HandCoins, color: "text-green-600", permission: "purchases.edit" },
   { href: "/customers", text: "Customers", icon: Users, color: "text-sky-600", permission: "parties.view" },

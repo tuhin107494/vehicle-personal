@@ -47,6 +47,8 @@ class PermissionCatalog
             ['registration.update', 'Update registration status', 'sales'],
             ['reports.view', 'View reports', 'reports'],
             ['settings.manage', 'Manage shop settings', 'settings'],
+            ['sms.view', 'View the SMS log', 'sms'],
+            ['sms.manage', 'Turn SMS reminders on or off and retry failed SMS', 'sms'],
         ];
     }
 
@@ -60,6 +62,6 @@ class PermissionCatalog
     public static function moderatorDefaults(): array
     {
         return array_values(array_filter(array_column(self::all(), 0), fn ($k) => ! str_ends_with($k, '.delete')
-            && ! in_array($k, ['sales.edit', 'sales.charge', 'transactions.edit', 'transactions.cancel', 'sales.cancel', 'settlements.manage', 'settlements.view', 'reports.view', 'settings.manage'], true)));
+            && ! in_array($k, ['sales.edit', 'sales.charge', 'transactions.edit', 'transactions.cancel', 'sales.cancel', 'settlements.manage', 'settlements.view', 'reports.view', 'settings.manage', 'sms.view', 'sms.manage'], true)));
     }
 }

@@ -40,6 +40,7 @@ class Sale extends Model
         'guarantor_phone',
         'guarantor_name',
         'memo_no',
+        'sms_enabled',
     ];
 
     public const REGISTRATION_STEPS = [
@@ -61,6 +62,7 @@ class Sale extends Model
             'total_paid' => 'float',
             'due_amount' => 'float',
             'cancelled_at' => 'datetime',
+            'sms_enabled' => 'boolean',
         ];
     }
 

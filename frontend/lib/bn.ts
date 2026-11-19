@@ -307,4 +307,15 @@ export const BN: Record<string, string> = {
   "With the country code and no spaces. Visitors get a button that opens a WhatsApp chat with this number.": "কান্ট্রি কোডসহ, ফাঁকা ছাড়া লিখুন। ভিজিটররা এই নম্বরে হোয়াটসঅ্যাপ চ্যাট খোলার বোতাম পাবেন।",
   "Enter a valid phone number.": "সঠিক ফোন নম্বর দিন।",
   "Enter the number with its country code and no spaces, for example +8801712345678.": "কান্ট্রি কোডসহ ফাঁকা ছাড়া নম্বর দিন, যেমন +8801712345678।",
+  // SMS due alerts
+  "SMS log": "এসএমএস লগ", SMS: "এসএমএস", "Message texts": "মেসেজের লেখা", "Due alerts": "ডিউ অ্যালার্ট", "Which days": "কোন দিন", "Every day at": "প্রতিদিন সময়", "Only from": "শুধু যখন থেকে", Until: "যতক্ষণ", "Send this SMS": "এই এসএমএস পাঠান", On: "চালু", Off: "বন্ধ", "SMS due alerts": "এসএমএস ডিউ অ্যালার্ট", "Send due alerts to customers by SMS": "কাস্টমারকে এসএমএসে ডিউ অ্যালার্ট পাঠান",
+  "First reminder": "প্রথম রিমাইন্ডার", "Overdue reminder": "মেয়াদোত্তীর্ণ রিমাইন্ডার", "Final reminder": "শেষ রিমাইন্ডার",
+  "Before the due date": "নির্ধারিত তারিখের আগে", "On the due date": "নির্ধারিত তারিখে", "Test SMS": "টেস্ট এসএমএস", "Staff test": "স্টাফ টেস্ট",
+  "Built-in text": "ডিফল্ট লেখা", Bangla: "বাংলা", English: "ইংরেজি", "Send a test SMS to": "টেস্ট এসএমএস পাঠান", Send: "পাঠান",
+  "SMS reminders on": "এসএমএস রিমাইন্ডার চালু", "SMS reminders off": "এসএমএস রিমাইন্ডার বন্ধ", "SMS reminders turned on": "এসএমএস রিমাইন্ডার চালু হয়েছে", "SMS reminders turned off": "এসএমএস রিমাইন্ডার বন্ধ হয়েছে",
+  Sent: "পাঠানো", Failed: "ব্যর্থ", "SMS parts": "এসএমএস পার্ট", Retry: "আবার চেষ্টা", "All statuses": "সব অবস্থা", "All stages": "সব ধাপ", Stage: "ধাপ",
+  "No SMS this month.": "এই মাসে কোনো এসএমএস নেই।", "Template saved": "টেমপ্লেট সংরক্ষিত", "SMS queued again": "এসএমএস আবার পাঠানোর তালিকায়", "Test SMS sent": "টেস্ট এসএমএস পাঠানো হয়েছে", "Test SMS queued": "টেস্ট এসএমএস পাঠানোর তালিকায়",
+  "When to send": "কখন পাঠাবে", "Send every day at": "প্রতিদিন পাঠানোর সময়", "Sending hours from": "পাঠানোর সময় শুরু", "Sending hours until": "পাঠানোর সময় শেষ",
+  "Run now": "এখনই চালান", "Running...": "চলছে...", "Not run yet": "এখনো চালানো হয়নি", "Turn the alerts on to run them.": "চালাতে আগে অ্যালার্ট চালু করুন।",
+  queued: "অপেক্ষমাণ", sent: "পাঠানো", delivered: "পৌঁছেছে", failed: "ব্যর্থ", skipped: "বাদ",
 };

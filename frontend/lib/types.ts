@@ -7,6 +7,7 @@ export type LandingInfo = {
 export type Customer = {
   id: number; name: string; father_name: string | null; phone: string; alt_phone: string | null; nid: string | null;
   address: string | null; notes: string | null; receivable_due?: number; photo_url?: string | null;
+  sms_enabled?: boolean; // due alerts by SMS for this customer
 };
 export type Supplier = {
   id: number; name: string; phone: string; alt_phone: string | null; nid: string | null; address: string | null; notes: string | null; photo_url?: string | null;
@@ -57,7 +58,7 @@ export type RegLog = {
 export type Sale = {
   id: number; vehicle_id: number; customer_id: number; sale_date: string; sale_price: number; down_payment: number;
   payment_type: "cash" | "due" | "installment"; guarantor_phone: string | null; guarantor_name?: string | null; memo_no?: string | null; total_paid: number; due_amount: number; grand_total: number;
-  payment_status: "paid" | "partial" | "unpaid"; status: "active" | "cancelled"; cancel_reason: string | null;
+  payment_status: "paid" | "partial" | "unpaid"; status: "active" | "cancelled"; cancel_reason: string | null; sms_enabled?: boolean;
   registration_status: string; vehicle?: Vehicle; customer?: Customer; investor?: Investor; plan?: Plan;
   payments?: Payment[]; promises?: Promise_[]; registration_logs?: RegLog[]; charges?: { id: number; purpose: string; amount: number; charged_on: string; note: string | null; paid: number | null }[]; edits?: { id: number; by: string | null; at: string; changes: { field: string; from: string | null; to: string | null }[] }[];
   booking?: { id: number; advance_amount: number; advance_method: string; booked_on: string; expires_on: string | null; agreed_price: number | null; note: string | null; booked_by: string | null } | null; // the booking this sale completed
@@ -119,3 +120,14 @@ export type Booking = {
   vehicle?: { id: number; chassis_no: string; engine_no: string; brand: string | null; model: string | null; year: number | null; vehicle_type: string; status: string };
   customer?: { id: number; name: string; phone: string; alt_phone: string | null };
 };
+
+/** One SMS due alert (or a test SMS) as the log shows it: the number comes masked. */
+export type SmsStage = "upcoming" | "today" | "overdue" | "final";
+export type SmsLog = {
+  id: number; customer: { id: number; name: string } | null; sale_id: number | null; due_type: "installment" | "promise" | null; stage: SmsStage | null;
+  phone: string; message: string; parts: number; cost: number; provider: string | null; status: "queued" | "sent" | "delivered" | "failed" | "skipped";
+  response: string | null; sent_at: string | null; created_at: string;
+};
+export type SmsSummary = { month: string; sent: number; failed: number; skipped: number; queued: number; parts: number; cost: number; live: boolean };
+/** A due-alert template: the shop's own wording, or the built-in text while it is not edited. */
+export type SmsTemplate = { key: string; stage: SmsStage; body_bn: string; body_en: string; is_active: boolean; edited: boolean };

@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\ShopSetting;
+use App\Services\Sms\SmsSettings;
 use Illuminate\Support\Facades\DB;
 
 /** Per-shop presets: what the purchase and sale forms fill in when a vehicle type is chosen. */
@@ -19,6 +20,8 @@ class ShopSettings
             'collections' => ['recall_days' => self::recallDays(), 'keep_selection' => self::keepSelection()],
             'forms' => ['auto_date' => self::autoDate(), 'memo_no' => self::memoNo(), 'removal' => self::removal()],
             'booking' => ['days' => self::bookingDays(), 'on_cancel' => self::bookingPolicy('on_cancel'), 'on_expire' => self::bookingPolicy('on_expire')],
+            // due alerts by SMS; "live" says whether a real gateway is set in .env (the log driver sends nothing)
+            'sms' => SmsSettings::forShop((int) auth()->user()?->shop_id) + ['live' => config('sms.driver') !== 'log'],
         ];
     }
 
@@ -140,6 +143,8 @@ class ShopSettings
                     ShopSetting::updateOrCreate(['key' => "booking.$field"], ['value' => $input['booking'][$field]]);
                 }
             }
+
+            SmsSettings::save($input['sms'] ?? []);
 
             foreach ($input['type_defaults'] ?? [] as $type => $fields) {
                 foreach (self::TYPE_FIELDS as $field) {

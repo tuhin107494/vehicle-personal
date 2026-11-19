@@ -22,7 +22,13 @@ class Customer extends Model
         'nid',
         'address',
         'notes',
+        'sms_enabled',
     ];
+
+    protected function casts(): array
+    {
+        return ['sms_enabled' => 'boolean'];
+    }
 
     /** @return HasMany<Sale, $this> */
     public function sales(): HasMany

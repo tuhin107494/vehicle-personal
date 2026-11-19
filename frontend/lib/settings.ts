@@ -13,6 +13,12 @@ export type Settings = {
   collections: { recall_days: number; keep_selection: boolean };
   forms: { auto_date: boolean; memo_no: boolean; removal: "delete" | "cancel" };
   booking: { days: number; on_cancel: "refund" | "keep"; on_expire: "refund" | "keep" };
+  // due alerts by SMS; "live" is false while the server only logs SMS (no gateway set up)
+  sms: {
+    enabled: boolean; language: "bn" | "en"; days: { upcoming: number; overdue: number; final: number }; live: boolean;
+    send_time: string; send_from: number; send_until: number; // when the day's run sends, and the hours SMS may go out (24h)
+    last_run: string | null; last_count: number | null; // the last run: "YYYY-MM-DD HH:mm" and how many SMS it queued
+  };
 };
 
 /** The shop's primary form values (what the purchase and sale forms start with). */

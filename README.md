@@ -108,6 +108,15 @@ Purchase (from a supplier, optionally funded by investors)
 
 Vehicles are created through **purchases** and never directly. The domain logic lives in [`app/Services`](backend/app/Services) (`PurchaseService`, `SaleService`, `PaymentService`, …), so keep controllers thin.
 
+### SMS due alerts
+
+Customers get SMS for one thing only: their unpaid installments and promised dues. Each due gets at most one SMS per stage: 3 days before, on the day, 1 day after and 7 days after. Each shop can change the days, edit the Bangla and English texts, or switch a stage off on the **SMS** page. Every SMS goes through [`SmsService`](backend/app/Services/Sms/SmsService.php) and the `sms` queue. The service checks again that the due is still unpaid just before sending, and it sends only within the shop's sending hours (9 am to 8 pm by default, Asia/Dhaka).
+
+- **Off by default.** A shop turns the alerts on in the **SMS** page's Settings tab. Staff can stop them for one customer or one sale from its page.
+- **Gateway.** Set `SMS_DRIVER` (`smsnetbd` or `bulksmsbd`) and that gateway's key and sender ID in `backend/.env`. `SMS_FALLBACK_DRIVER` is tried when the first one fails. The default `log` driver only writes SMS to the log.
+- **Production** needs the scheduler (`* * * * * php artisan schedule:run`), which runs `sms:due-alerts` every 5 minutes (each shop is run once a day at the send time it picks, 10:00 by default) and `sms:balance-check` at 09:30. It also needs one queue worker under Supervisor: `php artisan queue:work --queue=sms,default --tries=3`.
+- **Log.** Every attempt is listed on the **SMS** page, with the month's count and cost. Failed SMS can be retried from there.
+
 ---
 
 ## Project structure

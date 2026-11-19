@@ -10,6 +10,7 @@ import { fmtDate, money } from "@/lib/format";
 import { useFetch } from "@/lib/hooks";
 import type { Customer, Purchase, Sale } from "@/lib/types";
 import { Button, Card, ErrorText, KV, Loading, PageHeader, StatusBadge } from "@/components/app-ui";
+import { SmsSwitch } from "@/components/SmsSwitch";
 import { Avatar } from "@/components/Avatar";
 import { Col, DataTable } from "@/components/DataTable";
 import { CustomerForm } from "@/components/forms/CustomerForm";
@@ -77,6 +78,7 @@ export default function CustomerDetailPage() {
         title={customer.name}
         actions={<>
           {can("parties.edit") && <Button variant="outline" onClick={() => setEditing(true)}><Pencil className="size-4 text-emerald-600" /> Edit</Button>}
+          <SmsSwitch path={`/customers/${customer.id}/sms`} enabled={customer.sms_enabled} what="customer" />
           {can("parties.delete") && <Button variant="danger" onClick={remove}><Trash2 className="size-4 " /> Delete</Button>}
         </>}
       />
