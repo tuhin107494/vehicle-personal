@@ -101,7 +101,6 @@ export function InvestorSaleForm() {
   }, [presetVehicle.data, setValue]);
   const sale = useFetch<Sale>(chosen?.current_sale_id ? `/sales/${chosen.current_sale_id}` : null);
   const s = sale.data && sale.data.id === chosen?.current_sale_id ? sale.data : null;
-  const financed = s ? r2(s.sale_price - s.down_payment) : 0;
   const blocked = !s ? null
     : s.status !== "active" || s.payment_type === "cash" ? "This vehicle was sold for cash, so there is nothing left for an investor to fund."
     : s.investor_sale ? "This sale already has an investor sale."
@@ -169,7 +168,6 @@ export function InvestorSaleForm() {
     if (!s) return void setError("vehicle_id", { message: "Select the sold vehicle." });
     if (blocked) return void setError("vehicle_id", { message: blocked });
     if (v.customer_id && Number(v.customer_id) === s.customer_id) return void setError("customer_id", { message: "The additional customer must be someone other than the buyer." });
-    if (due > financed) return void setError("down_payment", { message: `The due amount cannot be more than the ${money(financed)} the customer still owes.` });
     try {
       const body = toPayload({
         investor_id: v.investor_id, customer_id: v.customer_id, date: v.date, sale_price: v.sale_price, down_payment: v.down_payment || "0", method: v.method,

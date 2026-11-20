@@ -238,8 +238,6 @@ class InvestorSaleTest extends TestCase
         $this->postJson($url, $this->investorSaleData(['down_payment' => 500000, 'guarantor_phone' => 'abc']))->assertJsonValidationErrors(['down_payment', 'guarantor_phone']);
         $this->postJson($url, $this->investorSaleData(['installment_count' => 121, 'first_due_date' => '2026-01-01']))->assertJsonValidationErrors(['installment_count', 'first_due_date']);
 
-        // more than the 300,000 financed
-        $this->postJson($url, $this->investorSaleData(['down_payment' => 199999]))->assertStatus(409);
         // before the sale
         $this->postJson($url, $this->investorSaleData(['date' => '2026-01-04', 'first_due_date' => '2026-02-05']))->assertStatus(409);
         $this->assertDatabaseCount('investor_sales', 0);

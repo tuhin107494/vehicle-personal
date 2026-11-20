@@ -41,11 +41,6 @@ class InvestorSaleService
 
             // the investor funds what is left after the down payment
             $principal = Money::paisa($data['sale_price']) - Money::paisa($data['down_payment']);
-            $financed = Money::paisa($sale->sale_price) - Money::paisa($sale->down_payment);
-
-            if ($principal > $financed) {
-                throw new BusinessRuleException('The due amount (sale price less down payment) cannot be more than the '.Money::format($financed).' the customer still owes on the sale.');
-            }
 
             if (! empty($data['customer_id']) && (int) $data['customer_id'] === $sale->customer_id) {
                 throw new BusinessRuleException('The additional customer must be someone other than the buyer.');
