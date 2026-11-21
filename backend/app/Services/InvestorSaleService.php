@@ -157,14 +157,16 @@ class InvestorSaleService
                 'profit_amount' => Money::paisa($investorSale->profit_amount), 'number_of_installments' => $investorSale->number_of_installments,
                 'frequency' => $investorSale->frequency, 'start_date' => $investorSale->start_date->toDateString(),
             ];
-            $termsChanged = $terms != $now;
+            // a new first installment date alone only moves the schedule (even after money moved); the other terms redraw it
+            $startChanged = $terms['start_date'] !== $now['start_date'];
+            $termsChanged = array_diff_key($terms, ['start_date' => 0]) != array_diff_key($now, ['start_date' => 0]);
 
             if ($termsChanged) {
                 $moneyMoved = $investorSale->settlements()->whereIn('type', ['principal_return', 'profit_share'])->exists()
                     || $investorSale->settlements()->where('type', 'investment')->where(fn ($q) => $q->whereNull('note')->orWhere('note', 'not like', 'Auto:%'))->exists();
 
                 if ($moneyMoved) {
-                    throw new BusinessRuleException('Money has already been paid on this investor sale, so its amounts and schedule cannot change. Only its details can be edited.');
+                    throw new BusinessRuleException('Money has already been paid on this investor sale, so its amounts cannot change. Its details and installment dates can still be edited.');
                 }
 
                 if ($principal > $afterCustomer) {
@@ -187,6 +189,7 @@ class InvestorSaleService
                 'memo_no' => $data['memo_no'] ?? null,
                 'guarantor_name' => $data['guarantor_name'] ?? null,
                 'guarantor_phone' => $data['guarantor_phone'] ?? null,
+                'start_date' => $terms['start_date'],
                 ...($termsChanged ? [
                     'sale_price' => $data['sale_price'],
                     'down_payment' => $data['down_payment'],
@@ -197,7 +200,6 @@ class InvestorSaleService
                     'total_payable' => Money::taka($principal + $profit),
                     'number_of_installments' => $terms['number_of_installments'],
                     'frequency' => $terms['frequency'],
-                    'start_date' => $terms['start_date'],
                 ] : []),
             ]);
 
@@ -220,6 +222,17 @@ class InvestorSaleService
             // a new schedule: its installments are drawn again
             if ($termsChanged) {
                 $investorSale->installments()->delete();
+                $this->syncInstallments($investorSale);
+            } elseif ($startChanged) {
+                // the same installments on the new dates; what is paid on them is worked out again
+                $dates = collect($investorSale->schedule())->pluck('due_date', 'seq_no');
+
+                foreach ($investorSale->installments()->get() as $installment) {
+                    if (isset($dates[$installment->seq_no])) {
+                        $installment->update(['due_date' => $dates[$installment->seq_no]->toDateString()]);
+                    }
+                }
+
                 $this->syncInstallments($investorSale);
             }
 

@@ -508,6 +508,11 @@ class InvestorSaleTest extends TestCase
         $edit(['installment_count' => 12])->assertStatus(409);
         $edit(['memo_no' => 'M-3', 'guarantor_name' => 'Karim'])->assertOk()->assertJsonPath('data.memo_no', 'M-3')->assertJsonPath('data.number_of_installments', 6);
 
+        // the dates can still move: the same installments a month later, with what was paid kept
+        $edit(['first_due_date' => '2026-03-07'])->assertOk()->assertJsonPath('data.total_payable', 330000);
+        $this->assertSame(['2026-03-07', '2026-04-07'], Installment::where('investor_sale_id', $id)->orderBy('seq_no')->take(2)->get()->map(fn ($i) => $i->due_date->toDateString())->all());
+        $this->assertDatabaseHas('installments', ['investor_sale_id' => $id, 'seq_no' => 1, 'paid_amount' => 1000]);
+
         // a cancelled one cannot be edited, and editing needs its permission
         $this->as(User::factory()->create(['role' => 'moderator', 'shop_id' => $this->shop->id]));
         $edit(['memo_no' => 'X'])->assertForbidden();

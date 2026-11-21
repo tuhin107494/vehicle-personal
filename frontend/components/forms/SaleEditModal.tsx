@@ -5,7 +5,7 @@ import { Plus } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { api, applyServerErrors } from "@/lib/api";
-import { toPayload } from "@/lib/format";
+import { nextMonth, toPayload } from "@/lib/format";
 import { useAdditionalCustomer, useMemoField, usePromiseField } from "@/lib/settings";
 import type { Sale } from "@/lib/types";
 import { Button, Field, inputCls, Modal } from "@/components/app-ui";
@@ -56,6 +56,7 @@ export function SaleEditModal({ open, sale, onClose, onDone }: { open: boolean; 
     if (!v.party_id) return setError("party_id", { message: "Select the buyer." });
     if (v.additional_customer_id && v.additional_customer_id === v.party_id) return setError("additional_customer_id", { message: "The additional customer must be someone other than the buyer." });
     if (!v.sale_date) return setError("sale_date", { message: "Sale date is required." });
+    if (v.payment_type === "installment" && v.first_due_date && v.first_due_date <= v.sale_date) return setError("first_due_date", { message: "First installment date must be after the sale date." });
     if (!v.sale_price || Number(v.sale_price) < 1) return setError("sale_price", { message: "Sale price is required." });
     if (type !== "cash" && v.down_payment === "") return setError("down_payment", { message: "Enter the down payment." });
     try {
@@ -94,7 +95,10 @@ export function SaleEditModal({ open, sale, onClose, onDone }: { open: boolean; 
           ) : <Button variant="outline" onClick={() => setExtraOpen(true)}><Plus className="size-4 text-emerald-600" /> Additional customer</Button>}
         </div>}
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field required label="Sale date" error={errors.sale_date?.message}><Input type="date" className={inputCls} {...register("sale_date")} /></Field>
+          <Field required label="Sale date" error={errors.sale_date?.message}><Input type="date" className={inputCls} {...register("sale_date", {
+            // the first installment follows the sale date (a month later); after payments too, the schedule just moves
+            onChange: (e) => { if (e.target.value && w.payment_type === "installment") setValue("first_due_date", nextMonth(e.target.value)); },
+          })} /></Field>
           <Field required label="Sale price" error={errors.sale_price?.message}><Input type="number" step="0.01" className={inputCls} {...register("sale_price")} /></Field>
           <Field required label="Payment type" error={errors.payment_type?.message}>
             <NativeSelect className={inputCls} {...register("payment_type")}>
@@ -114,7 +118,7 @@ export function SaleEditModal({ open, sale, onClose, onDone }: { open: boolean; 
         {type === "installment" && (
           <div className="grid gap-3 sm:grid-cols-2">
             <Field required label="Number of installments" error={errors.installment_count?.message}><Input type="number" min="1" max="120" className={inputCls} {...register("installment_count")} /></Field>
-            <Field required label="First installment date" error={errors.first_due_date?.message}><Input type="date" className={inputCls} {...register("first_due_date")} /></Field>
+            <Field required label="First installment date" error={errors.first_due_date?.message}><Input type="date" min={w.sale_date || undefined} className={inputCls} {...register("first_due_date")} /></Field>
             <Field label="Frequency" error={errors.frequency?.message}>
               <NativeSelect className={inputCls} {...register("frequency")}><option value="monthly">Monthly</option><option value="weekly">Weekly</option></NativeSelect>
             </Field>

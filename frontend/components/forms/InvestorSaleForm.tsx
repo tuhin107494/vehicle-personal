@@ -19,7 +19,7 @@ import { useAuth } from "@/lib/auth";
 import { CustomerSelect, InvestorSelect } from "@/components/Selects";
 import { SearchSelect } from "@/components/SearchSelect";
 import { useCategories } from "@/lib/categories";
-import { useAdditionalCustomer } from "@/lib/settings";
+import { useAdditionalCustomer, useAutoDate, useFillDate } from "@/lib/settings";
 import { useT } from "@/lib/i18n";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -97,9 +97,12 @@ export function InvestorSaleForm() {
   const [created, setCreated] = useState<InvestorSale | null>(null); // the investor sale just saved: its invoice is offered here
   const { lang } = useT();
   const { nameOf } = useCategories();
-  const blank: Values = { vehicle_id: "", investor_id: "", customer_id: "", date: todayStr(), sale_price: "", down_payment: "", investor_down_payment: "0", plan_amount: "0", method: "cash", memo_no: "", guarantor_name: "", guarantor_phone: "", profit_mode: "percent", profit_rate: "", profit_amount: "", installment_count: "0", frequency: "monthly", first_due_date: nextMonth() };
+  const blank: Values = { vehicle_id: "", investor_id: "", customer_id: "", date: "", sale_price: "", down_payment: "", investor_down_payment: "0", plan_amount: "0", method: "cash", memo_no: "", guarantor_name: "", guarantor_phone: "", profit_mode: "percent", profit_rate: "", profit_amount: "", installment_count: "0", frequency: "monthly", first_due_date: nextMonth() };
   const { register, handleSubmit, reset, setValue, getValues, watch, setError, formState: { errors, isSubmitting } } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: blank });
   const w = watch();
+  // the sale date starts empty, as on the Sale form, unless the shop's "fill in today's date" setting is on
+  const autoDate = useAutoDate();
+  useFillDate(autoDate, () => !getValues("date"), (d) => setValue("date", d));
 
   // only vehicles already sold can get an investor sale; the list is searched on the server
   const [opened, setOpened] = useState(false);
@@ -194,7 +197,7 @@ export function InvestorSaleForm() {
   }, [afterCustomer]);
 
   const clear = () => {
-    reset(blank);
+    reset({ ...blank, date: autoDate });
     lastAuto.current = "0";
     setChosen(null);
     setExtraOpen(false);
