@@ -54,7 +54,7 @@ class InvestorSaleController extends Controller implements HasMiddleware
                 ->orWhereHas('sale.vehicle', fn ($q) => $q->where('chassis_no', 'like', "%$term%")->orWhere('engine_no', 'like', "%$term%"))
                 ->orWhereHas('sale.customer', fn ($q) => $q->where('name', 'like', "%$term%")->orWhere('phone', 'like', "%$term%"))))
             ->orderBy('date')->orderBy('id')->get()
-            ->filter(fn (InvestorSale $x) => Money::paisa($x->principal) > Money::paisa($x->given ?? 0))
+            ->filter(fn (InvestorSale $x) => $x->investorAmount() > Money::paisa($x->given ?? 0))
             ->values();
 
         return $this->success(InvestorSaleResource::collection($rows));

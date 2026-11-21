@@ -6,8 +6,16 @@ use Illuminate\Validation\Rule;
 
 class InvestorSaleRequest extends ApiRequest
 {
+    /** An amount on the plan of 0: the investor collects from the customer directly, so there is no schedule or profit to give. */
+    protected function noPlan(): bool
+    {
+        return $this->filled('plan_amount') && is_numeric($this->input('plan_amount')) && (float) $this->input('plan_amount') === 0.0;
+    }
+
     public function rules(): array
     {
+        $plan = fn (array $rules) => $this->noPlan() ? ['exclude'] : $rules;
+
         return [
             'investor_id' => ['required', $this->shopExists('investors')],
             // one more customer besides the sale's buyer (a co-buyer or guarantor)
@@ -17,7 +25,8 @@ class InvestorSaleRequest extends ApiRequest
             'sale_price' => ['required', 'numeric', 'min:1', 'max:999999999999'],
             'down_payment' => ['required', 'numeric', 'min:0', 'lt:sale_price'],
             // the investor's amount (the principal the shop pays back with interest): empty is the price less the down payment
-            'plan_amount' => ['nullable', 'numeric', 'min:1', 'max:999999999999'],
+            // 0: no plan, the investor collects from the customer directly
+            'plan_amount' => ['nullable', 'numeric', 'min:0', 'max:999999999999'],
             // what the investor gives the shop of it now; the rest is their due (empty: all of it now)
             'investor_down_payment' => ['nullable', 'numeric', 'min:0', 'max:999999999999'],
             'method' => ['nullable', Rule::in(['cash', 'bank', 'mobile'])],
@@ -25,11 +34,11 @@ class InvestorSaleRequest extends ApiRequest
             'guarantor_name' => ['nullable', 'string', 'max:100'],
             'guarantor_phone' => ['nullable', 'string', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
             // the investor's profit: a flat percentage of the amount, or the amount itself
-            'profit_rate' => ['required_without:profit_amount', 'nullable', 'numeric', 'min:0', 'max:1000'],
-            'profit_amount' => ['required_without:profit_rate', 'nullable', 'numeric', 'min:0', 'max:999999999999'],
-            'installment_count' => ['required', 'integer', 'min:1', 'max:120'],
-            'frequency' => ['nullable', Rule::in(['monthly', 'weekly'])],
-            'first_due_date' => ['required', 'date', 'after:date'],
+            'profit_rate' => $plan(['required_without:profit_amount', 'nullable', 'numeric', 'min:0', 'max:1000']),
+            'profit_amount' => $plan(['required_without:profit_rate', 'nullable', 'numeric', 'min:0', 'max:999999999999']),
+            'installment_count' => $plan(['required', 'integer', 'min:1', 'max:120']),
+            'frequency' => $plan(['nullable', Rule::in(['monthly', 'weekly'])]),
+            'first_due_date' => $plan(['required', 'date', 'after:date']),
         ];
     }
 

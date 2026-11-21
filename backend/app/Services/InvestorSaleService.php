@@ -49,11 +49,11 @@ class InvestorSaleService
                 throw new BusinessRuleException('The amount on the plan cannot be more than the '.Money::format($afterCustomer).' left after the customer\'s down payment.');
             }
 
-            // what the investor gives the shop now; the rest of their amount they owe the shop
-            $investorDown = isset($data['investor_down_payment']) && $data['investor_down_payment'] !== '' ? Money::paisa($data['investor_down_payment']) : $principal;
+            // what the investor gives the shop now toward the price (not tied to the amount on the plan); the rest of the price they owe the shop
+            $investorDown = isset($data['investor_down_payment']) && $data['investor_down_payment'] !== '' ? Money::paisa($data['investor_down_payment']) : $afterCustomer;
 
-            if ($investorDown > $principal) {
-                throw new BusinessRuleException('The investor\'s down payment cannot be more than the amount on the plan ('.Money::format($principal).').');
+            if ($investorDown > $afterCustomer) {
+                throw new BusinessRuleException('The investor\'s down payment cannot be more than the '.Money::format($afterCustomer).' left after the customer\'s down payment.');
             }
 
             if (! empty($data['customer_id']) && (int) $data['customer_id'] === $sale->customer_id) {
@@ -82,9 +82,10 @@ class InvestorSaleService
                 'profit_rate' => $rate,
                 'profit_amount' => Money::taka($profit),
                 'total_payable' => Money::taka($principal + $profit),
-                'number_of_installments' => (int) $data['installment_count'],
+                // with no plan (amount 0) there is no schedule: no installments, and it starts on its own date
+                'number_of_installments' => (int) ($data['installment_count'] ?? 0),
                 'frequency' => $data['frequency'] ?? 'monthly',
-                'start_date' => $data['first_due_date'],
+                'start_date' => $data['first_due_date'] ?? $data['date'],
                 'status' => 'active',
                 'created_by' => $user->id,
             ]);
@@ -134,7 +135,7 @@ class InvestorSaleService
 
             $afterCustomer = Money::paisa($data['sale_price']) - Money::paisa($data['down_payment']);
             $principal = isset($data['plan_amount']) && $data['plan_amount'] !== '' ? Money::paisa($data['plan_amount']) : $afterCustomer;
-            $investorDown = isset($data['investor_down_payment']) && $data['investor_down_payment'] !== '' ? Money::paisa($data['investor_down_payment']) : $principal;
+            $investorDown = isset($data['investor_down_payment']) && $data['investor_down_payment'] !== '' ? Money::paisa($data['investor_down_payment']) : $afterCustomer;
             [$rate, $profit] = $this->profitOf($data, $principal);
 
             // the same percentage on the same amount keeps the profit as saved: a profit first given as an amount is stored
@@ -146,12 +147,12 @@ class InvestorSaleService
             $terms = [
                 'sale_price' => Money::paisa($data['sale_price']), 'down_payment' => Money::paisa($data['down_payment']),
                 'investor_down_payment' => $investorDown, 'principal' => $principal, 'profit_amount' => $profit,
-                'number_of_installments' => (int) $data['installment_count'], 'frequency' => $data['frequency'] ?? 'monthly',
-                'start_date' => Carbon::parse($data['first_due_date'])->toDateString(),
+                'number_of_installments' => (int) ($data['installment_count'] ?? 0), 'frequency' => $data['frequency'] ?? 'monthly',
+                'start_date' => Carbon::parse($data['first_due_date'] ?? $data['date'])->toDateString(),
             ];
             $now = [
                 'sale_price' => Money::paisa($investorSale->sale_price), 'down_payment' => Money::paisa($investorSale->down_payment),
-                'investor_down_payment' => Money::paisa($investorSale->investor_down_payment ?? $investorSale->principal), 'principal' => Money::paisa($investorSale->principal),
+                'investor_down_payment' => $investorSale->investor_down_payment !== null ? Money::paisa($investorSale->investor_down_payment) : $investorSale->investorAmount(), 'principal' => Money::paisa($investorSale->principal),
                 'profit_amount' => Money::paisa($investorSale->profit_amount), 'number_of_installments' => $investorSale->number_of_installments,
                 'frequency' => $investorSale->frequency, 'start_date' => $investorSale->start_date->toDateString(),
             ];
@@ -169,8 +170,8 @@ class InvestorSaleService
                     throw new BusinessRuleException('The amount on the plan cannot be more than the '.Money::format($afterCustomer).' left after the customer\'s down payment.');
                 }
 
-                if ($investorDown > $principal) {
-                    throw new BusinessRuleException('The investor\'s down payment cannot be more than the amount on the plan ('.Money::format($principal).').');
+                if ($investorDown > $afterCustomer) {
+                    throw new BusinessRuleException('The investor\'s down payment cannot be more than the '.Money::format($afterCustomer).' left after the customer\'s down payment.');
                 }
 
                 if ($rate > 1000) {
@@ -201,7 +202,7 @@ class InvestorSaleService
 
             // the investor's down payment entry follows the edit (its amount, and its date with the investor sale's date)
             $auto = $investorSale->settlements()->where('type', 'investment')->where('note', 'like', 'Auto:%')->first();
-            $down = Money::paisa($investorSale->investor_down_payment ?? $investorSale->principal);
+            $down = $investorSale->investor_down_payment !== null ? Money::paisa($investorSale->investor_down_payment) : $investorSale->investorAmount();
 
             if ($down > 0 && $auto) {
                 $auto->update(['amount' => Money::taka($down), 'date' => $investorSale->date->toDateString()]);
@@ -355,7 +356,7 @@ class InvestorSaleService
         }
 
         // the shop pays the investor principal and profit; the investor gives the shop the rest of their amount (an investment)
-        $owed = ['principal_return' => Money::paisa($investorSale->principal), 'profit_share' => Money::paisa($investorSale->profit_amount), 'investment' => Money::paisa($investorSale->principal)];
+        $owed = ['principal_return' => Money::paisa($investorSale->principal), 'profit_share' => Money::paisa($investorSale->profit_amount), 'investment' => $investorSale->investorAmount()];
 
         if (! isset($owed[$data['type']])) {
             throw new BusinessRuleException('Only principal, profit or the investor\'s due can be entered on an investor sale.');
@@ -436,10 +437,14 @@ class InvestorSaleService
     /** @return array{0: float, 1: int} the profit rate (percent) and the profit in paisa, from either the rate or the amount given */
     private function profitOf(array $data, int $principal): array
     {
+        if ($principal <= 0) {
+            return [0.0, 0]; // no plan: nothing paid back, so no profit
+        }
+
         if (isset($data['profit_amount']) && $data['profit_amount'] !== '') {
             $profit = Money::paisa($data['profit_amount']);
 
-            return [$principal > 0 ? round($profit / $principal * 100, 2) : 0, $profit];
+            return [round($profit / $principal * 100, 2), $profit];
         }
 
         $rate = round((float) $data['profit_rate'], 2);

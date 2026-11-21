@@ -107,9 +107,24 @@ class InvestorSale extends Model
         return $this->hasMany(Installment::class)->orderBy('seq_no');
     }
 
+    /**
+     * What the investor has to give the shop toward the price, in paisa: the price less the customer's down payment.
+     * It has nothing to do with the amount on the plan (what the shop pays them back). Older ones without a price: their amount.
+     */
+    public function investorAmount(): int
+    {
+        return $this->sale_price !== null
+            ? max(Money::paisa($this->sale_price) - Money::paisa($this->down_payment), 0)
+            : Money::paisa($this->principal);
+    }
+
     public function schedule(): array
     {
         $rows = [];
+
+        if ($this->number_of_installments < 1 || Money::paisa($this->total_payable) <= 0) {
+            return $rows; // no plan: the investor collects from the customer directly
+        }
 
         foreach (Money::split(Money::paisa($this->total_payable), (int) $this->number_of_installments) as $i => $amount) {
             $due = $this->frequency === 'weekly' ? $this->start_date->copy()->addWeeks($i) : $this->start_date->copy()->addMonthsNoOverflow($i);

@@ -43,7 +43,7 @@ class InvestorPortfolioService
         $investorSales = InvestorSale::whereIn('investor_id', $ids)->where('status', 'active')
             ->withSum(['settlements as returned' => fn ($q) => $q->where('type', 'principal_return')], 'amount')
             ->withSum(['settlements as given' => fn ($q) => $q->where('type', 'investment')], 'amount')
-            ->get(['id', 'investor_id', 'principal'])->groupBy('investor_id');
+            ->get(['id', 'investor_id', 'principal', 'sale_price', 'down_payment'])->groupBy('investor_id');
 
         $sales = Sale::whereIn('investor_id', $ids)->where('status', 'active')->get(['id', 'investor_id', 'due_amount'])->groupBy('investor_id');
         $collected = Payment::whereIn('sale_id', $sales->flatten()->pluck('id'))->whereNotNull('installment_id')
@@ -57,7 +57,7 @@ class InvestorPortfolioService
             $outstanding = ($plans[$investor->id] ?? collect())->sum(fn ($plan) => max(Money::paisa($plan->principal) - Money::paisa($returned[$plan->id] ?? 0), 0))
                 + $funded->sum(fn ($x) => max(Money::paisa($x->principal) - Money::paisa($x->returned ?? 0), 0));
             // what the investor still has to give the shop of their amounts on investor sales
-            $owes = $funded->sum(fn ($x) => max(Money::paisa($x->principal) - Money::paisa($x->given ?? 0), 0));
+            $owes = $funded->sum(fn (InvestorSale $x) => max($x->investorAmount() - Money::paisa($x->given ?? 0), 0));
 
             return [$investor->id => [
                 'opening_balance' => (float) $investor->opening_balance,

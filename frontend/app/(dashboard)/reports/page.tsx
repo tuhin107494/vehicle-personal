@@ -26,6 +26,7 @@ import { useHiddenMenu } from "@/lib/menu";
 import { ReportPrint, useReportPrint } from "@/components/ReportPrint";
 import { PersonStatement } from "@/components/PersonStatement";
 import { ReceiveModal } from "@/components/InvestorSaleCard";
+import { printInvestorSaleInvoice } from "@/components/InvestorSaleInvoice";
 
 type Stock = { total_count: number; total_cost: number; vehicles: Vehicle[] };
 type Dues = { total_due: number; sales: (Sale & { next_due_date: string | null })[] };
@@ -96,7 +97,7 @@ function InvestorSalesReport() {
   const [status, setStatus] = useState("");
   const qs = new URLSearchParams({ ...(from && { from }), ...(to && { to }), ...(investor && { investor_id: investor }), ...(status && { status }) });
   const { data, loading, error, reload } = useFetch<{ totals: Record<string, number>; investor_sales: InvestorSale[] }>(`/reports/investor-sales?${qs}`);
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const [receiveFrom, setReceiveFrom] = useState<InvestorSale | null>(null); // collecting what the investor still owes on this one
   const pr = useReportPrint("Investor sales report");
   const active = (x: InvestorSale) => x.status === "active";
@@ -120,7 +121,7 @@ function InvestorSalesReport() {
       ) : "-",
     },
     { header: "Status", cell: ({ row }) => <StatusBadge status={row.original.status} /> },
-    viewCol<InvestorSale>((x) => `/investor-sales/${x.id}`),
+    viewCol<InvestorSale>((x) => `/investor-sales/${x.id}`, (x) => printInvestorSaleInvoice(x, user?.shop?.name ?? "Gari Becho")),
   ];
 
   return (

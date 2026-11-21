@@ -342,7 +342,8 @@ class InvestorSaleTest extends TestCase
         $sale = $this->installmentSale();
         $url = "/api/sales/{$sale['id']}/investor-sale";
         $this->postJson($url, $this->investorSaleData(['plan_amount' => 300001]))->assertStatus(409);
-        $this->postJson($url, $this->investorSaleData(['plan_amount' => 200000, 'investor_down_payment' => 200001]))->assertStatus(409);
+        // the investor's down payment goes toward the price, whatever the amount on the plan: up to the 300,000 left after the customer
+        $this->postJson($url, $this->investorSaleData(['plan_amount' => 200000, 'investor_down_payment' => 300001]))->assertStatus(409);
         $this->assertDatabaseCount('investor_sales', 0);
 
         // a smaller amount on the plan: the shop pays back that amount with interest
@@ -547,6 +548,40 @@ class InvestorSaleTest extends TestCase
 
         $ids = collect($this->getJson('/api/vehicles?status=sold&fundable=1')->assertOk()->json('data'))->pluck('id')->sort()->values()->all();
         $this->assertSame([$installment['vehicle_id'], $due['vehicle_id']], $ids);
+    }
+
+    public function test_an_investor_sale_with_no_plan_needs_no_schedule(): void
+    {
+        $sale = $this->installmentSale();
+        // amount on the plan 0: the investor collects from the customer directly, so no installments, date or profit are asked for
+        $x = $this->postJson("/api/sales/{$sale['id']}/investor-sale", [
+            'investor_id' => $this->investor->id, 'date' => '2026-01-06', 'sale_price' => 500000, 'down_payment' => 200000,
+            'plan_amount' => 0, 'investor_down_payment' => 0,
+        ])->assertCreated()->json('data');
+
+        $this->assertEquals(0, $x['principal']);
+        $this->assertEquals(0, $x['total_payable']);
+        $this->assertSame(0, $x['number_of_installments']);
+        $this->assertSame([], $x['schedule']);
+        $this->assertDatabaseMissing('installments', ['investor_sale_id' => $x['id']]);
+        $this->assertDatabaseMissing('investor_settlements', ['investor_sale_id' => $x['id']]);
+        // nothing to pay the investor; the price left after the customer (300,000) they still owe the shop
+        $this->pay($x['id'], 'principal_return', 1)->assertStatus(409);
+        $this->getJson('/api/investor-sales/dues')->assertJsonCount(1, 'data')->assertJsonPath('data.0.investor_owes', 300000);
+        $this->putJson("/api/investor-sales/{$x['id']}", [
+            'date' => '2026-01-06', 'sale_price' => 500000, 'down_payment' => 200000, 'plan_amount' => 0, 'investor_down_payment' => 0, 'memo_no' => 'M-1',
+        ])->assertOk()->assertJsonPath('data.memo_no', 'M-1');
+
+        // the investor's down payment has nothing to do with the plan: 250,000 down on no plan leaves 50,000 to collect
+        $third = $this->installmentSale('CH-3');
+        $this->postJson("/api/sales/{$third['id']}/investor-sale", [
+            'investor_id' => $this->investor->id, 'date' => '2026-01-06', 'sale_price' => 500000, 'down_payment' => 200000, 'plan_amount' => 0, 'investor_down_payment' => 250000,
+        ])->assertCreated()->assertJsonPath('data.investor_owes', 50000)->assertJsonPath('data.investor_paid', 250000);
+
+        // a plan still needs its installments
+        $other = $this->installmentSale('CH-2');
+        $this->postJson("/api/sales/{$other['id']}/investor-sale", ['investor_id' => $this->investor->id, 'date' => '2026-01-06', 'sale_price' => 500000, 'down_payment' => 200000, 'plan_amount' => 1000])
+            ->assertJsonValidationErrors(['installment_count', 'first_due_date']);
     }
 
     public function test_investor_sales_need_their_permissions(): void

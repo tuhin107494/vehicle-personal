@@ -139,7 +139,7 @@ export function InvestorSaleCard({ investorSale: x, onChanged, investorOnly = fa
         <KV items={[
           ["Investor", x.investor ? <Link key="i" className="underline" href={`/investors/${x.investor.id}`}>{x.investor.name}</Link> : "-"],
           ["Date", fmtDate(x.date)],
-          ["Installments", `${x.number_of_installments} ${x.frequency === "weekly" ? "weeks" : "months"}`],
+          ["Installments", x.number_of_installments > 0 ? `${x.number_of_installments} ${x.frequency === "weekly" ? "weeks" : "months"}` : "No plan (the investor collects from the customer)"],
           ["Status", <StatusBadge key="s" status={x.status} />],
         ]} />
       ) : <KV items={[
@@ -157,7 +157,7 @@ export function InvestorSaleCard({ investorSale: x, onChanged, investorOnly = fa
         ...(x.guarantor_phone && !investorOnly ? [["Guarantor", <a key="g" className="underline" href={`tel:${x.guarantor_phone}`}>{x.guarantor_phone}</a>] as [string, React.ReactNode]] : []),
         ["Investor's profit", `${money(x.profit_amount)} (${x.profit_rate}%)`],
         ["We pay back in total", money(x.total_payable)],
-        ["Installments", `${x.number_of_installments} ${x.frequency === "weekly" ? "weeks" : "months"}`],
+        ["Installments", x.number_of_installments > 0 ? `${x.number_of_installments} ${x.frequency === "weekly" ? "weeks" : "months"}` : "No plan (the investor collects from the customer)"],
         ...(p ? [
           ["Paid back so far", money(paid)] as [string, React.ReactNode],
           ["To pay now", <b key="d" className={p.current_due > 0 ? "text-amber-700" : ""}>{money(p.current_due)}</b>] as [string, React.ReactNode],
