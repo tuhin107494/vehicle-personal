@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { api, applyServerErrors } from "@/lib/api";
 import { money, nextMonth, todayStr, toPayload } from "@/lib/format";
 import { useDebounced, useFetch, useLoadMore } from "@/lib/hooks";
-import type { Investor, InvestorSale, Sale, Vehicle } from "@/lib/types";
+import type { Customer, Investor, InvestorSale, Sale, Vehicle } from "@/lib/types";
 import { ProfitCalculator } from "@/components/forms/ProfitCalculator";
 import { Button, Card, ErrorText, Field, inputCls, Modal, PageHeader } from "@/components/app-ui";
 import { printInvestorSaleInvoice } from "@/components/InvestorSaleInvoice";
@@ -116,6 +116,7 @@ export function InvestorSaleForm() {
     setChosen(v);
     setValue("vehicle_id", String(v.id));
   }, [presetVehicle.data, setValue]);
+  const extra = useFetch<Customer>(w.customer_id ? `/customers/${w.customer_id}` : null); // the additional customer's details
   const sale = useFetch<Sale>(chosen?.current_sale_id ? `/sales/${chosen.current_sale_id}` : null);
   const s = sale.data && sale.data.id === chosen?.current_sale_id ? sale.data : null;
   const blocked = !s ? null
@@ -128,6 +129,8 @@ export function InvestorSaleForm() {
   // the schedule starts as the customer's plan's frequency; the amount on the plan and the number of installments start at 0 and are typed in
   useEffect(() => {
     if (s?.plan) setValue("frequency", s.plan.frequency === "weekly" ? "weekly" : "monthly");
+    // the sale's additional customer comes along (it can still be changed or removed); a sale without one clears it
+    setValue("customer_id", s?.additional_customer_id ? String(s.additional_customer_id) : "", { shouldValidate: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s?.id]);
 
@@ -208,7 +211,7 @@ export function InvestorSaleForm() {
   const onSubmit = async (v: Values) => {
     if (!s) return void setError("vehicle_id", { message: "Select the sold vehicle." });
     if (blocked) return void setError("vehicle_id", { message: blocked });
-    if (v.customer_id && Number(v.customer_id) === s.customer_id) return void setError("customer_id", { message: "The additional customer must be someone other than the buyer." });
+    if (v.customer_id && Number(v.customer_id) === s.customer_id) { setExtraOpen(true); return void setError("customer_id", { message: "The additional customer must be someone other than the buyer." }); }
     try {
       const body = toPayload({
         investor_id: v.investor_id, customer_id: v.customer_id, date: v.date, sale_price: v.sale_price, down_payment: v.down_payment || "0",
@@ -267,6 +270,27 @@ export function InvestorSaleForm() {
                     <Info k="NID" v={s.customer.nid} />
                     <Info k="Address" v={s.customer.address} />
                   </dl>
+              {/* the additional customer (a co-buyer or guarantor), with the buyer: hidden until the button opens it; one carried over from the sale shows with its details */}
+              {(showExtra || w.customer_id) && (
+                <div className="mt-3">
+                  {extraOpen || w.customer_id ? (
+                    <>
+                      <CustomerSelect optional label="Additional customer (optional)" value={w.customer_id} selectedLabel={s?.additional_customer && String(s.additional_customer.id) === w.customer_id ? s.additional_customer.name : undefined} onChange={(id) => setValue("customer_id", id, { shouldValidate: true })} error={errors.customer_id?.message} />
+                      {w.customer_id && extra.data && String(extra.data.id) === w.customer_id && (
+                        <dl className="mt-2 grid gap-x-4 gap-y-1 rounded-md border border-emerald-100 bg-emerald-50/50 p-3 text-sm sm:grid-cols-2">
+                          <Info k="Name" v={extra.data.name} />
+                          <Info k="Father's name" v={extra.data.father_name} />
+                          <Info k="Mobile" v={extra.data.phone} />
+                          <Info k="Alt. mobile" v={extra.data.alt_phone} />
+                          <Info k="NID" v={extra.data.nid} />
+                          <Info k="Address" v={extra.data.address} />
+                        </dl>
+                      )}
+                      <button type="button" className="mt-1 text-xs font-medium text-emerald-700 hover:underline" onClick={() => { setValue("customer_id", ""); setExtraOpen(false); }}>Remove customer</button>
+                    </>
+                  ) : <Button variant="outline" onClick={() => setExtraOpen(true)}><Plus className="size-4 text-emerald-600" /> Additional customer</Button>}
+                </div>
+              )}
                 </>
               )}
               {chosen && (
@@ -310,15 +334,6 @@ export function InvestorSaleForm() {
               <Field label="Down payment (from investor)" error={errors.investor_down_payment?.message}><Input type="number" step="0.01" className={inputCls} {...register("investor_down_payment")} /></Field>
               <Field label="Guarantor name (optional)" error={errors.guarantor_name?.message}><Input className={inputCls} {...register("guarantor_name")} /></Field>
               <Field label="Guarantor mobile (optional)" error={errors.guarantor_phone?.message}><Input type="tel" className={inputCls} {...register("guarantor_phone")} /></Field>
-              {/* hidden until needed: the button opens it, removing the customer closes it */}
-              {(showExtra || w.customer_id) && <div className={extraOpen || w.customer_id ? "" : "flex items-end"}>
-                {extraOpen || w.customer_id ? (
-                  <>
-                    <CustomerSelect optional label="Additional customer (optional)" value={w.customer_id} onChange={(id) => setValue("customer_id", id, { shouldValidate: true })} error={errors.customer_id?.message} />
-                    <button type="button" className="mt-1 text-xs font-medium text-emerald-700 hover:underline" onClick={() => { setValue("customer_id", ""); setExtraOpen(false); }}>Remove customer</button>
-                  </>
-                ) : <Button variant="outline" onClick={() => setExtraOpen(true)}><Plus className="size-4 text-emerald-600" /> Additional customer</Button>}
-              </div>}
             </div>
             <dl className="mt-3 grid grid-cols-2 gap-2 rounded-md border border-emerald-100 bg-emerald-50/50 p-3 text-sm sm:grid-cols-4">
               <div><dt className="text-xs text-slate-500">Sale price</dt><dd className="font-semibold text-slate-800">{money(salePrice)}</dd></div>
