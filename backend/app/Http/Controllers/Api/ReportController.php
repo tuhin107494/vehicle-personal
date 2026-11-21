@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Resources\InvestorResource;
 use App\Http\Resources\InvestorSaleResource;
 use App\Http\Resources\PurchaseResource;
 use App\Http\Resources\SaleResource;
@@ -20,7 +19,6 @@ use App\Models\PurchasePayment;
 use App\Models\Sale;
 use App\Models\Supplier;
 use App\Models\Vehicle;
-use App\Services\InvestorPortfolioService;
 use App\Services\TransactionService;
 use App\Support\Money;
 use Illuminate\Http\JsonResponse;
@@ -66,17 +64,6 @@ class ReportController extends Controller implements HasMiddleware
                     : $s->promises->where('status', 'open')->sortBy('promised_date')->first()?->promised_date?->toDateString(),
             ]),
         ]);
-    }
-
-    public function investors(InvestorPortfolioService $portfolio): JsonResponse
-    {
-        $investors = Investor::orderBy('name')->get();
-        $summaries = $portfolio->summaries($investors);
-
-        return $this->success($investors->map(fn ($i) => [
-            'investor' => InvestorResource::make($i)->resolve(),
-            'summary' => $summaries[$i->id],
-        ]));
     }
 
     /** Purchases in a date range: totals, a breakdown by vehicle type and the list itself. */

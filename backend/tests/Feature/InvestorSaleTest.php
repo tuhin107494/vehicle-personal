@@ -377,9 +377,8 @@ class InvestorSaleTest extends TestCase
         $this->getJson('/api/reports/investor-sales?status=active')->assertJsonCount(1, 'data.investor_sales');
         $this->getJson('/api/reports/investor-sales?from=2026-01-07')->assertJsonCount(0, 'data.investor_sales');
 
-        // the investors report shows what the investor still owes the shop
-        $row = collect($this->getJson('/api/reports/investors')->json('data'))->firstWhere('investor.id', $this->investor->id);
-        $this->assertEquals(50000, $row['summary']['investor_owes']);
+        // the investor's page shows what the investor still owes the shop
+        $this->getJson("/api/investors/{$this->investor->id}/portfolio")->assertJsonPath('data.summary.investor_owes', 50000);
 
         // the investor's down payment is cash in on the day of the investor sale
         $this->assertEquals(250000, $this->getJson('/api/reports/daily?date=2026-01-06')->json('data.investor_received.total'));
@@ -528,6 +527,14 @@ class InvestorSaleTest extends TestCase
             ->assertJsonPath('data.investor_sales.0.id', $id)
             ->assertJsonPath('data.investor_sales.0.investor.name', 'Rahim')
             ->assertJsonPath('data.investor_sales.0.investor_owes', 50000);
+    }
+
+    public function test_the_additional_customer_option_is_on_until_a_shop_turns_it_off(): void
+    {
+        $this->getJson('/api/settings')->assertOk()->assertJsonPath('data.forms.additional_customer', true);
+
+        $this->putJson('/api/settings', ['forms' => ['additional_customer' => false]])->assertOk()->assertJsonPath('data.forms.additional_customer', false);
+        $this->putJson('/api/settings', ['forms' => ['additional_customer' => 'x']])->assertJsonValidationErrors('forms.additional_customer');
     }
 
     public function test_investor_sales_need_their_permissions(): void

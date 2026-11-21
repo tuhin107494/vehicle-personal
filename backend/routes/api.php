@@ -103,7 +103,6 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('transactions', 'transactions');
             Route::get('person-summary', 'personSummary');
             Route::get('person-transactions', 'personTransactions');
-            Route::get('investors', 'investors');
             Route::get('investor-sales', 'investorSales');
         });
 
