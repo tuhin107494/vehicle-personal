@@ -146,17 +146,12 @@ export function InvestorSaleForm() {
   const showExtra = useAdditionalCustomer(); // the shop can turn the additional customer option off in Settings
   const [extraOpen, setExtraOpen] = useState(false); // the additional customer field, shown only when asked for
   const investor = useFetch<Investor>(w.investor_id ? `/investors/${w.investor_id}` : null);
-  // the saved formula and the calculator give a rate per year; the profit is a flat percentage for the whole schedule,
-  // so the yearly rate is spread over the schedule's length (and follows it while the count or frequency changes)
-  const [yearRate, setYearRate] = useState<number | null>(null);
-  const termYears = (Number(w.installment_count) || 0) / (w.frequency === "weekly" ? 52 : 12);
-  useEffect(() => {
-    if (yearRate === null || !(termYears > 0)) return;
-    setValue("profit_rate", String(r2(yearRate * termYears)), { shouldValidate: true });
-  }, [yearRate, termYears, setValue]);
+  // the profit percentage is a flat yearly rate (as a sale's interest): the profit grows with the schedule's length
+  const termYears = Math.max(Number(w.installment_count) || 0, 1) / (w.frequency === "weekly" ? 52 : 12);
+  // the saved formula and the calculator give a rate per year: it goes in as it is
   const applyRate = (rate: number) => {
     setValue("profit_mode", "percent");
-    setYearRate(rate);
+    setValue("profit_rate", String(r2(rate)), { shouldValidate: true });
   };
   useEffect(() => {
     const inv = investor.data;
@@ -183,12 +178,10 @@ export function InvestorSaleForm() {
   const plan = useMemo(() => {
     const principal = planAmount, n = Number(w.installment_count);
     if (!(principal > 0) || !(n >= 1) || n > 120 || !w.first_due_date) return null;
-    const profit = w.profit_mode === "amount" ? r2(Number(w.profit_amount || 0)) : r2((principal * Number(w.profit_rate || 0)) / 100);
+    const profit = w.profit_mode === "amount" ? r2(Number(w.profit_amount || 0)) : r2((principal * Number(w.profit_rate || 0) * termYears) / 100);
     const total = r2(principal + profit);
     return { profit, total, rows: schedule(total, n, w.first_due_date, w.frequency) };
-  }, [planAmount, w.installment_count, w.first_due_date, w.frequency, w.profit_mode, w.profit_rate, w.profit_amount]);
-  // what the shop keeps: the customer's interest less the investor's profit
-  const shopProfit = s?.plan && plan ? r2(s.plan.interest_amount - plan.profit) : null;
+  }, [planAmount, termYears, w.installment_count, w.first_due_date, w.frequency, w.profit_mode, w.profit_rate, w.profit_amount]);
 
   // the amount on the plan follows the price less the customer's down payment, as long as it was not typed by hand
   const lastAuto = useRef("0");
@@ -203,7 +196,6 @@ export function InvestorSaleForm() {
   const clear = () => {
     reset(blank);
     lastAuto.current = "0";
-    setYearRate(null);
     setChosen(null);
     setExtraOpen(false);
   };
@@ -378,28 +370,27 @@ export function InvestorSaleForm() {
                 <NativeSelect className={inputCls} {...register("frequency")}><option value="monthly">Monthly</option><option value="weekly">Weekly</option></NativeSelect>
               </Field>
               <Field required label="First installment date" error={errors.first_due_date?.message}><Input type="date" min={w.date} className={inputCls} {...register("first_due_date")} /></Field>
-              <Field required label="Investor profit" error={errors.profit_rate?.message ?? errors.profit_amount?.message}>
+              <Field required label="Investor profit (flat, per year)" error={errors.profit_rate?.message ?? errors.profit_amount?.message}>
                 <div className="flex gap-2">
-                  <NativeSelect className={`${inputCls} w-28 shrink-0`} {...register("profit_mode", { onChange: () => setYearRate(null) })}>
+                  <NativeSelect className={`${inputCls} w-28 shrink-0`} {...register("profit_mode")}>
                     <option value="percent">Percent %</option><option value="amount">Amount (Tk)</option>
                   </NativeSelect>
                   {w.profit_mode === "amount"
                     ? <Input key="amount" type="number" step="0.01" placeholder="Amount" className={inputCls} {...register("profit_amount")} />
-                    : <Input key="percent" type="number" step="0.01" placeholder="Percent" className={inputCls} {...register("profit_rate", { onChange: () => setYearRate(null) })} />}
+                    : <Input
+                        key="percent" type="number" step="0.01" min="0" max="100" placeholder="% a year" className={inputCls} value={w.profit_rate ?? ""}
+                        // at most 100% a year: a key that would go past 100 is not taken
+                        onChange={(e) => { if (!(Number(e.target.value) > 100)) setValue("profit_rate", e.target.value, { shouldValidate: true }); }}
+                      />}
                 </div>
-                {yearRate !== null && w.profit_mode === "percent" && termYears > 0 && (
-                  <p className="mt-1 text-xs text-slate-500">{yearRate}% a year × {r2(termYears)} {termYears === 1 ? "year" : "years"} = {w.profit_rate}% for the whole schedule</p>
-                )}
+                {plan && w.profit_mode === "amount" && planAmount > 0 && <p className="mt-1 text-xs text-slate-500">That is {r2((plan.profit / planAmount) * 100 / termYears)}% a year of {money(planAmount)}</p>}
               </Field>
               </>}
             </div>
             {plan && s && !blocked && (
-              <div className={`mt-3 grid rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-900 ${shopProfit === null ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4"}`}>
+              <div className="mt-3 grid grid-cols-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-900">
                 <div><p className="text-xs text-emerald-700">Pay the investor</p><p className="text-lg font-bold text-blue-700">{money(plan.total)}</p></div>
                 <div><p className="text-xs text-emerald-700">Investor profit</p><p className="text-lg font-bold text-sky-700">{money(plan.profit)}</p></div>
-                {shopProfit !== null && (
-                  <div><p className="text-xs text-emerald-700">Shop profit</p><p className={`text-lg font-bold ${shopProfit < 0 ? "text-rose-700" : "text-emerald-700"}`}>{money(shopProfit)}</p></div>
-                )}
                 <div><p className="text-xs text-emerald-700">Per {w.frequency === "weekly" ? "week" : "month"}</p><p className="text-lg font-bold text-orange-600">{money(plan.rows[0]?.amount ?? 0)}</p></div>
               </div>
             )}

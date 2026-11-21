@@ -51,7 +51,9 @@ export function InvestorSaleEditModal({ x, onClose, onSaved }: { x: InvestorSale
     }
   };
 
-  const total = Number(v.plan_amount || 0) * (1 + Number(v.profit_rate || 0) / 100);
+  // the profit percentage is a flat yearly rate: spread over the schedule's length
+  const years = Math.max(Number(v.installment_count) || 0, 1) / (v.frequency === "weekly" ? 52 : 12);
+  const total = Number(v.plan_amount || 0) * (1 + (Number(v.profit_rate || 0) * years) / 100);
 
   return (
     <Modal open wide title={`Edit investor sale #${x.id}`} onClose={onClose}>
@@ -73,7 +75,7 @@ export function InvestorSaleEditModal({ x, onClose, onSaved }: { x: InvestorSale
           <Field required label="Down payment (from customer)"><Input type="number" step="0.01" className={inputCls} value={v.down_payment} onChange={set("down_payment")} /></Field>
           <Field label="Down payment (from investor)"><Input type="number" step="0.01" className={inputCls} value={v.investor_down_payment} onChange={set("investor_down_payment")} /></Field>
           <Field required label="Amount on plan"><Input type="number" step="0.01" className={inputCls} value={v.plan_amount} onChange={set("plan_amount")} /></Field>
-          <Field required label="Investor profit (%)"><Input type="number" step="0.01" className={inputCls} value={v.profit_rate} onChange={set("profit_rate")} /></Field>
+          <Field required label="Investor profit (% a year)"><Input type="number" step="0.01" min="0" max="100" className={inputCls} value={v.profit_rate} onChange={(e) => { if (!(Number(e.target.value) > 100)) set("profit_rate")(e); }} /></Field>
           <Field required label="Number of installments"><Input type="number" className={inputCls} value={v.installment_count} onChange={set("installment_count")} /></Field>
           <Field label="Frequency">
             <NativeSelect className={inputCls} value={v.frequency} onChange={set("frequency")}><option value="monthly">Monthly</option><option value="weekly">Weekly</option></NativeSelect>

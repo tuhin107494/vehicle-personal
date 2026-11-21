@@ -107,7 +107,7 @@ function InvestorSalesReport() {
     { header: "Investor", cell: ({ row }) => row.original.investor?.name ?? "-" },
     { header: "Vehicle", cell: ({ row }) => row.original.sale?.vehicle?.chassis_no ?? "-" },
     { header: "Amount on plan", cell: ({ row }) => money(row.original.principal) },
-    { header: "Profit", cell: ({ row }) => `${money(row.original.profit_amount)} (${row.original.profit_rate}%)` },
+    { header: "Profit", cell: ({ row }) => `${money(row.original.profit_amount)} (${row.original.profit_rate}% a year)` },
     { header: "Pay the investor", cell: ({ row }) => money(row.original.total_payable) },
     { header: "Paid", cell: ({ row }) => money((row.original.position?.principal_paid ?? 0) + (row.original.position?.profit_paid ?? 0)) },
     { header: "Still to pay", cell: ({ row }) => active(row.original) ? <span className="font-medium text-amber-700">{money(row.original.position?.total_due)}</span> : "-" },
