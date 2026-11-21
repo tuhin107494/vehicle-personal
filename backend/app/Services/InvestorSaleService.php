@@ -63,7 +63,7 @@ class InvestorSaleService
             [$rate, $profit] = $this->profitOf($data, $principal);
 
             if ($rate > 1000) {
-                throw new BusinessRuleException('The investor profit cannot be more than 1000% of the investor amount.');
+                throw new BusinessRuleException('The investor profit cannot be more than 1000% a year of the amount on the plan.');
             }
 
             $investorSale = InvestorSale::create([
@@ -176,7 +176,7 @@ class InvestorSaleService
                 }
 
                 if ($rate > 1000) {
-                    throw new BusinessRuleException('The investor profit cannot be more than 1000% of the investor amount.');
+                    throw new BusinessRuleException('The investor profit cannot be more than 1000% a year of the amount on the plan.');
                 }
             }
 
