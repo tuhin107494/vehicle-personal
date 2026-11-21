@@ -30,7 +30,9 @@ const schema = z.object({
   customer_id: z.string(), // an additional customer besides the sale's buyer (optional)
   date: z.string().min(1, "Sale date is required.").refine((v) => v <= todayStr(), "Sale date cannot be in the future."),
   sale_price: z.string().refine((v) => num(v) && Number(v) >= 1, "Sale price must be at least 1."),
-  down_payment: z.string(),
+  down_payment: z.string(), // from the customer
+  investor_down_payment: z.string(), // what the investor gives the shop now (empty: all of their amount)
+  plan_amount: z.string(), // the investor's amount, paid back with interest (empty: the price less the customer's down payment)
   method: z.enum(["cash", "bank", "mobile"]),
   memo_no: z.string(),
   guarantor_name: z.string(),
@@ -46,6 +48,12 @@ const schema = z.object({
   if (!num(v.down_payment)) add("down_payment", "Enter the down payment (0 if none).");
   else if (Number(v.down_payment) < 0) add("down_payment", "Down payment cannot be negative.");
   else if (Number(v.down_payment) >= Number(v.sale_price)) add("down_payment", "Down payment must be less than the sale price.");
+  const afterCustomer = Number(v.sale_price) - Number(v.down_payment || 0);
+  const planAmount = v.plan_amount === "" ? afterCustomer : Number(v.plan_amount);
+  if (v.plan_amount !== "" && !(num(v.plan_amount) && Number(v.plan_amount) >= 1)) add("plan_amount", "Enter the amount on the plan.");
+  else if (planAmount > afterCustomer) add("plan_amount", "The amount on the plan cannot be more than the price less the customer's down payment.");
+  if (v.investor_down_payment !== "" && !(num(v.investor_down_payment) && Number(v.investor_down_payment) >= 0)) add("investor_down_payment", "Enter the investor's down payment (0 if none).");
+  else if (Number(v.investor_down_payment || 0) > planAmount) add("investor_down_payment", "The investor's down payment cannot be more than the amount on the plan.");
   if (v.guarantor_phone.trim() && !/^\+?[0-9\s-]{7,20}$/.test(v.guarantor_phone.trim())) add("guarantor_phone", "Enter a valid mobile number (7 to 20 digits).");
   if (v.profit_mode === "percent" && !(num(v.profit_rate) && Number(v.profit_rate) >= 0)) add("profit_rate", "Enter the investor profit percentage.");
   if (v.profit_mode === "amount" && !(num(v.profit_amount) && Number(v.profit_amount) >= 0)) add("profit_amount", "Enter the investor profit amount.");
@@ -80,7 +88,7 @@ function schedule(total: number, n: number, first: string, frequency: "monthly" 
 export function InvestorSaleForm() {
   const router = useRouter();
   const { nameOf } = useCategories();
-  const blank: Values = { vehicle_id: "", investor_id: "", customer_id: "", date: todayStr(), sale_price: "", down_payment: "", method: "cash", memo_no: "", guarantor_name: "", guarantor_phone: "", profit_mode: "percent", profit_rate: "", profit_amount: "", installment_count: "12", frequency: "monthly", first_due_date: "" };
+  const blank: Values = { vehicle_id: "", investor_id: "", customer_id: "", date: todayStr(), sale_price: "", down_payment: "", investor_down_payment: "", plan_amount: "", method: "cash", memo_no: "", guarantor_name: "", guarantor_phone: "", profit_mode: "percent", profit_rate: "", profit_amount: "", installment_count: "12", frequency: "monthly", first_due_date: "" };
   const { register, handleSubmit, reset, setValue, watch, setError, formState: { errors, isSubmitting } } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: blank });
   const w = watch();
 
@@ -143,17 +151,21 @@ export function InvestorSaleForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [investor.data]);
 
-  // the due amount the investor funds: the price less the down payment
+  // the investor's amount (the price less the customer's down payment, unless less is typed), paid back with interest;
+  // the investor gives the shop their down payment now and owes the rest (their due)
   const salePrice = Number(w.sale_price || 0);
   const down = Number(w.down_payment || 0);
-  const due = Math.max(r2(salePrice - down), 0);
+  const afterCustomer = Math.max(r2(salePrice - down), 0);
+  const planAmount = w.plan_amount === "" ? afterCustomer : Math.min(Number(w.plan_amount) || 0, afterCustomer);
+  const investorDown = w.investor_down_payment === "" ? planAmount : Math.min(Number(w.investor_down_payment) || 0, planAmount);
+  const investorDue = Math.max(r2(planAmount - investorDown), 0);
   const plan = useMemo(() => {
-    const principal = due, n = Number(w.installment_count);
+    const principal = planAmount, n = Number(w.installment_count);
     if (!(principal > 0) || !(n >= 1) || n > 120 || !w.first_due_date) return null;
     const profit = w.profit_mode === "amount" ? r2(Number(w.profit_amount || 0)) : r2((principal * Number(w.profit_rate || 0)) / 100);
     const total = r2(principal + profit);
     return { profit, total, rows: schedule(total, n, w.first_due_date, w.frequency) };
-  }, [due, w.installment_count, w.first_due_date, w.frequency, w.profit_mode, w.profit_rate, w.profit_amount]);
+  }, [planAmount, w.installment_count, w.first_due_date, w.frequency, w.profit_mode, w.profit_rate, w.profit_amount]);
   // what the shop keeps: the customer's interest less the investor's profit
   const shopProfit = s?.plan && plan ? r2(s.plan.interest_amount - plan.profit) : null;
 
@@ -170,10 +182,11 @@ export function InvestorSaleForm() {
     if (v.customer_id && Number(v.customer_id) === s.customer_id) return void setError("customer_id", { message: "The additional customer must be someone other than the buyer." });
     try {
       const body = toPayload({
-        investor_id: v.investor_id, customer_id: v.customer_id, date: v.date, sale_price: v.sale_price, down_payment: v.down_payment || "0", method: v.method,
+        investor_id: v.investor_id, customer_id: v.customer_id, date: v.date, sale_price: v.sale_price, down_payment: v.down_payment || "0",
+        investor_down_payment: v.investor_down_payment, plan_amount: v.plan_amount, method: v.method,
         memo_no: v.memo_no, guarantor_name: v.guarantor_name, guarantor_phone: v.guarantor_phone, installment_count: v.installment_count, frequency: v.frequency, first_due_date: v.first_due_date,
         ...(v.profit_mode === "amount" ? { profit_amount: v.profit_amount } : { profit_rate: v.profit_rate }),
-      }, ["investor_id", "customer_id", "sale_price", "down_payment", "installment_count", "profit_rate", "profit_amount"]);
+      }, ["investor_id", "customer_id", "sale_price", "down_payment", "investor_down_payment", "plan_amount", "installment_count", "profit_rate", "profit_amount"]);
       const res = await api<InvestorSale>(`/sales/${s.id}/investor-sale`, { method: "POST", body });
       toast.success(res.message ?? "Investor sale created");
       router.push(`/sales/${s.id}`);
@@ -257,7 +270,8 @@ export function InvestorSaleForm() {
                 </NativeSelect>
               </Field>
               <Field label="Memo no. (optional)" error={errors.memo_no?.message}><Input className={inputCls} {...register("memo_no")} /></Field>
-              <Field required label="Down payment" error={errors.down_payment?.message}><Input type="number" step="0.01" className={inputCls} {...register("down_payment")} /></Field>
+              <Field required label="Down payment (from customer)" error={errors.down_payment?.message}><Input type="number" step="0.01" className={inputCls} {...register("down_payment")} /></Field>
+              <Field label="Down payment (from investor)" error={errors.investor_down_payment?.message}><Input type="number" step="0.01" placeholder={String(planAmount)} className={inputCls} {...register("investor_down_payment")} /></Field>
               <Field label="Guarantor name (optional)" error={errors.guarantor_name?.message}><Input className={inputCls} {...register("guarantor_name")} /></Field>
               <Field label="Guarantor mobile (optional)" error={errors.guarantor_phone?.message}><Input type="tel" className={inputCls} {...register("guarantor_phone")} /></Field>
               {/* hidden until needed: the button opens it, removing the customer closes it */}
@@ -270,16 +284,19 @@ export function InvestorSaleForm() {
                 ) : <Button variant="outline" onClick={() => setExtraOpen(true)}><Plus className="size-4 text-emerald-600" /> Additional customer</Button>}
               </div>}
             </div>
-            <dl className="mt-3 grid grid-cols-3 gap-2 rounded-md border border-emerald-100 bg-emerald-50/50 p-3 text-sm">
+            <dl className="mt-3 grid grid-cols-2 gap-2 rounded-md border border-emerald-100 bg-emerald-50/50 p-3 text-sm sm:grid-cols-4">
               <div><dt className="text-xs text-slate-500">Sale price</dt><dd className="font-semibold text-slate-800">{money(salePrice)}</dd></div>
-              <div><dt className="text-xs text-slate-500">Down payment</dt><dd className="font-semibold text-slate-800">{money(down)}</dd></div>
-              <div><dt className="text-xs text-slate-500">Due amount</dt><dd className={`text-base font-bold ${due > 0 ? "text-amber-700" : "text-emerald-700"}`}>{money(due)}</dd></div>
+              <div><dt className="text-xs text-slate-500">Down payment (customer)</dt><dd className="font-semibold text-slate-800">{money(down)}</dd></div>
+              <div><dt className="text-xs text-slate-500">Down payment (investor)</dt><dd className="font-semibold text-slate-800">{money(investorDown)}</dd></div>
+              <div><dt className="text-xs text-slate-500">Investor due</dt><dd className={`text-base font-bold ${investorDue > 0 ? "text-amber-700" : "text-emerald-700"}`}>{money(investorDue)}</dd></div>
+              <p className="col-span-full text-xs text-slate-600">The investor gives {money(investorDown)} now and {money(investorDue)} later. The shop pays the investor back {money(planAmount)} + interest on the plan below.</p>
             </dl>
           </Card>
 
-          <Card title="Installment plan">
+          <Card title="Installment plan (the shop pays the investor)">
             <div className="grid gap-3 md:grid-cols-3">
               <InvestorSelect allowCreate value={w.investor_id} onChange={(id) => setValue("investor_id", id, { shouldValidate: true })} error={errors.investor_id?.message} />
+              <Field label="Amount on plan" error={errors.plan_amount?.message}><Input type="number" step="0.01" placeholder={String(afterCustomer)} className={inputCls} {...register("plan_amount")} /></Field>
               <Field required label="Number of installments" error={errors.installment_count?.message}><Input type="number" className={inputCls} {...register("installment_count")} /></Field>
               <Field label="Frequency" error={errors.frequency?.message}>
                 <NativeSelect className={inputCls} {...register("frequency")}><option value="monthly">Monthly</option><option value="weekly">Weekly</option></NativeSelect>

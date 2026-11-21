@@ -43,6 +43,8 @@ export type Plan = {
 /** An investor sale: the investor funds a customer sale on their own terms, and the shop pays them back on its own schedule. */
 export type InvestorSale = {
   id: number; sale_id: number; investor_id: number; date: string; principal: number;
+  // the investor's amount (principal): what they gave the shop of it, and still owe it
+  investor_down_payment?: number | null; investor_paid?: number; investor_owes?: number;
   sale_price: number | null; down_payment: number | null; method: string | null; memo_no: string | null; guarantor_name: string | null; guarantor_phone: string | null; profit_rate: number; profit_amount: number;
   total_payable: number; number_of_installments: number; frequency: "monthly" | "weekly"; start_date: string; status: "active" | "cancelled";
   customer_id?: number | null; customer?: Customer | null; // an additional customer besides the sale's buyer

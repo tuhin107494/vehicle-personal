@@ -3,21 +3,63 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Ban, Wallet } from "lucide-react";
+import { Ban, HandCoins, Wallet } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { fmtDate, money } from "@/lib/format";
+import { fmtDate, money, todayStr } from "@/lib/format";
 import type { InvestorSale } from "@/lib/types";
-import { Button, Card, KV } from "@/components/app-ui";
+import { Button, Card, Field, inputCls, KV, Modal } from "@/components/app-ui";
+import { Input } from "@/components/ui/input";
 import { Col, DataTable } from "@/components/DataTable";
 import { SettlementForm } from "@/components/forms/SettlementForm";
 
 type Row = InvestorSale["schedule"][number] & { paid: boolean };
 
+/** The rest of the investor's amount, given to the shop after the investor sale: no more than they still owe. */
+function ReceiveModal({ x, owed, onClose, onSaved }: { x: InvestorSale; owed: number; onClose: () => void; onSaved: () => void }) {
+  const [amount, setAmount] = useState(String(owed));
+  const [date, setDate] = useState(todayStr());
+  const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    const n = Number(amount);
+    if (!(n > 0)) return setError("Enter the amount received.");
+    if (n > owed) return setError(`The investor owes only ${money(owed)}.`);
+    setBusy(true);
+    try {
+      const res = await api("/investor-settlements", { method: "POST", body: { investor_id: x.investor_id, investor_sale_id: x.id, type: "investment", amount: n, date, note: note || undefined } });
+      toast.success(res.message ?? "Saved");
+      onSaved();
+      onClose();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal open title="Receive from investor" onClose={onClose}>
+      <div className="space-y-3">
+        <p className="text-sm text-slate-600">{x.investor?.name} still owes <b>{money(owed)}</b> on this investor sale.</p>
+        <Field required label="Amount" error={error ?? undefined}><Input type="number" step="0.01" className={inputCls} value={amount} onChange={(e) => setAmount(e.target.value)} /></Field>
+        <Field required label="Date"><Input type="date" max={todayStr()} className={inputCls} value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+        <Field label="Note (optional)"><Input className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose} disabled={busy}>Close</Button>
+          <Button onClick={save} disabled={busy}>{busy ? "Saving..." : "Save"}</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 /** The investor sale on a sale's page: the investor's terms, where the payments to them stand, and their schedule. */
 export function InvestorSaleCard({ investorSale: x, onChanged }: { investorSale: InvestorSale; onChanged: () => void }) {
   const { can } = useAuth();
   const [paying, setPaying] = useState(false);
+  const [receiving, setReceiving] = useState(false);
+  const owes = x.investor_owes ?? 0; // what the investor still has to give the shop of their amount
   const [busy, setBusy] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
   const p = x.position;
@@ -58,6 +100,7 @@ export function InvestorSaleCard({ investorSale: x, onChanged }: { investorSale:
   return (
     <Card title="Investor sale" className="mb-4" actions={(
       <div className="flex flex-wrap gap-2">
+        {x.status === "active" && can("settlements.manage") && owes > 0 && <Button variant="outline" onClick={() => setReceiving(true)}><HandCoins className="size-4 text-emerald-600" /> Receive from investor</Button>}
         {can("settlements.manage") && p && p.total_due > 0 && <Button variant="outline" onClick={() => setPaying(true)}><Wallet className="size-4 text-violet-600" /> Pay investor</Button>}
         {can("sales.cancel") && paid === 0 && <Button variant="danger" disabled={busy} onClick={cancel}><Ban className="size-4" /> Cancel</Button>}
       </div>
@@ -67,8 +110,10 @@ export function InvestorSaleCard({ investorSale: x, onChanged }: { investorSale:
         ...(x.customer ? [["Additional customer", <Link key="c" className="underline" href={`/customers/${x.customer.id}`}>{x.customer.name}{x.customer.phone ? ` · ${x.customer.phone}` : ""}</Link>] as [string, React.ReactNode]] : []),
         ["Sale date", fmtDate(x.date)],
         ...(x.sale_price !== null ? [["Sale price", money(x.sale_price)] as [string, React.ReactNode]] : []),
-        ...(x.down_payment !== null ? [["Down payment", `${money(x.down_payment)}${x.method ? ` (${x.method})` : ""}`] as [string, React.ReactNode]] : []),
-        ["Due amount", money(x.principal)],
+        ...(x.down_payment !== null ? [["Down payment (customer)", `${money(x.down_payment)}${x.method ? ` (${x.method})` : ""}`] as [string, React.ReactNode]] : []),
+        ["Amount on plan", money(x.principal)],
+        ...(x.investor_paid !== undefined ? [["Investor gave", money(x.investor_paid)] as [string, React.ReactNode]] : []),
+        ...(owes > 0 ? [["Investor still owes", <b key="o" className="text-amber-700">{money(owes)}</b>] as [string, React.ReactNode]] : []),
         ...(x.memo_no ? [["Memo no.", x.memo_no] as [string, React.ReactNode]] : []),
         ...(x.guarantor_name ? [["Guarantor name", x.guarantor_name] as [string, React.ReactNode]] : []),
         ...(x.guarantor_phone ? [["Guarantor", <a key="g" className="underline" href={`tel:${x.guarantor_phone}`}>{x.guarantor_phone}</a>] as [string, React.ReactNode]] : []),
@@ -83,6 +128,7 @@ export function InvestorSaleCard({ investorSale: x, onChanged }: { investorSale:
       ]} />
       <Button variant="outline" className="mt-3" onClick={() => setShowSchedule((v) => !v)}>{showSchedule ? "Hide schedule" : "Show schedule"}</Button>
       {showSchedule && <div className="mt-3"><DataTable columns={cols} data={rows} /></div>}
+      {receiving && <ReceiveModal x={x} owed={owes} onClose={() => setReceiving(false)} onSaved={onChanged} />}
       {paying && x.investor && (
         <SettlementForm open mode="pay" name={x.investor.name} investorId={x.investor.id} investorSaleId={x.id} outstanding={defaults.principal} defaults={defaults}
           onClose={() => setPaying(false)} onSaved={onChanged} />
