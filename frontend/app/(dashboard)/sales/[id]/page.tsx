@@ -17,47 +17,7 @@ import { SaleChargeModal } from "@/components/forms/SaleChargeModal";
 import { Ban, CalendarClock, HandCoins, Landmark, Pencil, Plus, Printer, Trash2 } from "lucide-react";
 import { openSaleMemo } from "@/components/SaleMemo";
 import { InvestorSaleCard } from "@/components/InvestorSaleCard";
-
-const STEPS = ["pending", "bank_chalan_done", "file_received", "file_processing", "registration_complete", "document_provided"];
-
-function Stepper({ sale, onChanged }: { sale: Sale; onChanged: () => void }) {
-  const { can } = useAuth();
-  const current = STEPS.indexOf(sale.registration_status);
-  const [busy, setBusy] = useState(false);
-
-  const move = async (to: string, back: boolean) => {
-    const note = back ? prompt("Reason for moving back a step (required):") : prompt("Note (optional):");
-    if (note === null || (back && !note.trim())) return;
-    setBusy(true);
-    try {
-      const res = await api(`/sales/${sale.id}/registration`, { method: "PATCH", body: { status: to, note: note || undefined } });
-      toast.success(res.message);
-      onChanged();
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Failed");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <>
-      <ol className="flex flex-wrap gap-2">
-        {STEPS.map((s, i) => (
-          <li key={s} className={`rounded-full border px-3 py-1 text-xs capitalize ${i < current ? "border-green-600 bg-green-50 text-green-800" : i === current ? "border-gray-900 bg-gray-900 text-white" : "border-gray-300 text-gray-500"}`}>
-            {i + 1}. {label(s)}
-          </li>
-        ))}
-      </ol>
-      {sale.status === "active" && can("registration.update") && (
-        <div className="mt-3 flex gap-2">
-          {current > 0 && <Button variant="outline" disabled={busy} onClick={() => move(STEPS[current - 1], true)}>Back one step</Button>}
-          {current < STEPS.length - 1 && <Button disabled={busy} onClick={() => move(STEPS[current + 1], false)}>Mark “{label(STEPS[current + 1])}”</Button>}
-        </div>
-      )}
-    </>
-  );
-}
+import { RegistrationStepper } from "@/components/RegistrationStepper";
 
 export default function SaleDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -200,9 +160,10 @@ export default function SaleDetailPage() {
         </Card>
       )}
 
-      {sale.investor_sale && <InvestorSaleCard investorSale={sale.investor_sale} onChanged={reload} />}
+      {/* paying the investor, collecting from them and their schedule are on the investor sale's own page */}
+      {sale.investor_sale && <InvestorSaleCard investorSale={sale.investor_sale} onChanged={reload} summary />}
 
-      <Card title="Registration" className="mb-4"><Stepper sale={sale} onChanged={reload} /></Card>
+      <Card title="Registration" className="mb-4"><RegistrationStepper sale={sale} onChanged={reload} /></Card>
 
       {sale.plan && (<><h2 className="mb-2 font-semibold">Installments</h2><DataTable columns={instCols} data={installments} /></>)}
       {sale.payment_type === "due" && (<><h2 className="mb-2 mt-6 font-semibold">Promises</h2><DataTable columns={promiseCols} data={sale.promises ?? []} empty="No promises." /></>)}

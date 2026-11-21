@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\InvestorResource;
+use App\Http\Resources\InvestorSaleResource;
 use App\Http\Resources\PurchaseResource;
 use App\Http\Resources\SaleResource;
 use App\Http\Resources\VehicleResource;
@@ -11,6 +12,7 @@ use App\Models\Advance;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Investor;
+use App\Models\InvestorSale;
 use App\Models\InvestorSettlement;
 use App\Models\Payment;
 use App\Models\Purchase;
@@ -118,7 +120,7 @@ class ReportController extends Controller implements HasMiddleware
     {
         $request->validate(['from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from']]);
 
-        $sales = Sale::with(['vehicle', 'customer', 'purchase', 'plan'])
+        $sales = Sale::with(['vehicle', 'customer', 'purchase', 'plan', 'investorSale.investor:id,name'])
             ->when($request->from, fn ($q, $v) => $q->whereDate('sale_date', '>=', $v))
             ->when($request->to, fn ($q, $v) => $q->whereDate('sale_date', '<=', $v))
             ->when($request->vehicle_type, fn ($q, $t) => $q->whereHas('vehicle', fn ($q) => $q->where('vehicle_type', $t)))
@@ -153,6 +155,39 @@ class ReportController extends Controller implements HasMiddleware
                 'profit' => Money::sum($g, $profit),
             ])->values(),
             'sales' => $rows->values(),
+        ]);
+    }
+
+    /** Investor sales in a date range: each with its sale, what the shop pays the investor back and what the investor still owes, plus totals. */
+    public function investorSales(Request $request): JsonResponse
+    {
+        $request->validate([
+            'from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from'],
+            'investor_id' => ['nullable', 'integer'], 'status' => ['nullable', 'in:active,cancelled'],
+        ]);
+
+        $rows = InvestorSale::with(['investor', 'customer', 'settlements', 'sale.vehicle', 'sale.customer'])
+            ->when($request->from, fn ($q, $v) => $q->whereDate('date', '>=', $v))
+            ->when($request->to, fn ($q, $v) => $q->whereDate('date', '<=', $v))
+            ->when($request->investor_id, fn ($q, $id) => $q->where('investor_id', $id))
+            ->when($request->status, fn ($q, $st) => $q->where('status', $st))
+            ->orderByDesc('date')->orderByDesc('id')->get()
+            ->map(fn ($x) => InvestorSaleResource::make($x)->resolve())->values();
+        $active = $rows->where('status', 'active');
+
+        return $this->success([
+            'totals' => [
+                'count' => $active->count(),
+                'cancelled' => $rows->where('status', 'cancelled')->count(),
+                'amount' => Money::sum($active, 'principal'),
+                'profit' => Money::sum($active, 'profit_amount'),
+                'payable' => Money::sum($active, 'total_payable'),
+                'paid' => Money::sum($active, fn ($r) => Money::add($r['position']['principal_paid'], $r['position']['profit_paid'])),
+                'due' => Money::sum($active, 'position.total_due'),
+                'investor_gave' => Money::sum($active, 'investor_paid'),
+                'investor_owes' => Money::sum($active, 'investor_owes'),
+            ],
+            'investor_sales' => $rows,
         ]);
     }
 
@@ -410,7 +445,9 @@ class ReportController extends Controller implements HasMiddleware
 
         // entered by hand (add investment / pay installment); the entries a sale or collection makes by itself are not cash the shop moved
         $investorRows = InvestorSettlement::with('investor:id,name,phone')->whereDate('date', $date)
-            ->where(fn ($q) => $q->whereNull('note')->orWhere('note', 'not like', 'Auto:%'))->orderBy('id')->get()
+            // the investor's down payment given with an investor sale is cash in too
+            ->where(fn ($q) => $q->whereNull('note')->orWhere('note', 'not like', 'Auto:%')->orWhere(fn ($q) => $q->where('type', 'investment')->whereNotNull('investor_sale_id')))
+            ->orderBy('id')->get()
             ->map(fn (InvestorSettlement $i) => [
                 'id' => $i->id, 'investor' => $i->investor->name, 'phone' => $i->investor->phone, 'type' => $i->type, 'amount' => (float) $i->amount,
                 'direction' => $i->type === 'investment' ? 'in' : 'out', 'note' => $i->note,

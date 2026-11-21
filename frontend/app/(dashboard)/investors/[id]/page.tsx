@@ -7,13 +7,14 @@ import { useAuth } from "@/lib/auth";
 import { fmtDate, label, money } from "@/lib/format";
 import { useFetch } from "@/lib/hooks";
 import type { Investor, InvestorSale, Sale, Settlement, Summary } from "@/lib/types";
-import { Button, Card, ErrorText, KV, Loading, PageHeader, Stat, StatusBadge } from "@/components/app-ui";
+import { Button, Card, ErrorText, KV, Loading, Modal, PageHeader, Stat, StatusBadge } from "@/components/app-ui";
+import { ReceiveModal } from "@/components/InvestorSaleCard";
 import { Avatar } from "@/components/Avatar";
 import { Col, DataTable } from "@/components/DataTable";
 import { InvestorVehiclePay } from "@/components/forms/InvestorVehiclePay";
 import { ProfitCalculator } from "@/components/forms/ProfitCalculator";
 import { SettlementForm, type SettlementMode } from "@/components/forms/SettlementForm";
-import { Calculator, Landmark, PiggyBank, Wallet } from "lucide-react";
+import { Calculator, HandCoins, Landmark, PiggyBank, Wallet } from "lucide-react";
 
 type Portfolio = { investor: Investor; summary: Summary; sales: Sale[]; investor_sales: InvestorSale[]; settlements: Settlement[] };
 
@@ -25,11 +26,15 @@ export default function InvestorPortfolioPage() {
   const [calc, setCalc] = useState(false);
   const [vehicles, setVehicles] = useState(false);
   const [statement, setStatement] = useState(false); // the settlements statement stays hidden until asked for
+  const [collecting, setCollecting] = useState(false); // the list of investor sales the investor still owes on
+  const [receiveFrom, setReceiveFrom] = useState<InvestorSale | null>(null);
   const due = useFetch<{ totals: { current_due: number; installments_due: number } }>(`/investors/${id}/vehicle-payments`);
 
   if (loading && !data) return <Loading />;
   if (error || !data) return <ErrorText message={error ?? "Not found"} />;
   const { investor, summary, sales, investor_sales: investorSales, settlements } = data;
+  // the investor sales where the investor still has to give the shop part of their amount
+  const owing = investorSales.filter((x) => x.status === "active" && (x.investor_owes ?? 0) > 0);
 
   const saleCols: Col<Sale>[] = [
     { header: "Sale", cell: ({ row }) => <span className="font-medium">#{row.original.id}</span> },
@@ -46,10 +51,20 @@ export default function InvestorPortfolioPage() {
     { header: "Vehicle", cell: ({ row }) => row.original.sale?.vehicle?.chassis_no },
     { header: "Buyer", cell: ({ row }) => row.original.sale?.customer?.name },
     { header: "Investor amount", cell: ({ row }) => money(row.original.principal) },
+    { header: "Investor gave", cell: ({ row }) => money(row.original.investor_paid ?? 0) },
+    {
+      header: "Investor owes us",
+      cell: ({ row }) => row.original.status === "active" && (row.original.investor_owes ?? 0) > 0 ? (
+        <span className="flex items-center gap-2">
+          <b className="text-amber-700">{money(row.original.investor_owes ?? 0)}</b>
+          {can("settlements.manage") && <Button size="sm" onClick={() => setReceiveFrom(row.original)}><HandCoins className="size-4" /> Collect</Button>}
+        </span>
+      ) : "-",
+    },
     { header: "Payable", cell: ({ row }) => money(row.original.total_payable) },
     { header: "Still to pay", cell: ({ row }) => money(row.original.position?.total_due) },
     { header: "Status", cell: ({ row }) => <StatusBadge status={row.original.status} /> },
-    viewCol<InvestorSale>((x) => `/sales/${x.sale_id}`),
+    viewCol<InvestorSale>((x) => `/investor-sales/${x.id}`),
   ];
   const setCols: Col<Settlement>[] = [
     { header: "Date", cell: ({ row }) => fmtDate(row.original.date) },
@@ -64,6 +79,7 @@ export default function InvestorPortfolioPage() {
         <div className="flex flex-wrap gap-2">
           {can("settlements.manage") && <Button onClick={() => setMode("invest")}><PiggyBank className="size-4" /> Add investment</Button>}
           {can("settlements.manage") && <Button variant="outline" onClick={() => setVehicles(true)}><Wallet className="size-4 text-sky-600" /> Pay installment</Button>}
+          {can("settlements.manage") && owing.length > 0 && <Button variant="outline" onClick={() => setCollecting(true)}><HandCoins className="size-4 text-emerald-600" /> Collect due</Button>}
           <Button variant="outline" onClick={() => setCalc(true)}><Calculator className="size-4 text-sky-600" /> Profit calculation</Button>
           {can("settlements.manage") && <Button variant="outline" onClick={() => setMode("other")}><Landmark className="size-4 text-emerald-600" /> Other</Button>}
         </div>
@@ -73,6 +89,7 @@ export default function InvestorPortfolioPage() {
         <Stat color="green" label="Total amount" value={money(summary.invested)} />
         <Stat color="slate" label="Installments due" value={due.data?.totals.installments_due ?? "-"} />
         <Stat color="amber" label="Due amount" value={due.data ? money(due.data.totals.current_due) : "-"} />
+        {(summary.investor_owes ?? 0) > 0 && <Stat color="blue" label="Investor owes us" value={money(summary.investor_owes ?? 0)} />}
       </div>
       <Card className="mb-4"><div className="mb-3"><Avatar name={investor.name} url={investor.photo_url} size="lg" /></div><KV items={[["Phone", investor.phone], ["Alt. phone", investor.alt_phone], ["NID", investor.nid], ["Opening balance", money(investor.opening_balance)], ["Bank", investor.bank_name], ["Branch", investor.bank_branch], ["Account name", investor.bank_account_name], ["Account no", investor.bank_account_no], ["Other bank details", investor.bank_info], ["Address", investor.address]]} /></Card>
       <h2 className="mb-2 font-semibold">Assigned sales</h2>
@@ -84,6 +101,25 @@ export default function InvestorPortfolioPage() {
       </div>
       {statement && <DataTable columns={setCols} data={settlements} empty="No settlements yet." />}
       <ProfitCalculator key={`${investor.id}-${calc}`} open={calc} name={investor.name} initial={{ amount: summary.invested, profit: summary.profit_earned }} investorId={investor.id} saved={investor} canSave={can("investors.edit")} onSaved={reload} onClose={() => setCalc(false)} />
+      <Modal open={collecting} title={`Collect due · ${investor.name}`} onClose={() => setCollecting(false)}>
+        <p className="mb-3 text-sm text-slate-600">What {investor.name} still has to give the shop: <b className="text-amber-700">{money(owing.reduce((t, x) => t + (x.investor_owes ?? 0), 0))}</b></p>
+        <ul className="space-y-2">
+          {owing.map((x) => (
+            <li key={x.id} className="flex items-center justify-between gap-2 rounded-lg border border-emerald-200 p-3 text-sm">
+              <div className="min-w-0">
+                <p className="font-medium">Sale #{x.sale_id} · {x.sale?.vehicle?.chassis_no ?? "-"}</p>
+                <p className="text-xs text-slate-500">{x.sale?.customer?.name ?? ""} · gave {money(x.investor_paid ?? 0)} of {money(x.principal)}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <b className="text-amber-700">{money(x.investor_owes ?? 0)}</b>
+                <Button onClick={() => setReceiveFrom(x)}>Collect</Button>
+              </div>
+            </li>
+          ))}
+          {!owing.length && <li className="py-6 text-center text-sm text-slate-500">Nothing is due from this investor.</li>}
+        </ul>
+      </Modal>
+      {receiveFrom && <ReceiveModal x={{ ...receiveFrom, investor }} owed={receiveFrom.investor_owes ?? 0} onClose={() => setReceiveFrom(null)} onSaved={reload} />}
       {vehicles && <InvestorVehiclePay investorId={investor.id} name={investor.name} onClose={() => setVehicles(false)} onSaved={reload} />}
       <SettlementForm open={!!mode} mode={mode ?? "other"} investorId={investor.id} outstanding={summary.outstanding} onClose={() => setMode(null)} onSaved={reload} />
     </>

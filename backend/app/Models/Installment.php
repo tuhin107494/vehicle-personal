@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToShop;
 use App\Support\Money;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -19,6 +20,7 @@ class Installment extends Model
     protected $fillable = [
         'shop_id',
         'plan_id',
+        'investor_sale_id',
         'seq_no',
         'due_date',
         'amount',
@@ -41,6 +43,26 @@ class Installment extends Model
     public function plan(): BelongsTo
     {
         return $this->belongsTo(InstallmentPlan::class, 'plan_id');
+    }
+
+    /**
+     * The shop pays the investor back on an investor sale.
+     *
+     * @return BelongsTo<InvestorSale, $this>
+     */
+    public function investorSale(): BelongsTo
+    {
+        return $this->belongsTo(InvestorSale::class);
+    }
+
+    /**
+     * Only the customers' installments (what customers pay the shop), not the investors'.
+     *
+     * @param  Builder<Installment>  $query
+     */
+    public function scopeCustomer(Builder $query): void
+    {
+        $query->whereNotNull('plan_id');
     }
 
     public function remaining(): float

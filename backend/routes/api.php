@@ -104,6 +104,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('person-summary', 'personSummary');
             Route::get('person-transactions', 'personTransactions');
             Route::get('investors', 'investors');
+            Route::get('investor-sales', 'investorSales');
         });
 
         Route::post('customers/import', [CustomerController::class, 'import'])->middleware('throttle:10,1');
@@ -138,6 +139,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('sales/{sale}/promises', [PromiseController::class, 'store']);
         Route::patch('sales/{sale}/registration', [RegistrationController::class, 'update']);
         Route::post('sales/{sale}/investor-sale', [InvestorSaleController::class, 'store']);
+        Route::get('investor-sales/{investorSale}', [InvestorSaleController::class, 'show']);
 
         Route::get('installments', [InstallmentController::class, 'index']);
 

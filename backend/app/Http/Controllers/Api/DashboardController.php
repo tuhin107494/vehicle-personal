@@ -36,12 +36,12 @@ class DashboardController extends Controller implements HasMiddleware
 
     public function __invoke(Request $request): JsonResponse
     {
-        $overdue = fn () => Installment::where(fn ($q) => $q
+        $overdue = fn () => Installment::customer()->where(fn ($q) => $q
             ->where('status', 'overdue')
             ->orWhere(fn ($q) => $q->whereIn('status', ['pending', 'partial'])->whereDate('due_date', '<', today())));
 
         // installments falling due today that are not fully paid
-        $dueToday = fn () => Installment::whereIn('status', ['pending', 'partial', 'overdue'])->whereDate('due_date', today());
+        $dueToday = fn () => Installment::customer()->whereIn('status', ['pending', 'partial', 'overdue'])->whereDate('due_date', today());
 
         // what the investors are owed today: the plans they financed that have an installment falling due today, at the investor's monthly share
         $investorToday = InstallmentPlan::whereNotNull('investor_id')

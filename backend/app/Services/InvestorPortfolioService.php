@@ -39,9 +39,10 @@ class InvestorPortfolioService
         $returned = InvestorSettlement::whereIn('plan_id', $plans->flatten()->pluck('id'))->where('type', 'principal_return')
             ->selectRaw('plan_id, SUM(amount) as total')->groupBy('plan_id')->pluck('total', 'plan_id');
 
-        // investor sales: the amount each funded, less the principal already paid back
+        // investor sales: the amount each funded, less the principal already paid back; and what the investor has given of it
         $investorSales = InvestorSale::whereIn('investor_id', $ids)->where('status', 'active')
             ->withSum(['settlements as returned' => fn ($q) => $q->where('type', 'principal_return')], 'amount')
+            ->withSum(['settlements as given' => fn ($q) => $q->where('type', 'investment')], 'amount')
             ->get(['id', 'investor_id', 'principal'])->groupBy('investor_id');
 
         $sales = Sale::whereIn('investor_id', $ids)->where('status', 'active')->get(['id', 'investor_id', 'due_amount'])->groupBy('investor_id');
@@ -55,6 +56,8 @@ class InvestorPortfolioService
             $funded = $investorSales[$investor->id] ?? collect();
             $outstanding = ($plans[$investor->id] ?? collect())->sum(fn ($plan) => max(Money::paisa($plan->principal) - Money::paisa($returned[$plan->id] ?? 0), 0))
                 + $funded->sum(fn ($x) => max(Money::paisa($x->principal) - Money::paisa($x->returned ?? 0), 0));
+            // what the investor still has to give the shop of their amounts on investor sales
+            $owes = $funded->sum(fn ($x) => max(Money::paisa($x->principal) - Money::paisa($x->given ?? 0), 0));
 
             return [$investor->id => [
                 'opening_balance' => (float) $investor->opening_balance,
@@ -64,6 +67,7 @@ class InvestorPortfolioService
                 'profit_earned' => (float) ($type['profit_share'] ?? 0),
                 'withdrawn' => (float) ($type['withdrawal'] ?? 0),
                 'outstanding' => Money::taka($outstanding),
+                'investor_owes' => Money::taka($owes),
                 'sales_count' => $mine->count() + $funded->count(),
                 'collected' => (float) $mine->sum(fn ($sale) => (float) ($collected[$sale->id] ?? 0)),
                 'sales_due' => (float) $mine->sum('due_amount'),

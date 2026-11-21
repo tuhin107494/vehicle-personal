@@ -26,6 +26,7 @@ export function InvestorVehiclePay({ investorId, name, onClose, onSaved }: { inv
   const overCount = (data?.rows ?? []).filter(isOver).length;
   const shown = (data?.rows ?? []).filter((r) => (tab === "all" || isOver(r)) && `${r.vehicle} ${r.vehicle_name} ${r.buyer}`.toLowerCase().includes(q.trim().toLowerCase()));
   const defaults = useMemo(() => ({ principal: pay?.principal_due, profit: pay?.profit_due }), [pay]);
+  const due = useMemo(() => (pay ? { monthly: pay.monthly, current: pay.current_due, principalLeft: pay.principal_due, profitLeft: pay.profit_due } : undefined), [pay]);
 
   return (
     <>
@@ -75,6 +76,7 @@ export function InvestorVehiclePay({ investorId, name, onClose, onSaved }: { inv
       </Modal>
       {pay && (
         <SettlementForm open mode="pay" name={pay.vehicle} investorId={investorId} planId={pay.plan_id} investorSaleId={pay.investor_sale_id} outstanding={pay.principal_due} defaults={defaults}
+          due={due}
           onClose={() => setPay(null)} onSaved={() => { reload(); onSaved?.(); }} />
       )}
     </>

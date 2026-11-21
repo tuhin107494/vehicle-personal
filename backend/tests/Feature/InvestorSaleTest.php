@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Customer;
+use App\Models\Installment;
 use App\Models\Investor;
 use App\Models\InvestorSettlement;
 use App\Models\Shop;
@@ -349,6 +350,101 @@ class InvestorSaleTest extends TestCase
             ->assertJsonPath('data.principal', 200000)->assertJsonPath('data.total_payable', 226000)->assertJsonPath('data.investor_owes', 0);
     }
 
+    public function test_the_reports_show_investor_sales_and_what_the_investor_owes(): void
+    {
+        $sale = $this->installmentSale();
+        // 300,000 on the plan at 13% (339,000 back); the investor gives 250,000 now and owes 50,000
+        $x = $this->postJson("/api/sales/{$sale['id']}/investor-sale", $this->investorSaleData(['investor_down_payment' => 250000]))->assertCreated()->json('data');
+        $this->pay($x['id'], 'principal_return', 10000)->assertCreated();
+        $other = $this->installmentSale('CH-2');
+        $cancelled = $this->postJson("/api/sales/{$other['id']}/investor-sale", $this->investorSaleData())->assertCreated()->json('data.id');
+        $this->postJson("/api/investor-sales/{$cancelled}/cancel")->assertOk();
+
+        // the investor sales report: listed with their sale, totals over the active ones
+        $this->getJson('/api/reports/investor-sales')->assertOk()
+            ->assertJsonCount(2, 'data.investor_sales')
+            ->assertJsonPath('data.totals.count', 1)
+            ->assertJsonPath('data.totals.cancelled', 1)
+            ->assertJsonPath('data.totals.amount', 300000)
+            ->assertJsonPath('data.totals.payable', 339000)
+            ->assertJsonPath('data.totals.paid', 10000)
+            ->assertJsonPath('data.totals.due', 329000)
+            ->assertJsonPath('data.totals.investor_gave', 250000)
+            ->assertJsonPath('data.totals.investor_owes', 50000)
+            ->assertJsonPath('data.investor_sales.1.sale.vehicle.chassis_no', 'CH-1');
+        // the sales report links each sale to its investor sale
+        $this->assertSame($x['id'], collect($this->getJson('/api/reports/sales?from=2026-01-01')->json('data.sales'))->firstWhere('id', $sale['id'])['investor_sale']['id']);
+        $this->getJson('/api/reports/investor-sales?status=active')->assertJsonCount(1, 'data.investor_sales');
+        $this->getJson('/api/reports/investor-sales?from=2026-01-07')->assertJsonCount(0, 'data.investor_sales');
+
+        // the investors report shows what the investor still owes the shop
+        $row = collect($this->getJson('/api/reports/investors')->json('data'))->firstWhere('investor.id', $this->investor->id);
+        $this->assertEquals(50000, $row['summary']['investor_owes']);
+
+        // the investor's down payment is cash in on the day of the investor sale
+        $this->assertEquals(250000, $this->getJson('/api/reports/daily?date=2026-01-06')->json('data.investor_received.total'));
+
+        $moderator = User::factory()->create(['role' => 'moderator', 'shop_id' => $this->shop->id]);
+        $this->as($moderator);
+        $this->getJson('/api/reports/investor-sales')->assertForbidden();
+    }
+
+    public function test_the_investor_installments_are_stored_beside_the_customer_installments(): void
+    {
+        $sale = $this->installmentSale();
+        // 339,000 back in 12 monthly installments of 28,250 from 2026-02-05
+        $x = $this->postJson("/api/sales/{$sale['id']}/investor-sale", $this->investorSaleData())->assertCreated()->json('data');
+
+        $this->assertDatabaseCount('installments', 24); // the customer's 12 and the investor's 12
+        $this->assertDatabaseHas('installments', ['investor_sale_id' => $x['id'], 'plan_id' => null, 'seq_no' => 1, 'due_date' => '2026-02-05', 'amount' => 28250, 'status' => 'pending']);
+
+        // paying the investor fills their installments in order
+        $this->pay($x['id'], 'principal_return', 30000)->assertCreated();
+        $this->assertDatabaseHas('installments', ['investor_sale_id' => $x['id'], 'seq_no' => 1, 'paid_amount' => 28250, 'status' => 'paid']);
+        $this->assertDatabaseHas('installments', ['investor_sale_id' => $x['id'], 'seq_no' => 2, 'paid_amount' => 1750, 'status' => 'partial']);
+
+        // a deleted payment takes it back out
+        $id = $this->pay($x['id'], 'profit_share', 1000)->assertCreated()->json('data.id');
+        $this->deleteJson("/api/investor-settlements/{$id}")->assertOk();
+        $this->assertDatabaseHas('installments', ['investor_sale_id' => $x['id'], 'seq_no' => 2, 'paid_amount' => 1750]);
+
+        // the customers' lists show only the customers' installments
+        $this->assertCount(12, $this->getJson('/api/installments?per_page=100')->assertOk()->json('data'));
+    }
+
+    public function test_a_cancelled_investor_sale_cancels_its_installments(): void
+    {
+        $sale = $this->installmentSale();
+        $id = $this->postJson("/api/sales/{$sale['id']}/investor-sale", $this->investorSaleData())->assertCreated()->json('data.id');
+        $this->postJson("/api/investor-sales/{$id}/cancel")->assertOk();
+
+        $this->assertSame(12, Installment::where('investor_sale_id', $id)->where('status', 'cancelled')->count());
+    }
+
+    public function test_an_investor_sale_has_its_own_page(): void
+    {
+        $sale = $this->installmentSale();
+        $id = $this->postJson("/api/sales/{$sale['id']}/investor-sale", $this->investorSaleData(['investor_down_payment' => 250000]))->assertCreated()->json('data.id');
+
+        $this->getJson("/api/investor-sales/{$id}")->assertOk()
+            ->assertJsonPath('data.sale.vehicle.chassis_no', 'CH-1')
+            ->assertJsonPath('data.investor.name', 'Rahim')
+            ->assertJsonPath('data.investor_owes', 50000)
+            ->assertJsonPath('data.sale.customer.id', $sale['customer_id']);
+        $this->getJson('/api/investor-sales/999999')->assertNotFound();
+    }
+
+    public function test_an_investor_installment_cannot_be_called_about_as_a_customer_due(): void
+    {
+        $sale = $this->installmentSale();
+        $id = $this->postJson("/api/sales/{$sale['id']}/investor-sale", $this->investorSaleData())->assertCreated()->json('data.id');
+        $installment = Installment::where('investor_sale_id', $id)->firstOrFail();
+
+        $this->postJson('/api/collections/call', ['type' => 'installment', 'id' => $installment->id])->assertNotFound();
+        $this->getJson("/api/collections/call-history?type=installment&id={$installment->id}")->assertNotFound();
+        $this->assertDatabaseCount('call_logs', 0);
+    }
+
     public function test_investor_sales_need_their_permissions(): void
     {
         $sale = $this->installmentSale();
@@ -378,6 +474,9 @@ class InvestorSaleTest extends TestCase
         $theirs = Investor::create(['name' => 'B investor']);
 
         $this->postJson("/api/sales/{$sale['id']}/investor-sale", $this->investorSaleData(['investor_id' => $theirs->id]))->assertNotFound();
+        // another shop cannot open it, list it in its reports, or call about its installments
+        $this->getJson("/api/investor-sales/{$id}")->assertNotFound();
+        $this->assertSame([], $this->getJson('/api/reports/investor-sales?from=2026-01-01')->assertOk()->json('data.investor_sales'));
         $this->postJson("/api/investor-sales/{$id}/cancel")->assertNotFound();
         $this->postJson('/api/investor-settlements', [
             'investor_id' => $theirs->id, 'investor_sale_id' => $id, 'type' => 'principal_return', 'amount' => 1000, 'date' => today()->toDateString(),

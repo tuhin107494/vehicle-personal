@@ -9,7 +9,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { api, applyServerErrors } from "@/lib/api";
-import { money, todayStr, toPayload } from "@/lib/format";
+import { money, nextMonth, todayStr, toPayload } from "@/lib/format";
 import { useDebounced, useFetch, useLoadMore } from "@/lib/hooks";
 import type { Investor, InvestorSale, Sale, Vehicle } from "@/lib/types";
 import { ProfitCalculator } from "@/components/forms/ProfitCalculator";
@@ -18,6 +18,7 @@ import { CustomerSelect, InvestorSelect } from "@/components/Selects";
 import { SearchSelect } from "@/components/SearchSelect";
 import { useCategories } from "@/lib/categories";
 import { useAdditionalCustomer } from "@/lib/settings";
+import { useT } from "@/lib/i18n";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 
@@ -87,8 +88,9 @@ function schedule(total: number, n: number, first: string, frequency: "monthly" 
  */
 export function InvestorSaleForm() {
   const router = useRouter();
+  const { lang } = useT();
   const { nameOf } = useCategories();
-  const blank: Values = { vehicle_id: "", investor_id: "", customer_id: "", date: todayStr(), sale_price: "", down_payment: "", investor_down_payment: "", plan_amount: "", method: "cash", memo_no: "", guarantor_name: "", guarantor_phone: "", profit_mode: "percent", profit_rate: "", profit_amount: "", installment_count: "12", frequency: "monthly", first_due_date: "" };
+  const blank: Values = { vehicle_id: "", investor_id: "", customer_id: "", date: todayStr(), sale_price: "", down_payment: "", investor_down_payment: "", plan_amount: "", method: "cash", memo_no: "", guarantor_name: "", guarantor_phone: "", profit_mode: "percent", profit_rate: "", profit_amount: "", installment_count: "12", frequency: "monthly", first_due_date: nextMonth() };
   const { register, handleSubmit, reset, setValue, watch, setError, formState: { errors, isSubmitting } } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: blank });
   const w = watch();
 
@@ -115,16 +117,22 @@ export function InvestorSaleForm() {
     : s.investor ? "This sale is already financed by an investor on its own installment plan."
     : null;
 
-  // the schedule starts as the customer's plan; the price and down payment are typed in (the investor funds the rest)
+  // the schedule starts as the customer's plan (count and frequency); the price and down payment are typed in
   useEffect(() => {
     if (!s) return;
     if (s.plan) {
       setValue("installment_count", String(s.plan.number_of_installments));
       setValue("frequency", s.plan.frequency === "weekly" ? "weekly" : "monthly");
-      setValue("first_due_date", s.plan.start_date);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s?.id]);
+
+  // the first installment is a month after the investor sale date: changing that date moves it (it can still be changed by hand after)
+  useEffect(() => {
+    if (!w.date) return;
+    setValue("first_due_date", nextMonth(w.date), { shouldValidate: !!errors.first_due_date });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [w.date]);
 
   // the investor's saved formula fills the percentage; with none saved, the calculator opens to work one out
   const [calcOpen, setCalcOpen] = useState(false);
@@ -271,7 +279,7 @@ export function InvestorSaleForm() {
               </Field>
               <Field label="Memo no. (optional)" error={errors.memo_no?.message}><Input className={inputCls} {...register("memo_no")} /></Field>
               <Field required label="Down payment (from customer)" error={errors.down_payment?.message}><Input type="number" step="0.01" className={inputCls} {...register("down_payment")} /></Field>
-              <Field label="Down payment (from investor)" error={errors.investor_down_payment?.message}><Input type="number" step="0.01" placeholder={String(planAmount)} className={inputCls} {...register("investor_down_payment")} /></Field>
+              <Field label="Down payment (from investor)" error={errors.investor_down_payment?.message}><Input type="number" step="0.01" placeholder={planAmount > 0 ? String(planAmount) : undefined} className={inputCls} {...register("investor_down_payment")} /></Field>
               <Field label="Guarantor name (optional)" error={errors.guarantor_name?.message}><Input className={inputCls} {...register("guarantor_name")} /></Field>
               <Field label="Guarantor mobile (optional)" error={errors.guarantor_phone?.message}><Input type="tel" className={inputCls} {...register("guarantor_phone")} /></Field>
               {/* hidden until needed: the button opens it, removing the customer closes it */}
@@ -289,14 +297,18 @@ export function InvestorSaleForm() {
               <div><dt className="text-xs text-slate-500">Down payment (customer)</dt><dd className="font-semibold text-slate-800">{money(down)}</dd></div>
               <div><dt className="text-xs text-slate-500">Down payment (investor)</dt><dd className="font-semibold text-slate-800">{money(investorDown)}</dd></div>
               <div><dt className="text-xs text-slate-500">Investor due</dt><dd className={`text-base font-bold ${investorDue > 0 ? "text-amber-700" : "text-emerald-700"}`}>{money(investorDue)}</dd></div>
-              <p className="col-span-full text-xs text-slate-600">The investor gives {money(investorDown)} now and {money(investorDue)} later. The shop pays the investor back {money(planAmount)} + interest on the plan below.</p>
+              <p className="col-span-full text-xs text-slate-600">
+                {lang === "bn"
+                  ? `ইনভেস্টর এখন ${money(investorDown)} এবং পরে ${money(investorDue)} দেবেন। দোকান নিচের পরিকল্পনায় ইনভেস্টরকে ${money(planAmount)} + লাভ ফেরত দেবে।`
+                  : `The investor gives ${money(investorDown)} now and ${money(investorDue)} later. The shop pays the investor back ${money(planAmount)} + interest on the plan below.`}
+              </p>
             </dl>
           </Card>
 
           <Card title="Installment plan (the shop pays the investor)">
             <div className="grid gap-3 md:grid-cols-3">
               <InvestorSelect allowCreate value={w.investor_id} onChange={(id) => setValue("investor_id", id, { shouldValidate: true })} error={errors.investor_id?.message} />
-              <Field label="Amount on plan" error={errors.plan_amount?.message}><Input type="number" step="0.01" placeholder={String(afterCustomer)} className={inputCls} {...register("plan_amount")} /></Field>
+              <Field label="Amount on plan" error={errors.plan_amount?.message}><Input type="number" step="0.01" placeholder={afterCustomer > 0 ? String(afterCustomer) : undefined} className={inputCls} {...register("plan_amount")} /></Field>
               <Field required label="Number of installments" error={errors.installment_count?.message}><Input type="number" className={inputCls} {...register("installment_count")} /></Field>
               <Field label="Frequency" error={errors.frequency?.message}>
                 <NativeSelect className={inputCls} {...register("frequency")}><option value="monthly">Monthly</option><option value="weekly">Weekly</option></NativeSelect>

@@ -3,20 +3,20 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Ban, HandCoins, Wallet } from "lucide-react";
+import { ArrowRight, Ban, HandCoins, Wallet } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { fmtDate, money, todayStr } from "@/lib/format";
 import type { InvestorSale } from "@/lib/types";
-import { Button, Card, Field, inputCls, KV, Modal } from "@/components/app-ui";
+import { Badge, Button, Card, Field, inputCls, KV, Modal, StatusBadge } from "@/components/app-ui";
 import { Input } from "@/components/ui/input";
 import { Col, DataTable } from "@/components/DataTable";
 import { SettlementForm } from "@/components/forms/SettlementForm";
 
-type Row = InvestorSale["schedule"][number] & { paid: boolean };
+type Row = InvestorSale["schedule"][number] & { paidAmount: number; left: number };
 
 /** The rest of the investor's amount, given to the shop after the investor sale: no more than they still owe. */
-function ReceiveModal({ x, owed, onClose, onSaved }: { x: InvestorSale; owed: number; onClose: () => void; onSaved: () => void }) {
+export function ReceiveModal({ x, owed, onClose, onSaved }: { x: InvestorSale; owed: number; onClose: () => void; onSaved: () => void }) {
   const [amount, setAmount] = useState(String(owed));
   const [date, setDate] = useState(todayStr());
   const [note, setNote] = useState("");
@@ -55,9 +55,17 @@ function ReceiveModal({ x, owed, onClose, onSaved }: { x: InvestorSale; owed: nu
 }
 
 /** The investor sale on a sale's page: the investor's terms, where the payments to them stand, and their schedule. */
-export function InvestorSaleCard({ investorSale: x, onChanged }: { investorSale: InvestorSale; onChanged: () => void }) {
+/**
+ * investorOnly: just the investor's and the shop's side (on the investor sale's own page), without the customer's price, down payment or guarantor.
+ * summary: a short view (on the customer's sale page) with no actions or schedule, and a link to the investor sale's own page.
+ */
+export function InvestorSaleCard({ investorSale: x, onChanged, investorOnly = false, summary = false, paying: payingFromPage, onPayingChange }: { investorSale: InvestorSale; onChanged: () => void; investorOnly?: boolean; summary?: boolean; paying?: boolean; onPayingChange?: (open: boolean) => void }) {
   const { can } = useAuth();
-  const [paying, setPaying] = useState(false);
+  const [payingHere, setPayingHere] = useState(false);
+  // the page can hold the Pay investor button itself (in its title bar): then it opens the form, and the card has no button of its own
+  const payFromPage = onPayingChange !== undefined;
+  const paying = payFromPage ? !!payingFromPage : payingHere;
+  const setPaying = payFromPage ? onPayingChange : setPayingHere;
   const [receiving, setReceiving] = useState(false);
   const owes = x.investor_owes ?? 0; // what the investor still has to give the shop of their amount
   const [busy, setBusy] = useState(false);
@@ -65,14 +73,18 @@ export function InvestorSaleCard({ investorSale: x, onChanged }: { investorSale:
   const p = x.position;
   const paid = p ? p.principal_paid + p.profit_paid : 0;
   const defaults = useMemo(() => ({ principal: p ? p.principal - p.principal_paid : undefined, profit: p ? p.profit - p.profit_paid : undefined }), [p]);
+  // the installment due now, for the pay form (memoised: the form starts over when it changes)
+  const due = useMemo(() => (p ? { monthly: p.monthly, current: p.current_due, principalLeft: p.principal - p.principal_paid, profitLeft: p.profit - p.profit_paid } : undefined), [p]);
 
   // an installment counts as paid once the payments so far cover it and every one before it
+  // what has been paid back fills the installments in order (as the stored installments are filled)
   const rows = useMemo(() => {
     const out: Row[] = [];
-    let upToHere = 0;
+    let rest = paid;
     for (const r of x.schedule) {
-      upToHere += r.amount;
-      out.push({ ...r, paid: upToHere <= paid + 0.005 });
+      const paidAmount = Math.round(Math.min(rest, r.amount) * 100) / 100;
+      rest = Math.max(rest - paidAmount, 0);
+      out.push({ ...r, paidAmount, left: Math.round((r.amount - paidAmount) * 100) / 100 });
     }
     return out;
   }, [x.schedule, paid]);
@@ -80,7 +92,17 @@ export function InvestorSaleCard({ investorSale: x, onChanged }: { investorSale:
     { header: "#", accessorKey: "seq_no" },
     { header: "Date", cell: ({ row }) => fmtDate(row.original.due_date) },
     { header: "Amount", cell: ({ row }) => money(row.original.amount) },
-    { header: "Status", cell: ({ row }) => row.original.paid ? <span className="text-emerald-700">Paid</span> : row.original.due_date <= new Date().toLocaleDateString("en-CA") ? <span className="font-medium text-amber-700">Due</span> : <span className="text-slate-500">Upcoming</span> },
+    { header: "Paid", cell: ({ row }) => row.original.paidAmount > 0 ? <span className="text-emerald-700">{money(row.original.paidAmount)}</span> : "-" },
+    { header: "Left", cell: ({ row }) => row.original.left > 0.004 ? money(row.original.left) : "-" },
+    {
+      header: "Status",
+      cell: ({ row }) => {
+        const r = row.original;
+        if (r.left <= 0.004) return <Badge tone="green">Paid</Badge>;
+        if (r.due_date <= new Date().toLocaleDateString("en-CA")) return <Badge tone="yellow">Due</Badge>;
+        return r.paidAmount > 0 ? <Badge tone="blue">Partly paid</Badge> : <Badge tone="gray">Upcoming</Badge>;
+      },
+    },
   ];
 
   const cancel = async () => {
@@ -98,39 +120,57 @@ export function InvestorSaleCard({ investorSale: x, onChanged }: { investorSale:
   };
 
   return (
-    <Card title="Investor sale" className="mb-4" actions={(
+    <Card id="investor-sale" title="Investor sale" className="mb-4" actions={summary ? (
+      <Link className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-4 text-sm font-medium text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800" href={`/investor-sales/${x.id}`}>Open investor sale <ArrowRight className="size-4" /></Link>
+    ) : (
       <div className="flex flex-wrap gap-2">
         {x.status === "active" && can("settlements.manage") && owes > 0 && <Button variant="outline" onClick={() => setReceiving(true)}><HandCoins className="size-4 text-emerald-600" /> Receive from investor</Button>}
-        {can("settlements.manage") && p && p.total_due > 0 && <Button variant="outline" onClick={() => setPaying(true)}><Wallet className="size-4 text-violet-600" /> Pay investor</Button>}
+        {!payFromPage && can("settlements.manage") && p && p.total_due > 0 && <Button variant="outline" onClick={() => setPaying(true)}><Wallet className="size-4 text-emerald-600" /> Pay investor</Button>}
         {can("sales.cancel") && paid === 0 && <Button variant="danger" disabled={busy} onClick={cancel}><Ban className="size-4" /> Cancel</Button>}
       </div>
     )}>
-      <KV items={[
+      {/* on the customer's sale page: only who and when, the amounts are on the investor sale's own page */}
+      {summary ? (
+        <KV items={[
+          ["Investor", x.investor ? <Link key="i" className="underline" href={`/investors/${x.investor.id}`}>{x.investor.name}</Link> : "-"],
+          ["Date", fmtDate(x.date)],
+          ["Installments", `${x.number_of_installments} ${x.frequency === "weekly" ? "weeks" : "months"}`],
+          ["Status", <StatusBadge key="s" status={x.status} />],
+        ]} />
+      ) : <KV items={[
         ["Investor", x.investor ? <Link key="i" className="underline" href={`/investors/${x.investor.id}`}>{x.investor.name}</Link> : "-"],
-        ...(x.customer ? [["Additional customer", <Link key="c" className="underline" href={`/customers/${x.customer.id}`}>{x.customer.name}{x.customer.phone ? ` · ${x.customer.phone}` : ""}</Link>] as [string, React.ReactNode]] : []),
-        ["Sale date", fmtDate(x.date)],
-        ...(x.sale_price !== null ? [["Sale price", money(x.sale_price)] as [string, React.ReactNode]] : []),
-        ...(x.down_payment !== null ? [["Down payment (customer)", `${money(x.down_payment)}${x.method ? ` (${x.method})` : ""}`] as [string, React.ReactNode]] : []),
-        ["Amount on plan", money(x.principal)],
-        ...(x.investor_paid !== undefined ? [["Investor gave", money(x.investor_paid)] as [string, React.ReactNode]] : []),
-        ...(owes > 0 ? [["Investor still owes", <b key="o" className="text-amber-700">{money(owes)}</b>] as [string, React.ReactNode]] : []),
+        ...(x.customer && !investorOnly ? [["Additional customer", <Link key="c" className="underline" href={`/customers/${x.customer.id}`}>{x.customer.name}{x.customer.phone ? ` · ${x.customer.phone}` : ""}</Link>] as [string, React.ReactNode]] : []),
+        ["Date", fmtDate(x.date)],
+        ...(x.sale_price !== null && !investorOnly ? [["Sale price", money(x.sale_price)] as [string, React.ReactNode]] : []),
+        ...(x.down_payment !== null && !investorOnly ? [["Down payment (customer)", `${money(x.down_payment)}${x.method ? ` (${x.method})` : ""}`] as [string, React.ReactNode]] : []),
+        ["Investor's money", money(x.principal)],
+        // only when the investor has given part of their money (all of it is the same as the line above)
+        ...(x.investor_paid !== undefined && owes > 0 ? [["Received from investor", money(x.investor_paid)] as [string, React.ReactNode]] : []),
+        ...(owes > 0 ? [["Investor still has to give", <b key="o" className="text-amber-700">{money(owes)}</b>] as [string, React.ReactNode]] : []),
         ...(x.memo_no ? [["Memo no.", x.memo_no] as [string, React.ReactNode]] : []),
-        ...(x.guarantor_name ? [["Guarantor name", x.guarantor_name] as [string, React.ReactNode]] : []),
-        ...(x.guarantor_phone ? [["Guarantor", <a key="g" className="underline" href={`tel:${x.guarantor_phone}`}>{x.guarantor_phone}</a>] as [string, React.ReactNode]] : []),
-        ["Investor profit", `${money(x.profit_amount)} (${x.profit_rate}%)`],
-        ["Pay the investor", `${money(x.total_payable)} in ${x.number_of_installments} ${x.frequency === "weekly" ? "weeks" : "months"} from ${fmtDate(x.start_date)}`],
+        ...(x.guarantor_name && !investorOnly ? [["Guarantor name", x.guarantor_name] as [string, React.ReactNode]] : []),
+        ...(x.guarantor_phone && !investorOnly ? [["Guarantor", <a key="g" className="underline" href={`tel:${x.guarantor_phone}`}>{x.guarantor_phone}</a>] as [string, React.ReactNode]] : []),
+        ["Investor's profit", `${money(x.profit_amount)} (${x.profit_rate}%)`],
+        ["We pay back in total", money(x.total_payable)],
+        ["Installments", `${x.number_of_installments} ${x.frequency === "weekly" ? "weeks" : "months"}`],
         ...(p ? [
-          ["Paid so far", money(paid)] as [string, React.ReactNode],
-          ["Due now", <b key="d" className={p.current_due > 0 ? "text-amber-700" : ""}>{money(p.current_due)}</b>] as [string, React.ReactNode],
-          ["Still to pay", money(p.total_due)] as [string, React.ReactNode],
-          ["Next date", p.next_date ? fmtDate(p.next_date) : "-"] as [string, React.ReactNode],
+          ["Paid back so far", money(paid)] as [string, React.ReactNode],
+          ["To pay now", <b key="d" className={p.current_due > 0 ? "text-amber-700" : ""}>{money(p.current_due)}</b>] as [string, React.ReactNode],
+          ["Left to pay back", money(p.total_due)] as [string, React.ReactNode],
         ] : []),
-      ]} />
-      <Button variant="outline" className="mt-3" onClick={() => setShowSchedule((v) => !v)}>{showSchedule ? "Hide schedule" : "Show schedule"}</Button>
-      {showSchedule && <div className="mt-3"><DataTable columns={cols} data={rows} /></div>}
+      ]} />}
+      {/* on the investor sale's own page the schedule is always shown; elsewhere it opens on a click */}
+      {investorOnly ? (
+        <><h3 className="mb-2 mt-4 text-sm font-semibold text-slate-700">Schedule</h3><DataTable columns={cols} data={rows} /></>
+      ) : !summary && (
+        <>
+          <Button variant="outline" className="mt-3" onClick={() => setShowSchedule((v) => !v)}>{showSchedule ? "Hide schedule" : "Show schedule"}</Button>
+          {showSchedule && <div className="mt-3"><DataTable columns={cols} data={rows} /></div>}
+        </>
+      )}
       {receiving && <ReceiveModal x={x} owed={owes} onClose={() => setReceiving(false)} onSaved={onChanged} />}
       {paying && x.investor && (
-        <SettlementForm open mode="pay" name={x.investor.name} investorId={x.investor.id} investorSaleId={x.id} outstanding={defaults.principal} defaults={defaults}
+        <SettlementForm open mode="pay" name={x.investor.name} investorId={x.investor.id} investorSaleId={x.id} outstanding={defaults.principal} defaults={defaults} due={due}
           onClose={() => setPaying(false)} onSaved={onChanged} />
       )}
     </Card>

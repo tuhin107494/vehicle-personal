@@ -44,7 +44,10 @@ export default function DashboardPage() {
     { header: "Mobile", cell: ({ row }) => row.original.phone ?? "-" },
   ];
   const investorCols: Col<InvestorToday>[] = [
-    { header: "Sale", cell: ({ row }) => <Link className="underline" href={`/sales/${row.original.sale_id}`}>#{row.original.sale_id}</Link> },
+    // an investor sale opens its own page (investor and shop only); an older plan-financed sale opens the sale
+    { header: "Sale", cell: ({ row }) => row.original.investor_sale_id
+      ? <Link className="underline" href={`/investor-sales/${row.original.investor_sale_id}`}>Investor sale #{row.original.investor_sale_id}</Link>
+      : <Link className="underline" href={`/sales/${row.original.sale_id}`}>#{row.original.sale_id}</Link> },
     { header: "Investor", cell: ({ row }) => <Link className="underline" href={`/investors/${row.original.investor.id}`}>{row.original.investor.name}</Link> },
     { header: "Vehicle", cell: ({ row }) => <div className="leading-tight"><div className="font-medium">{row.original.vehicle.chassis_no}</div><div className="text-xs text-slate-500">{row.original.vehicle.engine_no}</div></div> },
     { header: "To pay", cell: ({ row }) => money(row.original.amount) },

@@ -83,6 +83,7 @@ export type Settlement = {
 export type Summary = {
   opening_balance: number; invested: number; returned: number; profit_earned: number; withdrawn: number;
   outstanding: number; sales_count: number; collected: number; sales_due: number;
+  investor_owes?: number; // what the investor still has to give the shop of their amounts on investor sales
 };
 export type Shop = {
   id: number; name: string; phone: string | null; address: string | null; is_active: boolean;

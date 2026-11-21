@@ -9,7 +9,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { api, ApiError, applyServerErrors } from "@/lib/api";
-import { addDays, fmtDate, money, todayStr, toPayload, savedMsg } from "@/lib/format";
+import { fmtDate, money, nextMonth, todayStr, toPayload, savedMsg } from "@/lib/format";
 import { useDebounced, useFetch, useLoadMore } from "@/lib/hooks";
 import type { Booking, DraftT, Customer, Sale, Vehicle } from "@/lib/types";
 import { draftValues } from "@/components/DraftsBar";
@@ -130,7 +130,7 @@ export function SaleForm({ booking = null, onSold }: { booking?: Booking | null;
 
   const blank = (vehicleId: string): Values => ({
       vehicle_id: booking?.vehicle_id ? String(booking.vehicle_id) : vehicleId, party_id: booking ? String(booking.customer_id) : "", additional_customer_id: "", sale_date: "", sale_price: booking?.agreed_price ? String(Number(booking.agreed_price)) : "", payment_type: "cash", down_payment: booking ? String(Number(booking.advance_amount)) : "", // from a booking this is the total received at the sale: the advance, plus what is paid now (typed apart from it)
-      method: "cash", advance_amount: "", advance_date: "", promised_date: "", promise_note: "", investor_id: "", guarantor_phone: "", guarantor_name: "", memo_no: "", installment_count: "24", first_due_date: addDays(30),
+      method: "cash", advance_amount: "", advance_date: "", promised_date: "", promise_note: "", investor_id: "", guarantor_phone: "", guarantor_name: "", memo_no: "", installment_count: "24", first_due_date: nextMonth(),
       frequency: "monthly", interest_rate: "0", interest_mode: "percent", interest_amount: "", investor_share_percent: "0", investor_share_mode: "percent", investor_share_amount: "",
   });
 
@@ -166,6 +166,12 @@ export function SaleForm({ booking = null, onSold }: { booking?: Booking | null;
     setValue("advance_amount", value, { shouldValidate: true });
     setValue("down_payment", Number(value || 0) > 0 ? String(Number(value) + extra) : extra ? String(extra) : "", { shouldValidate: true });
   };
+  // the first installment is a month after the sale: changing the sale date moves it (it can still be changed by hand after)
+  useEffect(() => {
+    if (!w.sale_date) return;
+    setValue("first_due_date", nextMonth(w.sale_date), { shouldValidate: !!errors.first_due_date });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [w.sale_date]);
   // the advance cannot be dated after the sale: moving the sale date back pulls the advance date with it
   useEffect(() => {
     if (w.advance_date && w.sale_date && w.advance_date > w.sale_date) setValue("advance_date", w.sale_date, { shouldValidate: true });

@@ -17,6 +17,8 @@ use Illuminate\Support\Facades\DB;
  */
 class InvestorSaleService
 {
+    public function __construct(private PaymentService $payments) {}
+
     public function create(Sale $sale, array $data, User $user): InvestorSale
     {
         return DB::transaction(function () use ($sale, $data, $user) {
@@ -100,6 +102,8 @@ class InvestorSaleService
                 ]);
             }
 
+            $this->syncInstallments($investorSale);
+
             return $investorSale;
         });
     }
@@ -124,6 +128,7 @@ class InvestorSaleService
 
             $investorSale->settlements()->where('type', 'investment')->where('note', 'like', 'Auto:%')->delete();
             $investorSale->update(['status' => 'cancelled', 'cancelled_at' => now()]);
+            $this->syncInstallments($investorSale);
 
             return $investorSale;
         });
@@ -136,7 +141,7 @@ class InvestorSaleService
             $investorSale = InvestorSale::lockForUpdate()->findOrFail($data['investor_sale_id']);
             $this->checkPayment($investorSale, $data, null);
 
-            return InvestorSettlement::create([
+            $settlement = InvestorSettlement::create([
                 'investor_id' => $investorSale->investor_id,
                 'investor_sale_id' => $investorSale->id,
                 'type' => $data['type'],
@@ -145,6 +150,9 @@ class InvestorSaleService
                 'note' => $data['note'] ?? null,
                 'created_by' => $user->id,
             ]);
+            $this->syncInstallments($investorSale);
+
+            return $settlement;
         });
     }
 
@@ -164,6 +172,7 @@ class InvestorSaleService
 
             $this->checkPayment($investorSale, $data, $settlement->id);
             $settlement->update(['type' => $data['type'], 'amount' => $data['amount'], 'date' => $data['date'], 'note' => $data['note'] ?? null]);
+            $this->syncInstallments($investorSale);
 
             return $settlement;
         });
@@ -180,7 +189,45 @@ class InvestorSaleService
             }
 
             $settlement->delete();
+            $this->syncInstallments($investorSale);
         });
+    }
+
+    /**
+     * Keeps the investor sale's stored installments (in the installments table, beside the customers') in step: made from its
+     * schedule the first time, then what the shop has paid the investor (principal and profit) spread over them in order.
+     * A cancelled investor sale's unpaid installments are cancelled.
+     */
+    public function syncInstallments(InvestorSale $investorSale): void
+    {
+        if (! $investorSale->installments()->exists()) {
+            foreach ($investorSale->schedule() as $row) {
+                $investorSale->installments()->create([
+                    'shop_id' => $investorSale->shop_id,
+                    'seq_no' => $row['seq_no'],
+                    'due_date' => $row['due_date']->toDateString(),
+                    'amount' => Money::taka($row['amount']),
+                ]);
+            }
+        }
+
+        $settlements = $investorSale->settlements()->whereIn('type', ['principal_return', 'profit_share']);
+        $left = Money::paisa((clone $settlements)->sum('amount'));
+        $lastPaid = Carbon::parse((clone $settlements)->max('date') ?? today());
+
+        foreach ($investorSale->installments()->get() as $installment) {
+            $part = min($left, Money::paisa($installment->amount));
+            $left -= $part;
+            $installment->paid_amount = Money::taka($part);
+            $installment->paid_at = null;
+
+            if ($investorSale->status !== 'active' && $part < Money::paisa($installment->amount)) {
+                $installment->status = 'cancelled';
+                $installment->save();
+            } else {
+                $this->payments->refreshInstallment($installment, $lastPaid);
+            }
+        }
     }
 
     /** A payment must be for this investor and this active investor sale, principal or profit, and no more than is left of it. */

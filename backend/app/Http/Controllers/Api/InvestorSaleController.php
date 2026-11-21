@@ -17,6 +17,7 @@ class InvestorSaleController extends Controller implements HasMiddleware
     public static function middleware(): array
     {
         return [
+            new Middleware('permission:sales.view', only: ['show']),
             new Middleware('permission:sales.create', only: ['store']),
             new Middleware('permission:sales.cancel', only: ['cancel']),
         ];
@@ -29,6 +30,12 @@ class InvestorSaleController extends Controller implements HasMiddleware
         $investorSale = $this->investorSales->create($sale, $request->validated(), $request->user());
 
         return $this->success(InvestorSaleResource::make($investorSale->load(['investor', 'customer', 'settlements'])), 'Investor sale created', 201);
+    }
+
+    /** One investor sale on its own page: the investor's and the shop's side, with the vehicle and who it was sold to. */
+    public function show(InvestorSale $investorSale): JsonResponse
+    {
+        return $this->success(InvestorSaleResource::make($investorSale->load(['investor', 'customer', 'settlements', 'sale.vehicle', 'sale.customer'])));
     }
 
     public function cancel(InvestorSale $investorSale): JsonResponse

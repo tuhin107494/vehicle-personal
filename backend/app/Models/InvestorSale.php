@@ -97,6 +97,16 @@ class InvestorSale extends Model
      *
      * @return list<array{seq_no:int,due_date:Carbon,amount:int}> amounts in paisa
      */
+    /**
+     * The stored installments the shop pays the investor back on (the schedule, with what has been paid on each).
+     *
+     * @return HasMany<Installment, $this>
+     */
+    public function installments(): HasMany
+    {
+        return $this->hasMany(Installment::class)->orderBy('seq_no');
+    }
+
     public function schedule(): array
     {
         $rows = [];
