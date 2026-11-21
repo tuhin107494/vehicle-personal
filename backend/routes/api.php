@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DraftController;
 use App\Http\Controllers\Api\InstallmentController;
 use App\Http\Controllers\Api\InvestorController;
+use App\Http\Controllers\Api\InvestorSaleController;
 use App\Http\Controllers\Api\InvestorSettlementController;
 use App\Http\Controllers\Api\LandingController;
 use App\Http\Controllers\Api\PayableController;
@@ -107,7 +108,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('transactions', 'transactions');
             Route::get('person-summary', 'personSummary');
             Route::get('person-transactions', 'personTransactions');
-            Route::get('investors', 'investors');
+            Route::get('investor-sales', 'investorSales');
         });
 
         Route::post('customers/import', [CustomerController::class, 'import'])->middleware('throttle:10,1');
@@ -141,6 +142,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('promises', [PromiseController::class, 'index']);
         Route::post('sales/{sale}/promises', [PromiseController::class, 'store']);
         Route::patch('sales/{sale}/registration', [RegistrationController::class, 'update']);
+        Route::post('sales/{sale}/investor-sale', [InvestorSaleController::class, 'store']);
+        Route::get('investor-sales/dues', [InvestorSaleController::class, 'dues']);
+        Route::get('investor-sales/{investorSale}', [InvestorSaleController::class, 'show']);
+        Route::put('investor-sales/{investorSale}', [InvestorSaleController::class, 'update']);
 
         Route::get('installments', [InstallmentController::class, 'index']);
 
@@ -168,6 +173,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('vehicles/{vehicle}', [VehicleController::class, 'destroy']);
         Route::delete('purchases/{purchase}', [PurchaseController::class, 'destroy']);
         Route::post('sales/{sale}/cancel', [SaleController::class, 'cancel']);
+        Route::post('investor-sales/{investorSale}/cancel', [InvestorSaleController::class, 'cancel']);
         Route::post('sales/{sale}/charges', [SaleChargeController::class, 'store']);
         Route::get('charges/{charge}', [SaleChargeController::class, 'show']);
         Route::put('charges/{charge}', [SaleChargeController::class, 'update']);

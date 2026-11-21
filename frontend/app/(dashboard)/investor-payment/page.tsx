@@ -14,8 +14,9 @@ import { SettlementForm } from "@/components/forms/SettlementForm";
 import type { Investor } from "@/lib/types";
 
 type Row = {
-  plan_id: number; sale_id: number; vehicle: string; vehicle_name: string; buyer: string;
+  plan_id: number | null; investor_sale_id: number | null; sale_id: number; vehicle: string; vehicle_name: string; buyer: string;
   principal: number; principal_paid: number; principal_due: number; profit: number; profit_paid: number; profit_due: number;
+  monthly: number; current_due: number;
 };
 type Data = { rows: Row[]; totals: { principal_due: number; profit_due: number; paid: number } };
 
@@ -28,9 +29,10 @@ export default function InvestorPaymentPage() {
   const [pay, setPay] = useState<Row | null>(null);
   const [q, setQ] = useState("");
   const payDefaults = useMemo(() => ({ principal: pay?.principal_due, profit: pay?.profit_due }), [pay]); // a stable object, so typing in the form is not reset
+  const due = useMemo(() => (pay ? { monthly: pay.monthly, current: pay.current_due, principalLeft: pay.principal_due, profitLeft: pay.profit_due } : undefined), [pay]);
 
   const cols: Col<Row>[] = [
-    { header: "Vehicle", cell: ({ row }) => <span><Link className="font-medium underline" href={`/sales/${row.original.sale_id}`}>{row.original.vehicle}</Link> <span className="text-xs text-slate-500">{row.original.vehicle_name}</span></span> },
+    { header: "Vehicle", cell: ({ row }) => <span><Link className="font-medium underline" href={row.original.investor_sale_id ? `/investor-sales/${row.original.investor_sale_id}` : `/sales/${row.original.sale_id}`}>{row.original.vehicle}</Link> <span className="text-xs text-slate-500">{row.original.vehicle_name}</span></span> },
     { header: "Buyer", cell: ({ row }) => row.original.buyer },
     { header: "Principal", cell: ({ row }) => money(row.original.principal) },
     { header: "Principal paid", cell: ({ row }) => money(row.original.principal_paid) },
@@ -59,8 +61,9 @@ export default function InvestorPaymentPage() {
       {investorId && <Input className={`${inputCls} mb-3 max-w-xs`} placeholder="Search chassis, vehicle or buyer" value={q} onChange={(e) => setQ(e.target.value)} />}
       {investorId && <DataTable columns={cols} data={(data?.rows ?? []).filter((r) => `${r.vehicle} ${r.vehicle_name} ${r.buyer}`.toLowerCase().includes(q.trim().toLowerCase()))} loading={loading} empty="This investor has not financed any active sale." />}
       {pay && investor.data && (
-        <SettlementForm open mode="pay" name={`${investor.data.name} · ${pay.vehicle}`} investorId={investor.data.id} planId={pay.plan_id} outstanding={pay.principal_due}
-          defaults={payDefaults} onClose={() => setPay(null)} onSaved={reload} />
+        <SettlementForm open mode="pay" name={`${investor.data.name} · ${pay.vehicle}`} investorId={investor.data.id} planId={pay.plan_id} investorSaleId={pay.investor_sale_id} outstanding={pay.principal_due}
+          defaults={payDefaults} due={due}
+          onClose={() => setPay(null)} onSaved={reload} />
       )}
     </>
   );

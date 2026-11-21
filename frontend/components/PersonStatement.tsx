@@ -16,10 +16,12 @@ import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 import { printVoucher, TransactionVoucher, type VoucherTx } from "@/components/TransactionVoucher";
 import { TransactionEditModal, type Tx } from "@/components/forms/TransactionEditModal";
+import { PurchaseEditModal } from "@/components/forms/PurchaseEditModal";
+import type { Purchase } from "@/lib/types";
 import { CancelTransactionModal } from "@/components/forms/CancelTransactionModal";
 import { useRemovalMode } from "@/lib/settings";
 
-type Row = { tx?: Tx | null; no: string; details: [string, string][]; date: string; kind: string; description: string; vehicle: string | null; reference: string | null; charge: number; paid: number; balance: number };
+type Row = { id?: number; tx?: Tx | null; no: string; details: [string, string][]; date: string; kind: string; description: string; vehicle: string | null; reference: string | null; charge: number; paid: number; balance: number };
 type Statement = {
   person: { id: number; name: string; phone: string; alt_phone: string | null; address: string | null };
   side: "customer" | "supplier"; from: string | null; to: string | null;
@@ -27,7 +29,7 @@ type Statement = {
 };
 
 type ListRow = { person: { id: number; name: string; phone: string; alt_phone: string | null }; opening_balance: number; charge: number; paid: number; closing_balance: number; transactions: number; last_date: string | null };
-type TxRow = { tx?: Tx | null; no: string; phone: string | null; details: [string, string][]; date: string; person_id: number; person: string; kind: string; description: string; vehicle: string | null; reference: string | null; charge: number; paid: number };
+type TxRow = { id?: number; tx?: Tx | null; no: string; phone: string | null; details: [string, string][]; date: string; person_id: number; person: string; kind: string; description: string; vehicle: string | null; reference: string | null; charge: number; paid: number };
 type Txs = { rows: TxRow[]; total_charge: number; total_paid: number };
 type Listing = { rows: ListRow[]; total_opening: number; total_charge: number; total_paid: number; total_closing: number };
 
@@ -45,7 +47,16 @@ export function PersonStatement({ side }: { side: "customer" | "supplier" }) {
   const [editing, setEditing] = useState<Tx | null>(null);
   const [cancelling, setCancelling] = useState<Tx | null>(null);
   const cancelMode = useRemovalMode() === "cancel";
-  const editButton = (r: { tx?: Tx | null }) => (r.tx && can("transactions.edit") ? <button type="button" onClick={() => setEditing(r.tx!)} className="inline-flex items-center gap-1 rounded-lg border border-amber-200 px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50"><Pencil className="size-3.5" /> Edit</button> : null);
+  // a purchase from the supplier (and what was paid with it) is changed with the purchase itself
+  const [purchaseId, setPurchaseId] = useState<number | null>(null);
+  const purchase = useFetch<Purchase>(purchaseId ? `/purchases/${purchaseId}` : null);
+  const purchaseRow = (r: { id?: number; tx?: Tx | null; kind?: string; description?: string }) =>
+    side === "supplier" && !r.tx && !!r.id && (r.kind === "purchase" || (r.kind === "payment" && !!r.description?.startsWith("Paid at purchase")));
+  const editStyle = "inline-flex items-center gap-1 rounded-lg border border-amber-200 px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50";
+  const editButton = (r: { id?: number; tx?: Tx | null; kind?: string; description?: string }) =>
+    r.tx && can("transactions.edit") ? <button type="button" onClick={() => setEditing(r.tx!)} className={editStyle}><Pencil className="size-3.5" /> Edit</button>
+    : purchaseRow(r) && can("purchases.edit") ? <button type="button" onClick={() => setPurchaseId(r.id!)} className={editStyle}><Pencil className="size-3.5" /> Edit</button>
+    : null;
   // deleting takes the amount back out of the sale, installment or purchase it was paid against; the server says when it cannot
   const deleteTx = async (tx: Tx) => {
     if (!window.confirm("Delete this transaction? The amount is taken back out of the sale or purchase it was paid against. This cannot be undone.")) return;
@@ -339,6 +350,7 @@ export function PersonStatement({ side }: { side: "customer" | "supplier" }) {
         </div>
       )}
     <CancelTransactionModal tx={cancelling} onClose={() => setCancelling(null)} onDone={() => { list.reload(); txs.reload(); reloadStatement(); }} />
+    <PurchaseEditModal purchase={purchaseId && purchase.data?.id === purchaseId ? purchase.data : null} onClose={() => setPurchaseId(null)} onSaved={() => { setPurchaseId(null); list.reload(); txs.reload(); reloadStatement(); }} />
     <TransactionEditModal tx={editing} onClose={() => setEditing(null)} onDone={() => { list.reload(); txs.reload(); reloadStatement(); }} />
     <TransactionVoucher tx={voucher} side={side} shop={shopName} onClose={() => setVoucher(null)} />
     </>

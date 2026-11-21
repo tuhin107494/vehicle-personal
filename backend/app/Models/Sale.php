@@ -23,6 +23,7 @@ class Sale extends Model
         'vehicle_id',
         'purchase_id',
         'customer_id',
+        'additional_customer_id',
         'sale_date',
         'sale_price',
         'down_payment',
@@ -82,6 +83,16 @@ class Sale extends Model
         return $this->belongsTo(Customer::class);
     }
 
+    /**
+     * One more customer on the sale besides the buyer (a co-buyer or guarantor).
+     *
+     * @return BelongsTo<Customer, $this>
+     */
+    public function additionalCustomer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class, 'additional_customer_id');
+    }
+
     /** @return BelongsTo<Investor, $this> */
     public function investor(): BelongsTo
     {
@@ -94,16 +105,30 @@ class Sale extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    /** @return HasOne<InstallmentPlan, $this> */
-    /** The booking this sale completed, if it came from one. */
+    /**
+     * The booking this sale completed, if it came from one.
+     *
+     * @return HasOne<Booking, $this>
+     */
     public function booking(): HasOne
     {
         return $this->hasOne(Booking::class);
     }
 
+    /** @return HasOne<InstallmentPlan, $this> */
     public function plan(): HasOne
     {
         return $this->hasOne(InstallmentPlan::class);
+    }
+
+    /**
+     * The investor sale funding this sale, while it is active.
+     *
+     * @return HasOne<InvestorSale, $this>
+     */
+    public function investorSale(): HasOne
+    {
+        return $this->hasOne(InvestorSale::class)->where('status', 'active');
     }
 
     /** @return HasMany<Payment, $this> */

@@ -17,6 +17,7 @@ class SaleResource extends JsonResource
             'grand_total' => ($this->payment_type === 'installment' ? $this->loadMissing('plan') : $this)->grandTotal(),
             'vehicle' => VehicleResource::make($this->whenLoaded('vehicle')),
             'customer' => CustomerResource::make($this->whenLoaded('customer')),
+            'additional_customer' => CustomerResource::make($this->whenLoaded('additionalCustomer')),
             'investor' => InvestorResource::make($this->whenLoaded('investor')),
             'purchase' => PurchaseResource::make($this->whenLoaded('purchase')),
             // the advance paid when the vehicle was booked, and the day it was received
@@ -29,6 +30,8 @@ class SaleResource extends JsonResource
             // money received before the sale: the booking's advance, or an advance payment recorded with the sale
             'advance' => $this->advance(),
             'plan' => InstallmentPlanResource::make($this->whenLoaded('plan')),
+            // the investor sale funding this sale, on its own terms
+            'investor_sale' => $this->whenLoaded('investorSale', fn () => $this->investorSale ? InvestorSaleResource::make($this->investorSale) : null),
             'payments' => PaymentResource::collection($this->whenLoaded('payments')),
             'promises' => DuePromiseResource::collection($this->whenLoaded('promises')),
             'charges' => $this->whenLoaded('charges', fn () => $this->charges->map(fn ($c) => [

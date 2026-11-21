@@ -10,6 +10,7 @@ use App\Models\DuePromise;
 use App\Models\Installment;
 use App\Models\InstallmentPlan;
 use App\Models\Investor;
+use App\Models\InvestorSale;
 use App\Models\InvestorSettlement;
 use App\Models\Payment;
 use App\Models\Purchase;
@@ -17,6 +18,7 @@ use App\Models\Sale;
 use App\Models\Supplier;
 use App\Models\Vehicle;
 use App\Models\VehicleCategory;
+use App\Support\Money;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -34,12 +36,12 @@ class DashboardController extends Controller implements HasMiddleware
 
     public function __invoke(Request $request): JsonResponse
     {
-        $overdue = fn () => Installment::where(fn ($q) => $q
+        $overdue = fn () => Installment::customer()->where(fn ($q) => $q
             ->where('status', 'overdue')
             ->orWhere(fn ($q) => $q->whereIn('status', ['pending', 'partial'])->whereDate('due_date', '<', today())));
 
         // installments falling due today that are not fully paid
-        $dueToday = fn () => Installment::whereIn('status', ['pending', 'partial', 'overdue'])->whereDate('due_date', today());
+        $dueToday = fn () => Installment::customer()->whereIn('status', ['pending', 'partial', 'overdue'])->whereDate('due_date', today());
 
         // what the investors are owed today: the plans they financed that have an installment falling due today, at the investor's monthly share
         $investorToday = InstallmentPlan::whereNotNull('investor_id')
@@ -50,12 +52,24 @@ class DashboardController extends Controller implements HasMiddleware
                 $profit = (float) $plan->interest_amount * $plan->investor_share_percent / 100;
 
                 return [
-                    'plan_id' => $plan->id, 'sale_id' => $plan->sale_id,
+                    'plan_id' => $plan->id, 'investor_sale_id' => null, 'sale_id' => $plan->sale_id,
                     'investor' => $plan->investor->only(['id', 'name', 'phone']),
                     'vehicle' => $plan->sale->vehicle->only(['chassis_no', 'engine_no']),
                     'amount' => $plan->number_of_installments > 0 ? round(($plan->principal + $profit) / $plan->number_of_installments, 2) : 0.0,
                 ];
-            })->values();
+            })
+            // investor sales whose own schedule has a payment today
+            // a schedule runs at most 120 months, so older investor sales can have nothing due today
+            ->concat(InvestorSale::where('status', 'active')->whereDate('start_date', '<=', today())->whereDate('start_date', '>=', today()->subMonths(120))
+                ->select(['id', 'sale_id', 'investor_id', 'total_payable', 'number_of_installments', 'frequency', 'start_date'])
+                ->with(['investor:id,name,phone', 'sale.vehicle:id,chassis_no,engine_no'])->get()
+                ->flatMap(fn (InvestorSale $x) => collect($x->schedule())->filter(fn ($row) => $row['due_date']->isToday())->map(fn ($row) => [
+                    'plan_id' => null, 'investor_sale_id' => $x->id, 'sale_id' => $x->sale_id,
+                    'investor' => $x->investor->only(['id', 'name', 'phone']),
+                    'vehicle' => $x->sale->vehicle->only(['chassis_no', 'engine_no']),
+                    'amount' => Money::taka($row['amount']),
+                ])))
+            ->values();
 
         // today's business and cash, the same figures as the daily report (only for users who may see reports)
         $today = null;

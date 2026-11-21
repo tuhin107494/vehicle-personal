@@ -18,6 +18,16 @@ export const addDays = (days: number) => {
   return dayOf(d);
 };
 
+/** The same day next month (the last day when that month is shorter: 31 Jan → 28 Feb), from a "YYYY-MM-DD" day or from today. */
+export const nextMonth = (from?: string) => {
+  const d = from ? new Date(from + "T00:00:00") : new Date();
+  const day = d.getDate();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + 1);
+  d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+  return dayOf(d);
+};
+
 /** Turn form strings into API payload: "" becomes undefined, numeric fields become numbers. */
 export function toPayload(values: Record<string, unknown>, numeric: string[] = []) {
   const out: Record<string, unknown> = {};

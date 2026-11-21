@@ -60,6 +60,7 @@ export default function SettingsPage() {
   const dash = useHiddenDashboard();
   const [recallDays, setRecallDays] = useState<number | null>(null); // saved on its own, apart from the settings table
   const [memoNo, setMemoNo] = useState<boolean | null>(null); // same, for the memo number field
+  const [extraCustomer, setExtraCustomer] = useState<boolean | null>(null); // same, for the additional customer option
   const [removal, setRemoval] = useState<"delete" | "cancel" | null>(null); // same, for removing a payment
   const [autoDate, setAutoDate] = useState<boolean | null>(null); // same, for the date setting
   const [keepSelection, setKeepSelection] = useState<boolean | null>(null); // same, for the payment forms
@@ -287,7 +288,7 @@ export default function SettingsPage() {
           }} />
           Fill in today&apos;s date automatically
         </label>
-        <p className="mb-3 mt-4 text-xs text-slate-500">Show the optional "Memo no." field on the Sale and Due collection forms.</p>
+        <p className="mb-3 mt-4 text-xs text-slate-500">Show the optional &quot;Memo no.&quot; field on the Sale and Due collection forms.</p>
         <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" className="size-4 accent-emerald-600" checked={memoNo ?? settings.data.forms?.memo_no ?? true} onChange={async (e) => {
             const value = e.target.checked;
@@ -301,6 +302,21 @@ export default function SettingsPage() {
             }
           }} />
           Show the memo number field
+        </label>
+        <p className="mb-3 mt-4 text-xs text-slate-500">Offer an &quot;Additional customer&quot; (a co-buyer or guarantor) on the Sales and Investor sales forms.</p>
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" className="size-4 accent-emerald-600" checked={extraCustomer ?? settings.data.forms?.additional_customer ?? true} onChange={async (e) => {
+            const value = e.target.checked;
+            try {
+              await api("/settings", { method: "PUT", body: { forms: { additional_customer: value } } });
+              setExtraCustomer(value);
+              settings.reload();
+              toast.success("Saved");
+            } catch (err) {
+              toast.error(err instanceof ApiError ? err.message : "Failed to save");
+            }
+          }} />
+          Show the additional customer option
         </label>
         <p className="mb-3 mt-4 text-xs text-slate-500">For a wrong payment: Delete removes it, Cancel keeps it with a reason.</p>
         <div role="radiogroup" aria-label="Remove a payment by" className="flex flex-wrap gap-x-6 gap-y-2">

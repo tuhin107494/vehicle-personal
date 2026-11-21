@@ -13,7 +13,7 @@ import { useHiddenDashboard } from "@/lib/dashboard";
 import { useHiddenMenu } from "@/lib/menu";
 import { TodayCard, type TodayFigures } from "@/components/TodayCard";
 
-type InvestorToday = { plan_id: number; sale_id: number; investor: { id: number; name: string; phone: string | null }; vehicle: { chassis_no: string; engine_no: string | null }; amount: number };
+type InvestorToday = { plan_id: number | null; investor_sale_id: number | null; sale_id: number; investor: { id: number; name: string; phone: string | null }; vehicle: { chassis_no: string; engine_no: string | null }; amount: number };
 
 type Dashboard = Stats & {
   stock_count: number; sales_this_month: number; sales_amount_this_month: number; purchases_this_month: number; purchases_amount_this_month: number; total_sales: number; total_sales_amount: number; total_purchases: number; total_purchases_amount: number; total_due: number; overdue_count: number;
@@ -44,7 +44,10 @@ export default function DashboardPage() {
     { header: "Mobile", cell: ({ row }) => row.original.phone ?? "-" },
   ];
   const investorCols: Col<InvestorToday>[] = [
-    { header: "Sale", cell: ({ row }) => <Link className="underline" href={`/sales/${row.original.sale_id}`}>#{row.original.sale_id}</Link> },
+    // an investor sale opens its own page (investor and shop only); an older plan-financed sale opens the sale
+    { header: "Sale", cell: ({ row }) => row.original.investor_sale_id
+      ? <Link className="underline" href={`/investor-sales/${row.original.investor_sale_id}`}>Investor sale #{row.original.investor_sale_id}</Link>
+      : <Link className="underline" href={`/sales/${row.original.sale_id}`}>#{row.original.sale_id}</Link> },
     { header: "Investor", cell: ({ row }) => <Link className="underline" href={`/investors/${row.original.investor.id}`}>{row.original.investor.name}</Link> },
     { header: "Vehicle", cell: ({ row }) => <div className="leading-tight"><div className="font-medium">{row.original.vehicle.chassis_no}</div><div className="text-xs text-slate-500">{row.original.vehicle.engine_no}</div></div> },
     { header: "To pay", cell: ({ row }) => money(row.original.amount) },

@@ -58,6 +58,12 @@ class Investor extends Model
         return $this->hasMany(InstallmentPlan::class);
     }
 
+    /** @return HasMany<InvestorSale, $this> */
+    public function investorSales(): HasMany
+    {
+        return $this->hasMany(InvestorSale::class);
+    }
+
     /** @return HasMany<InvestorSettlement, $this> */
     public function settlements(): HasMany
     {

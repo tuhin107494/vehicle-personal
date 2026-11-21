@@ -11,6 +11,8 @@ class InvestorSettlementRequest extends ApiRequest
         return [
             'investor_id' => ['required', $this->shopExists('investors')],
             'plan_id' => ['nullable', $this->shopExists('installment_plans')],
+            // a payment on an investor sale: the service checks it is the investor's, still active, and not more than is owed
+            'investor_sale_id' => ['nullable', 'prohibits:plan_id', $this->shopExists('investor_sales')],
             'type' => ['required', Rule::in(['investment', 'principal_return', 'profit_share', 'withdrawal'])],
             'amount' => ['required', 'numeric', 'min:1'],
             'date' => ['required', 'date', 'before_or_equal:today'],

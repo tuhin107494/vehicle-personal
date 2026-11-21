@@ -10,6 +10,7 @@ use App\Http\Resources\CustomerResource;
 use App\Http\Resources\PurchaseResource;
 use App\Http\Resources\SaleResource;
 use App\Models\Customer;
+use App\Models\InvestorSale;
 use App\Models\Sale;
 use App\Services\CustomerImportService;
 use Illuminate\Http\JsonResponse;
@@ -73,6 +74,11 @@ class CustomerController extends Controller implements HasMiddleware
     {
         if ($customer->purchases()->exists() || $customer->sales()->exists()) {
             throw new BusinessRuleException('This customer has sales or purchases and cannot be deleted.');
+        }
+
+        // named as the additional customer on a sale or an investor sale
+        if (Sale::where('additional_customer_id', $customer->id)->exists() || InvestorSale::where('customer_id', $customer->id)->exists()) {
+            throw new BusinessRuleException('This customer is the additional customer on a sale and cannot be deleted.');
         }
 
         $customer->delete();
