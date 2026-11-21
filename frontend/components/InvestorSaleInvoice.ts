@@ -34,16 +34,16 @@ export function printInvestorSaleInvoice(x: InvestorSale, shop: string) {
 
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>InvestorSale-${esc(x.id)}</title>
 <style>
-*{box-sizing:border-box}body{font-family:system-ui,-apple-system,sans-serif;margin:28px;color:#111;font-size:13px}
-h1{font-size:20px;margin:0}h2{font-size:13px;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.05em;color:#065f46}
-.head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #065f46;padding-bottom:10px}
+*{box-sizing:border-box}body{font-family:system-ui,-apple-system,sans-serif;margin:24px;color:#111;font-size:12px}
+h1{font-size:20px;margin:0}h2{font-size:12px;margin:12px 0 4px;text-transform:uppercase;letter-spacing:.05em;color:#065f46}
+.head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #065f46;padding-bottom:8px}
 .meta{text-align:right;font-size:12px;color:#444}.meta b{display:block;font-size:15px;color:#111}
-table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbb;padding:6px 8px;text-align:left}
+table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbb;padding:4px 8px;text-align:left}
 td.k{width:38%;background:#f3f4f6;font-weight:600}th{background:#ecfdf5;font-size:12px}.r{text-align:right}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}.total td{font-weight:700;background:#ecfdf5}
-.sign{margin-top:48px;display:flex;justify-content:space-between;font-size:12px;color:#444}.sign div{border-top:1px solid #888;padding-top:6px;width:30%;text-align:center}
-.note{margin-top:14px;font-size:11px;color:#666}${x.status === "cancelled" ? ".stamp{color:#b91c1c;font-weight:700;border:2px solid #b91c1c;display:inline-block;padding:2px 10px;margin-top:6px}" : ""}
-@media print{body{margin:14mm}}
+.sign{margin-top:36px;break-inside:avoid;display:flex;justify-content:space-between;font-size:12px;color:#444}.sign div{border-top:1px solid #888;padding-top:6px;width:30%;text-align:center}
+.note{margin-top:8px;font-size:11px;color:#666}${x.status === "cancelled" ? ".stamp{color:#b91c1c;font-weight:700;border:2px solid #b91c1c;display:inline-block;padding:2px 10px;margin-top:6px}" : ""}
+@page{size:A4;margin:0}@media print{body{margin:12mm 14mm}}
 </style></head><body>
 <div class="head"><div><h1>${esc(shop)}</h1><div>Investor sale invoice</div>${x.status === "cancelled" ? '<div class="stamp">CANCELLED</div>' : ""}</div>
 <div class="meta"><b>${esc(x.memo_no ? `Memo no. ${x.memo_no}` : `Investor sale #${x.id}`)}</b>Date: ${esc(pdate(x.date))}<br>Sale #${esc(x.sale_id)}</div></div>
