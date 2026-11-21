@@ -171,6 +171,8 @@ export function SaleForm({ booking = null, onSold }: { booking?: Booking | null;
   // money received before the sale: the booking's advance, or an advance typed here (its button opens the amount and date)
   const [advanceOpen, setAdvanceOpen] = useState(false);
   const [extraOpen, setExtraOpen] = useState(false); // the additional customer field, shown only when asked for
+  // a problem with the additional customer opens its field, so the message is seen
+  useEffect(() => { if (errors.additional_customer_id) setExtraOpen(true); }, [errors.additional_customer_id]);
   const advance = booking ? Number(booking.advance_amount) : Number(w.advance_amount || 0);
   const advanceDate = booking ? booking.booked_on : w.advance_date || todayStr();
   // the down payment kept in the form is everything received at the sale, the advance included; changing the advance keeps what is paid on top
@@ -221,6 +223,7 @@ export function SaleForm({ booking = null, onSold }: { booking?: Booking | null;
   const paidNow = type === "cash" ? salePrice : Number(w.down_payment || 0);
   const dueNow = Math.max(salePrice - paidNow, 0);
   const buyer = useFetch<Customer>(w.party_id ? `/customers/${w.party_id}` : null);
+  const extra = useFetch<Customer>(w.additional_customer_id ? `/customers/${w.additional_customer_id}` : null);
   const picked = allVehicles.find((v) => String(v.id) === w.vehicle_id);
 
   // Choosing a vehicle brings its type's default sale price (Settings), unless a different price was already typed.
@@ -382,6 +385,16 @@ export function SaleForm({ booking = null, onSold }: { booking?: Booking | null;
             {extraOpen || w.additional_customer_id ? (
               <>
                 <CustomerSelect optional label="Additional customer (optional)" value={w.additional_customer_id} onChange={(id) => setValue("additional_customer_id", id, { shouldValidate: true })} error={errors.additional_customer_id?.message} />
+                {w.additional_customer_id && extra.data && String(extra.data.id) === w.additional_customer_id && (
+              <dl className="mt-2 grid gap-x-4 gap-y-1 rounded-md border border-emerald-100 bg-emerald-50/50 p-3 text-sm sm:grid-cols-2">
+                <Info k="Name" v={extra.data.name} />
+                <Info k="Father's name" v={extra.data.father_name} />
+                <Info k="Mobile" v={extra.data.phone} />
+                <Info k="Alt. mobile" v={extra.data.alt_phone} />
+                <Info k="NID" v={extra.data.nid} />
+                <Info k="Address" v={extra.data.address} />
+              </dl>
+                )}
                 <button type="button" className="mt-1 text-xs font-medium text-emerald-700 hover:underline" onClick={() => { setValue("additional_customer_id", ""); setExtraOpen(false); }}>Remove customer</button>
               </>
             ) : <Button variant="outline" onClick={() => setExtraOpen(true)}><Plus className="size-4 text-emerald-600" /> Additional customer</Button>}
