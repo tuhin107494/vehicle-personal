@@ -471,13 +471,21 @@ class InvestorSaleTest extends TestCase
         $this->getJson('/api/investor-sales/dues')->assertForbidden();
     }
 
+    public function test_the_profit_rate_is_a_yearly_rate(): void
+    {
+        // 10% a year on 300,000 over 24 months: 60,000 profit (12 months would be 30,000), and the same back from an amount
+        $sale = $this->installmentSale();
+        $this->postJson("/api/sales/{$sale['id']}/investor-sale", $this->investorSaleData(['profit_rate' => 10, 'plan_amount' => 300000, 'installment_count' => 24]))
+            ->assertCreated()->assertJsonPath('data.profit_amount', 60000)->assertJsonPath('data.profit_rate', 10)->assertJsonPath('data.total_payable', 360000);
+    }
+
     public function test_an_investor_sale_can_be_edited_until_money_moves(): void
     {
         $sale = $this->installmentSale();
         $id = $this->postJson("/api/sales/{$sale['id']}/investor-sale", $this->investorSaleData(['investor_down_payment' => 250000]))->assertCreated()->json('data.id');
         $edit = fn (array $extra = []) => $this->putJson("/api/investor-sales/{$id}", $extra + [
             'date' => '2026-01-07', 'sale_price' => 500000, 'down_payment' => 200000, 'investor_down_payment' => 280000, 'plan_amount' => 300000,
-            'profit_rate' => 10, 'installment_count' => 6, 'frequency' => 'monthly', 'first_due_date' => '2026-02-07', 'memo_no' => 'M-2',
+            'profit_rate' => 20, 'installment_count' => 6, 'frequency' => 'monthly', 'first_due_date' => '2026-02-07', 'memo_no' => 'M-2', // 20% a year over 6 months: 10%
         ]);
 
         // the terms change: a new schedule, a new down payment entry, what the investor owes follows

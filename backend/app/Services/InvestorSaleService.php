@@ -140,7 +140,8 @@ class InvestorSaleService
 
             // the same percentage on the same amount keeps the profit as saved: a profit first given as an amount is stored
             // with its rate rounded to 2 decimals, and working it out again from that rate could move it by a few paisa
-            if ($principal === Money::paisa($investorSale->principal) && ! isset($data['profit_amount']) && round($rate, 2) === round((float) $investorSale->profit_rate, 2)) {
+            if ($principal === Money::paisa($investorSale->principal) && ! isset($data['profit_amount']) && round($rate, 2) === round((float) $investorSale->profit_rate, 2)
+                && (int) ($data['installment_count'] ?? 0) === $investorSale->number_of_installments && ($data['frequency'] ?? 'monthly') === $investorSale->frequency) {
                 $profit = Money::paisa($investorSale->profit_amount);
             }
 
@@ -434,21 +435,24 @@ class InvestorSaleService
         return $position;
     }
 
-    /** @return array{0: float, 1: int} the profit rate (percent) and the profit in paisa, from either the rate or the amount given */
+    /** @return array{0: float, 1: int} the yearly profit rate (percent) and the profit in paisa, from either the rate or the amount given */
     private function profitOf(array $data, int $principal): array
     {
         if ($principal <= 0) {
             return [0.0, 0]; // no plan: nothing paid back, so no profit
         }
 
+        // the rate is a flat yearly rate, as on a sale: 12% over 12 months is 12% of the amount, over 24 months 24%
+        $years = max((int) ($data['installment_count'] ?? 0), 1) / (($data['frequency'] ?? 'monthly') === 'weekly' ? 52 : 12);
+
         if (isset($data['profit_amount']) && $data['profit_amount'] !== '') {
             $profit = Money::paisa($data['profit_amount']);
 
-            return [round($profit / $principal * 100, 2), $profit];
+            return [round($profit / $principal * 100 / $years, 2), $profit];
         }
 
         $rate = round((float) $data['profit_rate'], 2);
 
-        return [$rate, Money::percent($principal, $rate)];
+        return [$rate, Money::percent($principal, $rate * $years)];
     }
 }

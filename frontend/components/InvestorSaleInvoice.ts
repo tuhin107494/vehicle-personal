@@ -63,7 +63,7 @@ ${c ? `<h2>Customer</h2><table>${rows([["Name", c.name], ["Mobile", [c.phone, c.
     ["Investor due", money(x.investor_owes ?? Math.max(r2(afterCustomer - investorDown), 0))],
     ["Investor's money (on the plan)", money(x.principal)],
     ...(plan ? [
-      ["Investor's profit", `${money(x.profit_amount)} (${x.profit_rate}%)`],
+      ["Investor's profit", `${money(x.profit_amount)} (${x.profit_rate}% a year)`],
       ["Installments", `${x.number_of_installments} ${x.frequency === "weekly" ? "weeks" : "months"}, from ${pdate(x.start_date)}`],
       ["Paid back so far", money(paidBack)],
     ] as [string, unknown][] : [["Plan", "None: the investor collects from the customer"]] as [string, unknown][]),

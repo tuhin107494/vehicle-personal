@@ -34,7 +34,7 @@ class InvestorSaleRequest extends ApiRequest
             'guarantor_name' => ['nullable', 'string', 'max:100'],
             'guarantor_phone' => ['nullable', 'string', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
             // the investor's profit: a flat percentage of the amount, or the amount itself
-            'profit_rate' => $plan(['required_without:profit_amount', 'nullable', 'numeric', 'min:0', 'max:1000']),
+            'profit_rate' => $plan(['required_without:profit_amount', 'nullable', 'numeric', 'min:0', 'max:100']),
             'profit_amount' => $plan(['required_without:profit_rate', 'nullable', 'numeric', 'min:0', 'max:999999999999']),
             'installment_count' => $plan(['required', 'integer', 'min:1', 'max:120']),
             'frequency' => $plan(['nullable', Rule::in(['monthly', 'weekly'])]),
@@ -51,6 +51,7 @@ class InvestorSaleRequest extends ApiRequest
             'down_payment.lt' => 'Down payment must be less than the sale price.',
             'guarantor_phone.regex' => 'Enter a valid mobile number (7 to 20 digits).',
             'profit_rate.required_without' => 'Enter the investor profit percentage or amount.',
+            'profit_rate.max' => 'Investor profit can be at most 100% a year.',
             'profit_amount.required_without' => 'Enter the investor profit percentage or amount.',
             'installment_count.required' => 'Number of installments is required.',
             'first_due_date.required' => 'First installment date is required.',
