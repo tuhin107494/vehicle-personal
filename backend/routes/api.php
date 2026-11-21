@@ -139,7 +139,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('sales/{sale}/promises', [PromiseController::class, 'store']);
         Route::patch('sales/{sale}/registration', [RegistrationController::class, 'update']);
         Route::post('sales/{sale}/investor-sale', [InvestorSaleController::class, 'store']);
+        Route::get('investor-sales/dues', [InvestorSaleController::class, 'dues']);
         Route::get('investor-sales/{investorSale}', [InvestorSaleController::class, 'show']);
+        Route::put('investor-sales/{investorSale}', [InvestorSaleController::class, 'update']);
 
         Route::get('installments', [InstallmentController::class, 'index']);
 

@@ -73,8 +73,8 @@ export function SettlementForm({ open, investorId, mode = "other", name, outstan
   const w = watch();
   const total = Number(w.principal || 0) + Number(w.profit || 0);
 
-  const post = (type: Values["type"], amount: number, v: Values) =>
-    api("/investor-settlements", { method: "POST", body: { type, amount, date: v.date, note: v.note || null, investor_id: investorId, ...(planId && { plan_id: planId }), ...(investorSaleId && { investor_sale_id: investorSaleId }) } });
+  const post = (type: Values["type"], amount: number, v: Values, note: string | null) =>
+    api("/investor-settlements", { method: "POST", body: { type, amount, date: v.date, note, investor_id: investorId, ...(planId && { plan_id: planId }), ...(investorSaleId && { investor_sale_id: investorSaleId }) } });
 
   const onSubmit = async (v: Values) => {
     if (mode === "pay" && due && Number(v.installment || 0) > r2(due.principalLeft + due.profitLeft)) {
@@ -92,7 +92,10 @@ export function SettlementForm({ open, investorId, mode = "other", name, outstan
     }
 
     try {
-      for (const [type, amount] of lines) await post(type, amount, v);
+      // an installment's principal and profit are two entries: with no note typed, both say which payment they are part of
+      const paidNow = lines.reduce((t, [, a]) => t + a, 0);
+      const autoNote = mode === "pay" ? `Installment payment ${money(paidNow)} on ${investorSaleId ? `investor sale #${investorSaleId}` : planId ? `plan #${planId}` : "investor"}` : null;
+      for (const [type, amount] of lines) await post(type, amount, v, v.note.trim() || autoNote);
       toast.success(mode === "invest" ? "Investment added" : mode === "pay" ? "Installment paid" : "Settlement recorded");
       onSaved();
       onClose();

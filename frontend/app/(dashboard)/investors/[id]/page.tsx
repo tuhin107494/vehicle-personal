@@ -53,7 +53,7 @@ export default function InvestorPortfolioPage() {
     { header: "Investor amount", cell: ({ row }) => money(row.original.principal) },
     { header: "Investor gave", cell: ({ row }) => money(row.original.investor_paid ?? 0) },
     {
-      header: "Investor owes us",
+      header: "To collect from investor",
       cell: ({ row }) => row.original.status === "active" && (row.original.investor_owes ?? 0) > 0 ? (
         <span className="flex items-center gap-2">
           <b className="text-amber-700">{money(row.original.investor_owes ?? 0)}</b>
@@ -89,7 +89,7 @@ export default function InvestorPortfolioPage() {
         <Stat color="green" label="Total amount" value={money(summary.invested)} />
         <Stat color="slate" label="Installments due" value={due.data?.totals.installments_due ?? "-"} />
         <Stat color="amber" label="Due amount" value={due.data ? money(due.data.totals.current_due) : "-"} />
-        {(summary.investor_owes ?? 0) > 0 && <Stat color="blue" label="Investor owes us" value={money(summary.investor_owes ?? 0)} />}
+        {(summary.investor_owes ?? 0) > 0 && <Stat color="blue" label="To collect from investor" value={money(summary.investor_owes ?? 0)} />}
       </div>
       <Card className="mb-4"><div className="mb-3"><Avatar name={investor.name} url={investor.photo_url} size="lg" /></div><KV items={[["Phone", investor.phone], ["Alt. phone", investor.alt_phone], ["NID", investor.nid], ["Opening balance", money(investor.opening_balance)], ["Bank", investor.bank_name], ["Branch", investor.bank_branch], ["Account name", investor.bank_account_name], ["Account no", investor.bank_account_no], ["Other bank details", investor.bank_info], ["Address", investor.address]]} /></Card>
       <h2 className="mb-2 font-semibold">Assigned sales</h2>

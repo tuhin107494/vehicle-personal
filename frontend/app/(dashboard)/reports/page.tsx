@@ -12,7 +12,7 @@ import { useSearchParams } from "next/navigation";
 import { fmtDate, money } from "@/lib/format";
 import { useCategories } from "@/lib/categories";
 import { useFetch } from "@/lib/hooks";
-import type { Investor, InvestorSale, Purchase, Sale, Summary, Vehicle } from "@/lib/types";
+import type { InvestorSale, Purchase, Sale, Vehicle } from "@/lib/types";
 import { Button, ErrorText, Field, inputCls, Loading, Modal, PageHeader, Stat, StatusBadge } from "@/components/app-ui";
 import Link from "next/link";
 import { ArrowUpRight, ChevronDown, Eye } from "lucide-react";
@@ -29,7 +29,6 @@ import { ReceiveModal } from "@/components/InvestorSaleCard";
 
 type Stock = { total_count: number; total_cost: number; vehicles: Vehicle[] };
 type Dues = { total_due: number; sales: (Sale & { next_due_date: string | null })[] };
-type InvRow = { investor: Investor; summary: Summary };
 
 function StockReport() {
   const { data, loading, error } = useFetch<Stock>("/reports/stock");
@@ -89,30 +88,6 @@ function DuesReport() {
   );
 }
 
-function InvestorsReport() {
-  const { data, loading, error } = useFetch<InvRow[]>("/reports/investors");
-  const pr = useReportPrint("Investors report");
-  if (loading && !data) return <Loading />;
-  if (error || !data) return <ErrorText message={error ?? "Failed"} />;
-  const cols: Col<InvRow>[] = [
-    { header: "Investor", cell: ({ row }) => <span className="font-medium">{row.original.investor.name}</span> },
-    { header: "Invested", cell: ({ row }) => money(row.original.summary.invested) },
-    { header: "Returned", cell: ({ row }) => money(row.original.summary.returned) },
-    { header: "Profit earned", cell: ({ row }) => money(row.original.summary.profit_earned) },
-    { header: "Withdrawn", cell: ({ row }) => money(row.original.summary.withdrawn) },
-    { header: "Outstanding", cell: ({ row }) => money(row.original.summary.outstanding) },
-    { header: "Investor owes us", cell: ({ row }) => <span className={(row.original.summary.investor_owes ?? 0) > 0 ? "font-medium text-amber-700" : ""}>{money(row.original.summary.investor_owes ?? 0)}</span> },
-    { header: "Still due from buyers", cell: ({ row }) => money(row.original.summary.sales_due) },
-    viewCol<InvRow>((x) => `/investors/${x.investor.id}`),
-  ];
-  return (
-    <>
-      <ReportPrint pr={pr} />
-      <DataTable columns={cols} data={data} empty="No investors." pageSize={pr.pageSize} />
-    </>
-  );
-}
-
 /** Investor sales in a period: only the investor's and the shop's side (no customer), each opening its own investor sale page. */
 function InvestorSalesReport() {
   const [from, setFrom] = useState(monthStart());
@@ -136,7 +111,7 @@ function InvestorSalesReport() {
     { header: "Paid", cell: ({ row }) => money((row.original.position?.principal_paid ?? 0) + (row.original.position?.profit_paid ?? 0)) },
     { header: "Still to pay", cell: ({ row }) => active(row.original) ? <span className="font-medium text-amber-700">{money(row.original.position?.total_due)}</span> : "-" },
     {
-      header: "Investor owes us",
+      header: "To collect from investor",
       cell: ({ row }) => active(row.original) && (row.original.investor_owes ?? 0) > 0 ? (
         <span className="flex items-center gap-2">
           <span className="font-medium text-sky-700">{money(row.original.investor_owes)}</span>
@@ -150,7 +125,7 @@ function InvestorSalesReport() {
 
   return (
     <>
-      <ReportPrint pr={pr} disabled={!data} meta={{ period: `Period: ${from ? fmtDate(from) : "Beginning"} to ${to ? fmtDate(to) : "today"}`, filters: [status && `Status: ${status}`].filter(Boolean) as string[], totals: data ? [["Investor sales", data.totals.count], ["Amount on plan", money(data.totals.amount)], ["Profit", money(data.totals.profit)], ["Pay the investor", money(data.totals.payable)], ["Paid", money(data.totals.paid)], ["Still to pay", money(data.totals.due)], ["Investor owes us", money(data.totals.investor_owes)]] : [] }} />
+      <ReportPrint pr={pr} disabled={!data} meta={{ period: `Period: ${from ? fmtDate(from) : "Beginning"} to ${to ? fmtDate(to) : "today"}`, filters: [status && `Status: ${status}`].filter(Boolean) as string[], totals: data ? [["Investor sales", data.totals.count], ["Amount on plan", money(data.totals.amount)], ["Profit", money(data.totals.profit)], ["Pay the investor", money(data.totals.payable)], ["Paid", money(data.totals.paid)], ["Still to pay", money(data.totals.due)], ["To collect from investor", money(data.totals.investor_owes)]] : [] }} />
       <ResponsiveFilters desktopClass="mb-4 hidden lg:flex lg:items-start lg:gap-3 lg:[&>*]:min-w-0 lg:[&>*]:flex-1">
         <Field label="From"><Input type="date" className={inputCls} value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} /></Field>
         <Field label="To"><Input type="date" className={inputCls} value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} /></Field>
@@ -167,7 +142,7 @@ function InvestorSalesReport() {
           <Stat color="blue" label="Pay the investor" value={money(data.totals.payable)} />
           <Stat color="green" label="Paid" value={money(data.totals.paid)} />
           <Stat color="amber" label="Still to pay" value={money(data.totals.due)} />
-          <Stat color="slate" label="Investor owes us" value={money(data.totals.investor_owes)} />
+          <Stat color="slate" label="To collect from investor" value={money(data.totals.investor_owes)} />
         </div>
       )}
       <DataTable columns={cols} data={data?.investor_sales ?? []} loading={loading} empty="No investor sales in this period." pageSize={pr.pageSize} />
@@ -317,12 +292,12 @@ function SalesReport() {
 }
 
 const ALL_TABS = [
-  ["purchases", "Purchases"], ["sales", "Sales"], ["investor-sales", "Investor sales"], ["stock", "Stock"], ["dues", "Dues"], ["investors", "Investors"],
+  ["purchases", "Purchases"], ["sales", "Sales"], ["investor-sales", "Investor sales"], ["stock", "Stock"], ["dues", "Dues"],
   ["customer", "Customer transactions"], ["supplier", "Supplier transactions"], ["investor", "Investor transactions"],
 ] as const;
 
 /** Reports that are about investors: they go when the Investors menu item is hidden. */
-const INVESTOR_TABS: string[] = ["investors", "investor-sales", "investor"];
+const INVESTOR_TABS: string[] = ["investor-sales", "investor"];
 
 const HAS_FILTERS: string[] = ["purchases", "sales", "investor-sales", "customer", "supplier", "investor"];
 
@@ -360,7 +335,6 @@ function Reports() {
       {tab === "investor-sales" && <InvestorSalesReport />}
       {tab === "stock" && <StockReport />}
       {tab === "dues" && <DuesReport />}
-      {tab === "investors" && <InvestorsReport />}
       {tab === "customer" && <PersonStatement side="customer" />}
       {tab === "supplier" && <PersonStatement side="supplier" />}
       {tab === "investor" && <InvestorTransactions />}

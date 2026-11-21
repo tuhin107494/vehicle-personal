@@ -156,6 +156,10 @@ class InvestorController extends Controller implements HasMiddleware
             }
             $i->setAttribute('current_due', Money::taka($due));
             $i->setAttribute('installments_due', $count);
+            // what the investor still has to give the shop of their money on investor sales (to collect from them)
+            $i->setAttribute('investor_owes', Money::taka(collect($investorSales[$i->id] ?? [])->sum(
+                fn (InvestorSale $x) => max(Money::paisa($x->principal) - Money::paisa($x->settlements->where('type', 'investment')->sum('amount')), 0)
+            )));
         });
     }
 

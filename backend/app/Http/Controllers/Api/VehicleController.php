@@ -6,11 +6,13 @@ use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\VehicleRequest;
 use App\Http\Resources\BookingResource;
+use App\Http\Resources\InvestorSaleResource;
 use App\Http\Resources\PurchaseResource;
 use App\Http\Resources\SaleResource;
 use App\Http\Resources\VehicleResource;
 use App\Models\Booking;
 use App\Models\Draft;
+use App\Models\InvestorSale;
 use App\Models\Payment;
 use App\Models\RegistrationLog;
 use App\Models\Sale;
@@ -189,6 +191,8 @@ class VehicleController extends Controller implements HasMiddleware
             'sales' => SaleResource::collection($sales),
             'purchases' => PurchaseResource::collection($purchases),
             // every booking this vehicle was held for, whatever became of it
+            // the investor sales on this vehicle's sales, cancelled ones too
+            'investor_sales' => InvestorSaleResource::collection(InvestorSale::whereIn('sale_id', $saleIds)->with(['investor', 'settlements'])->orderBy('date')->orderBy('id')->get()),
             'bookings' => BookingResource::collection(Booking::where('vehicle_id', $vehicle->id)->with(['customer:id,name,phone,alt_phone', 'creator:id,name'])->orderByDesc('id')->get()),
             'timeline' => $events->sortBy('sort')->values()->map(fn ($e) => collect($e)->except('sort')->all()),
         ]);

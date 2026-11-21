@@ -13,6 +13,7 @@ export type Supplier = {
 /** Whoever sold a purchase to us: the supplier, or the customer for a second-hand buy-back. */
 export type Seller = { id: number; name: string; phone: string; alt_phone: string | null; nid?: string | null; photo_url?: string | null };
 export type Investor = {
+  investor_owes?: number; // what the investor still has to give the shop on their investor sales (the list sends it)
   id: number; name: string; phone: string | null; alt_phone: string | null; nid: string | null; address: string | null;
   bank_name?: string | null; bank_branch?: string | null; bank_account_name?: string | null; bank_account_no?: string | null; bank_info: string | null; opening_balance: number;
   current_due?: number; installments_due?: number; photo_url?: string | null;

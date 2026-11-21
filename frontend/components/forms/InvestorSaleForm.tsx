@@ -2,7 +2,7 @@
 
 import { Calculator, Plus, RotateCcw } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -90,8 +90,8 @@ export function InvestorSaleForm() {
   const router = useRouter();
   const { lang } = useT();
   const { nameOf } = useCategories();
-  const blank: Values = { vehicle_id: "", investor_id: "", customer_id: "", date: todayStr(), sale_price: "", down_payment: "", investor_down_payment: "", plan_amount: "", method: "cash", memo_no: "", guarantor_name: "", guarantor_phone: "", profit_mode: "percent", profit_rate: "", profit_amount: "", installment_count: "12", frequency: "monthly", first_due_date: nextMonth() };
-  const { register, handleSubmit, reset, setValue, watch, setError, formState: { errors, isSubmitting } } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: blank });
+  const blank: Values = { vehicle_id: "", investor_id: "", customer_id: "", date: todayStr(), sale_price: "", down_payment: "", investor_down_payment: "0", plan_amount: "0", method: "cash", memo_no: "", guarantor_name: "", guarantor_phone: "", profit_mode: "percent", profit_rate: "", profit_amount: "", installment_count: "0", frequency: "monthly", first_due_date: nextMonth() };
+  const { register, handleSubmit, reset, setValue, getValues, watch, setError, formState: { errors, isSubmitting } } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: blank });
   const w = watch();
 
   // only vehicles already sold can get an investor sale; the list is searched on the server
@@ -117,13 +117,9 @@ export function InvestorSaleForm() {
     : s.investor ? "This sale is already financed by an investor on its own installment plan."
     : null;
 
-  // the schedule starts as the customer's plan (count and frequency); the price and down payment are typed in
+  // the schedule starts as the customer's plan's frequency; the amount on the plan and the number of installments start at 0 and are typed in
   useEffect(() => {
-    if (!s) return;
-    if (s.plan) {
-      setValue("installment_count", String(s.plan.number_of_installments));
-      setValue("frequency", s.plan.frequency === "weekly" ? "weekly" : "monthly");
-    }
+    if (s?.plan) setValue("frequency", s.plan.frequency === "weekly" ? "weekly" : "monthly");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s?.id]);
 
@@ -165,7 +161,8 @@ export function InvestorSaleForm() {
   const down = Number(w.down_payment || 0);
   const afterCustomer = Math.max(r2(salePrice - down), 0);
   const planAmount = w.plan_amount === "" ? afterCustomer : Math.min(Number(w.plan_amount) || 0, afterCustomer);
-  const investorDown = w.investor_down_payment === "" ? planAmount : Math.min(Number(w.investor_down_payment) || 0, planAmount);
+  // what the investor gives now (0 unless typed); the rest of the amount on the plan is their due
+  const investorDown = Math.min(Number(w.investor_down_payment) || 0, planAmount);
   const investorDue = Math.max(r2(planAmount - investorDown), 0);
   const plan = useMemo(() => {
     const principal = planAmount, n = Number(w.installment_count);
@@ -177,8 +174,19 @@ export function InvestorSaleForm() {
   // what the shop keeps: the customer's interest less the investor's profit
   const shopProfit = s?.plan && plan ? r2(s.plan.interest_amount - plan.profit) : null;
 
+  // the amount on the plan follows the price less the customer's down payment, as long as it was not typed by hand
+  const lastAuto = useRef("0");
+  useEffect(() => {
+    const plan = getValues("plan_amount");
+    if (plan !== "" && Number(plan) !== 0 && plan !== lastAuto.current) return;
+    lastAuto.current = afterCustomer > 0 ? String(afterCustomer) : "0";
+    setValue("plan_amount", lastAuto.current, { shouldValidate: !!errors.plan_amount });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [afterCustomer]);
+
   const clear = () => {
     reset(blank);
+    lastAuto.current = "0";
     setYearRate(null);
     setChosen(null);
     setExtraOpen(false);
@@ -191,7 +199,7 @@ export function InvestorSaleForm() {
     try {
       const body = toPayload({
         investor_id: v.investor_id, customer_id: v.customer_id, date: v.date, sale_price: v.sale_price, down_payment: v.down_payment || "0",
-        investor_down_payment: v.investor_down_payment, plan_amount: v.plan_amount, method: v.method,
+        investor_down_payment: v.investor_down_payment || "0", plan_amount: v.plan_amount, method: v.method,
         memo_no: v.memo_no, guarantor_name: v.guarantor_name, guarantor_phone: v.guarantor_phone, installment_count: v.installment_count, frequency: v.frequency, first_due_date: v.first_due_date,
         ...(v.profit_mode === "amount" ? { profit_amount: v.profit_amount } : { profit_rate: v.profit_rate }),
       }, ["investor_id", "customer_id", "sale_price", "down_payment", "investor_down_payment", "plan_amount", "installment_count", "profit_rate", "profit_amount"]);
@@ -279,7 +287,7 @@ export function InvestorSaleForm() {
               </Field>
               <Field label="Memo no. (optional)" error={errors.memo_no?.message}><Input className={inputCls} {...register("memo_no")} /></Field>
               <Field required label="Down payment (from customer)" error={errors.down_payment?.message}><Input type="number" step="0.01" className={inputCls} {...register("down_payment")} /></Field>
-              <Field label="Down payment (from investor)" error={errors.investor_down_payment?.message}><Input type="number" step="0.01" placeholder={planAmount > 0 ? String(planAmount) : undefined} className={inputCls} {...register("investor_down_payment")} /></Field>
+              <Field label="Down payment (from investor)" error={errors.investor_down_payment?.message}><Input type="number" step="0.01" className={inputCls} {...register("investor_down_payment")} /></Field>
               <Field label="Guarantor name (optional)" error={errors.guarantor_name?.message}><Input className={inputCls} {...register("guarantor_name")} /></Field>
               <Field label="Guarantor mobile (optional)" error={errors.guarantor_phone?.message}><Input type="tel" className={inputCls} {...register("guarantor_phone")} /></Field>
               {/* hidden until needed: the button opens it, removing the customer closes it */}
@@ -297,6 +305,13 @@ export function InvestorSaleForm() {
               <div><dt className="text-xs text-slate-500">Down payment (customer)</dt><dd className="font-semibold text-slate-800">{money(down)}</dd></div>
               <div><dt className="text-xs text-slate-500">Down payment (investor)</dt><dd className="font-semibold text-slate-800">{money(investorDown)}</dd></div>
               <div><dt className="text-xs text-slate-500">Investor due</dt><dd className={`text-base font-bold ${investorDue > 0 ? "text-amber-700" : "text-emerald-700"}`}>{money(investorDue)}</dd></div>
+              {salePrice > 0 && afterCustomer <= 0 && (
+                <p className="col-span-full rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+                  {lang === "bn"
+                    ? "গ্রাহকের ডাউন পেমেন্ট পুরো বিক্রয়মূল্যের সমান বা বেশি, তাই ইনভেস্টরের জন্য কিছু বাকি নেই। ডাউন পেমেন্ট বিক্রয়মূল্যের চেয়ে কম দিন।"
+                    : "The customer's down payment covers the whole sale price, so nothing is left for the investor. Make the down payment less than the sale price."}
+                </p>
+              )}
               <p className="col-span-full text-xs text-slate-600">
                 {lang === "bn"
                   ? `ইনভেস্টর এখন ${money(investorDown)} এবং পরে ${money(investorDue)} দেবেন। দোকান নিচের পরিকল্পনায় ইনভেস্টরকে ${money(planAmount)} + লাভ ফেরত দেবে।`

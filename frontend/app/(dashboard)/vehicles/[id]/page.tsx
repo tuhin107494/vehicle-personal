@@ -8,7 +8,7 @@ import { fmtDate, label as statusLabel, money } from "@/lib/format";
 import { useCategories } from "@/lib/categories";
 import { useFetch } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
-import type { Booking, Payment, Purchase, Sale, Vehicle } from "@/lib/types";
+import type { Booking, InvestorSale, Payment, Purchase, Sale, Vehicle } from "@/lib/types";
 import { DataTable, type Col } from "@/components/DataTable";
 import { Badge, Button, Card, ErrorText, KV, Loading, PageHeader, StatusBadge } from "@/components/app-ui";
 import { VehicleForm } from "@/components/forms/VehicleForm";
@@ -27,19 +27,20 @@ export default function VehicleDetailPage() {
   const [editing, setEditing] = useState(false);
   const [editingPurchase, setEditingPurchase] = useState<number | null>(null); // id of the purchase being edited
   const [registering, setRegistering] = useState<Sale | null>(null); // the sale whose registration step is being changed
-  const { data, loading, error, reload } = useFetch<{ vehicle: Vehicle; sales: Sale[]; purchases: Purchase[]; timeline: Event[]; bookings: Booking[] }>(`/vehicles/${id}/history`);
+  const { data, loading, error, reload } = useFetch<{ vehicle: Vehicle; sales: Sale[]; purchases: Purchase[]; timeline: Event[]; bookings: Booking[]; investor_sales?: InvestorSale[] }>(`/vehicles/${id}/history`);
 
   if (loading && !data) return <Loading />;
   if (error || !data) return <ErrorText message={error ?? "Not found"} />;
-  const { vehicle: v, timeline, sales, purchases, bookings = [] } = data;
+  const { vehicle: v, timeline, sales, purchases, bookings = [], investor_sales: investorSales = [] } = data;
 
   // Purchases, bookings and sales in the order they happened: bought, booked, sold, returned (bought back), sold again...
-  type Step = { kind: "purchase"; at: string; id: number; p: Purchase } | { kind: "sale"; at: string; id: number; s: Sale } | { kind: "booking"; at: string; id: number; b: Booking };
-  const RANK = { purchase: 0, booking: 1, sale: 2 }; // on the same day: bought first, then booked, then sold
+  type Step = { kind: "purchase"; at: string; id: number; p: Purchase } | { kind: "sale"; at: string; id: number; s: Sale } | { kind: "booking"; at: string; id: number; b: Booking } | { kind: "investor"; at: string; id: number; x: InvestorSale };
+  const RANK = { purchase: 0, booking: 1, sale: 2, investor: 3 }; // on the same day: bought first, then booked, then sold, then the investor sale
   const steps: Step[] = [
     ...purchases.map((p): Step => ({ kind: "purchase", at: p.purchase_date, id: p.id, p })),
     ...sales.map((x): Step => ({ kind: "sale", at: x.sale_date, id: x.id, s: x })),
     ...bookings.map((b): Step => ({ kind: "booking", at: b.booked_on, id: b.id, b })),
+    ...investorSales.map((x): Step => ({ kind: "investor", at: x.date, id: x.id, x })),
   ].sort((a, b) => a.at.localeCompare(b.at) || (a.kind === b.kind ? a.id - b.id : RANK[a.kind] - RANK[b.kind]));
 
   const paymentCols: Col<Payment>[] = [
@@ -98,7 +99,7 @@ export default function VehicleDetailPage() {
       </Card>
         </>
       )}
-      {history && <Card title={`Purchase, booking and sale chain (${steps.length})`} className="mb-4">
+      {history && <Card title={`Purchase, booking, sale and investor sale chain (${steps.length})`} className="mb-4">
         {!steps.length && <p className="text-sm text-gray-500">No purchases or sales yet.</p>}
         <ol>
           {steps.map((st, i) => {
@@ -134,6 +135,42 @@ export default function VehicleDetailPage() {
                         <div key={k}><dt className="text-xs text-gray-500">{k}</dt><dd className="font-semibold text-slate-800">{val}</dd></div>
                       ))}
                     </dl>
+                  </div>
+                </li>
+              );
+            }
+            if (st.kind === "investor") {
+              const x = st.x;
+              const p = x.position;
+              const active = x.status === "active";
+              return (
+                <li key={key} className="relative flex gap-3 pb-4">
+                  {!last && <span className="absolute left-[13px] top-7 h-[calc(100%-1.75rem)] w-0.5 bg-emerald-200" />}
+                  <span className="z-10 flex size-7 shrink-0 items-center justify-center rounded-full bg-violet-600 text-xs font-bold text-white">{i + 1}</span>
+                  <div className="min-w-0 flex-1 rounded-lg border-2 border-violet-400 bg-violet-50/40 p-3 text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-medium text-violet-800">Investor sale #{x.id}</span>
+                          <span className="text-gray-500">{fmtDate(x.date)}</span>
+                          <StatusBadge status={x.status} />
+                        </div>
+                        <div className="mt-1 truncate">Investor <b>{x.investor?.name ?? "-"}</b> · sale #{x.sale_id}</div>
+                      </div>
+                      <b className="shrink-0 text-base">{money(x.principal)}</b>
+                    </div>
+                    <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 border-t border-violet-200 pt-2 sm:grid-cols-5">
+                      {([
+                        ["Investor's money", money(x.principal)],
+                        ["We pay back in total", money(x.total_payable)],
+                        ["Paid back so far", money(p ? p.principal_paid + p.profit_paid : 0)],
+                        ["Left to pay back", active ? money(p?.total_due) : "-"],
+                        ...((x.investor_owes ?? 0) > 0 && active ? [["To collect from investor", money(x.investor_owes)]] : []),
+                      ] as [string, React.ReactNode][]).map(([k, val]) => (
+                        <div key={k}><dt className="text-xs text-gray-500">{k}</dt><dd className={`font-semibold ${(k === "Left to pay back" || k === "To collect from investor") && active ? "text-amber-700" : "text-slate-800"}`}>{val}</dd></div>
+                      ))}
+                    </dl>
+                    <Link className="mt-2 inline-block text-xs underline" href={`/investor-sales/${x.id}`}>Investor sale details #{x.id}</Link>
                   </div>
                 </li>
               );

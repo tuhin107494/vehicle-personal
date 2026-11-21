@@ -108,6 +108,123 @@ class InvestorSaleService
         });
     }
 
+    /**
+     * Edits an investor sale. Its details (date, memo, guarantor, additional customer) can always change. Its money terms
+     * (price, down payments, amount on the plan, profit, schedule) only while no money has moved on it since it was made:
+     * the shop has paid the investor nothing and the investor has given nothing beyond their down payment.
+     * Changed terms redraw the schedule and the investor's down payment entry.
+     */
+    public function update(InvestorSale $investorSale, array $data): InvestorSale
+    {
+        return DB::transaction(function () use ($investorSale, $data) {
+            $investorSale = InvestorSale::lockForUpdate()->findOrFail($investorSale->id);
+            $sale = Sale::findOrFail($investorSale->sale_id);
+
+            if ($investorSale->status !== 'active') {
+                throw new BusinessRuleException('A cancelled investor sale cannot be edited.');
+            }
+
+            if (Carbon::parse($data['date'])->lt($sale->sale_date)) {
+                throw new BusinessRuleException('The investor sale date cannot be before the sale date.');
+            }
+
+            if (! empty($data['customer_id']) && (int) $data['customer_id'] === $sale->customer_id) {
+                throw new BusinessRuleException('The additional customer must be someone other than the buyer.');
+            }
+
+            $afterCustomer = Money::paisa($data['sale_price']) - Money::paisa($data['down_payment']);
+            $principal = isset($data['plan_amount']) && $data['plan_amount'] !== '' ? Money::paisa($data['plan_amount']) : $afterCustomer;
+            $investorDown = isset($data['investor_down_payment']) && $data['investor_down_payment'] !== '' ? Money::paisa($data['investor_down_payment']) : $principal;
+            [$rate, $profit] = $this->profitOf($data, $principal);
+
+            // the same percentage on the same amount keeps the profit as saved: a profit first given as an amount is stored
+            // with its rate rounded to 2 decimals, and working it out again from that rate could move it by a few paisa
+            if ($principal === Money::paisa($investorSale->principal) && ! isset($data['profit_amount']) && round($rate, 2) === round((float) $investorSale->profit_rate, 2)) {
+                $profit = Money::paisa($investorSale->profit_amount);
+            }
+
+            $terms = [
+                'sale_price' => Money::paisa($data['sale_price']), 'down_payment' => Money::paisa($data['down_payment']),
+                'investor_down_payment' => $investorDown, 'principal' => $principal, 'profit_amount' => $profit,
+                'number_of_installments' => (int) $data['installment_count'], 'frequency' => $data['frequency'] ?? 'monthly',
+                'start_date' => Carbon::parse($data['first_due_date'])->toDateString(),
+            ];
+            $now = [
+                'sale_price' => Money::paisa($investorSale->sale_price), 'down_payment' => Money::paisa($investorSale->down_payment),
+                'investor_down_payment' => Money::paisa($investorSale->investor_down_payment ?? $investorSale->principal), 'principal' => Money::paisa($investorSale->principal),
+                'profit_amount' => Money::paisa($investorSale->profit_amount), 'number_of_installments' => $investorSale->number_of_installments,
+                'frequency' => $investorSale->frequency, 'start_date' => $investorSale->start_date->toDateString(),
+            ];
+            $termsChanged = $terms != $now;
+
+            if ($termsChanged) {
+                $moneyMoved = $investorSale->settlements()->whereIn('type', ['principal_return', 'profit_share'])->exists()
+                    || $investorSale->settlements()->where('type', 'investment')->where(fn ($q) => $q->whereNull('note')->orWhere('note', 'not like', 'Auto:%'))->exists();
+
+                if ($moneyMoved) {
+                    throw new BusinessRuleException('Money has already been paid on this investor sale, so its amounts and schedule cannot change. Only its details can be edited.');
+                }
+
+                if ($principal > $afterCustomer) {
+                    throw new BusinessRuleException('The amount on the plan cannot be more than the '.Money::format($afterCustomer).' left after the customer\'s down payment.');
+                }
+
+                if ($investorDown > $principal) {
+                    throw new BusinessRuleException('The investor\'s down payment cannot be more than the amount on the plan ('.Money::format($principal).').');
+                }
+
+                if ($rate > 1000) {
+                    throw new BusinessRuleException('The investor profit cannot be more than 1000% of the investor amount.');
+                }
+            }
+
+            $investorSale->update([
+                'customer_id' => $data['customer_id'] ?? null,
+                'date' => $data['date'],
+                'method' => $data['method'] ?? null,
+                'memo_no' => $data['memo_no'] ?? null,
+                'guarantor_name' => $data['guarantor_name'] ?? null,
+                'guarantor_phone' => $data['guarantor_phone'] ?? null,
+                ...($termsChanged ? [
+                    'sale_price' => $data['sale_price'],
+                    'down_payment' => $data['down_payment'],
+                    'investor_down_payment' => Money::taka($investorDown),
+                    'principal' => Money::taka($principal),
+                    'profit_rate' => $rate,
+                    'profit_amount' => Money::taka($profit),
+                    'total_payable' => Money::taka($principal + $profit),
+                    'number_of_installments' => $terms['number_of_installments'],
+                    'frequency' => $terms['frequency'],
+                    'start_date' => $terms['start_date'],
+                ] : []),
+            ]);
+
+            // the investor's down payment entry follows the edit (its amount, and its date with the investor sale's date)
+            $auto = $investorSale->settlements()->where('type', 'investment')->where('note', 'like', 'Auto:%')->first();
+            $down = Money::paisa($investorSale->investor_down_payment ?? $investorSale->principal);
+
+            if ($down > 0 && $auto) {
+                $auto->update(['amount' => Money::taka($down), 'date' => $investorSale->date->toDateString()]);
+            } elseif ($down > 0) {
+                InvestorSettlement::create([
+                    'investor_id' => $investorSale->investor_id, 'investor_sale_id' => $investorSale->id, 'type' => 'investment',
+                    'amount' => Money::taka($down), 'date' => $investorSale->date->toDateString(),
+                    'note' => "Auto: investor sale on sale #{$sale->id}", 'created_by' => $investorSale->created_by,
+                ]);
+            } elseif ($auto) {
+                $auto->delete();
+            }
+
+            // a new schedule: its installments are drawn again
+            if ($termsChanged) {
+                $investorSale->installments()->delete();
+                $this->syncInstallments($investorSale);
+            }
+
+            return $investorSale;
+        });
+    }
+
     /** Undoes an investor sale entered by mistake. Once the investor has been paid anything, it stays. */
     public function cancel(InvestorSale $investorSale): InvestorSale
     {

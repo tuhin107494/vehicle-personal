@@ -59,14 +59,18 @@ export function ReceiveModal({ x, owed, onClose, onSaved }: { x: InvestorSale; o
  * investorOnly: just the investor's and the shop's side (on the investor sale's own page), without the customer's price, down payment or guarantor.
  * summary: a short view (on the customer's sale page) with no actions or schedule, and a link to the investor sale's own page.
  */
-export function InvestorSaleCard({ investorSale: x, onChanged, investorOnly = false, summary = false, paying: payingFromPage, onPayingChange }: { investorSale: InvestorSale; onChanged: () => void; investorOnly?: boolean; summary?: boolean; paying?: boolean; onPayingChange?: (open: boolean) => void }) {
+export function InvestorSaleCard({ investorSale: x, onChanged, investorOnly = false, summary = false, paying: payingFromPage, onPayingChange, receiving: receivingFromPage, onReceivingChange }: { investorSale: InvestorSale; onChanged: () => void; investorOnly?: boolean; summary?: boolean; paying?: boolean; onPayingChange?: (open: boolean) => void; receiving?: boolean; onReceivingChange?: (open: boolean) => void }) {
   const { can } = useAuth();
   const [payingHere, setPayingHere] = useState(false);
   // the page can hold the Pay investor button itself (in its title bar): then it opens the form, and the card has no button of its own
   const payFromPage = onPayingChange !== undefined;
   const paying = payFromPage ? !!payingFromPage : payingHere;
   const setPaying = payFromPage ? onPayingChange : setPayingHere;
-  const [receiving, setReceiving] = useState(false);
+  const [receivingHere, setReceivingHere] = useState(false);
+  // likewise the page can hold the Collect due button (in its title bar)
+  const receiveFromPage = onReceivingChange !== undefined;
+  const receiving = receiveFromPage ? !!receivingFromPage : receivingHere;
+  const setReceiving = receiveFromPage ? onReceivingChange : setReceivingHere;
   const owes = x.investor_owes ?? 0; // what the investor still has to give the shop of their amount
   const [busy, setBusy] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
@@ -124,9 +128,10 @@ export function InvestorSaleCard({ investorSale: x, onChanged, investorOnly = fa
       <Link className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-4 text-sm font-medium text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800" href={`/investor-sales/${x.id}`}>Open investor sale <ArrowRight className="size-4" /></Link>
     ) : (
       <div className="flex flex-wrap gap-2">
-        {x.status === "active" && can("settlements.manage") && owes > 0 && <Button variant="outline" onClick={() => setReceiving(true)}><HandCoins className="size-4 text-emerald-600" /> Receive from investor</Button>}
+        {!receiveFromPage && x.status === "active" && can("settlements.manage") && owes > 0 && <Button variant="outline" onClick={() => setReceiving(true)}><HandCoins className="size-4 text-emerald-600" /> Receive from investor</Button>}
         {!payFromPage && can("settlements.manage") && p && p.total_due > 0 && <Button variant="outline" onClick={() => setPaying(true)}><Wallet className="size-4 text-emerald-600" /> Pay investor</Button>}
-        {can("sales.cancel") && paid === 0 && <Button variant="danger" disabled={busy} onClick={cancel}><Ban className="size-4" /> Cancel</Button>}
+        {/* on the investor sale's own page Cancel is in the title bar */}
+        {!investorOnly && x.status === "active" && can("sales.cancel") && paid === 0 && <Button variant="danger" disabled={busy} onClick={cancel}><Ban className="size-4" /> Cancel</Button>}
       </div>
     )}>
       {/* on the customer's sale page: only who and when, the amounts are on the investor sale's own page */}

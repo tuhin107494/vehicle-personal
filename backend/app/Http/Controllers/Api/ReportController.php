@@ -522,6 +522,12 @@ class ReportController extends Controller implements HasMiddleware
             ->map(fn (InvestorSettlement $i) => [
                 'id' => $i->id, 'date' => $i->date->toDateString(), 'investor_id' => $i->investor_id, 'investor' => $i->investor->name, 'phone' => $i->investor->phone,
                 'type' => $i->type, 'amount' => (float) $i->amount, 'note' => $i->note, 'auto' => str_starts_with((string) $i->note, 'Auto:'),
+                'investor_sale_id' => $i->investor_sale_id, 'plan_id' => $i->plan_id,
+                // an installment paid to the investor is saved as principal and profit together: the same batch is one payment
+                'batch' => in_array($i->type, ['principal_return', 'profit_share'], true)
+                    // saved within the same minute (the two parts are saved one after the other, maybe a second apart)
+                    ? implode('|', [$i->investor_id, $i->date->toDateString(), $i->investor_sale_id, $i->plan_id, $i->created_at?->format('Y-m-d H:i')])
+                    : null,
             ]);
 
         $sum = fn (string $type) => Money::sum($rows->where('type', $type), 'amount');

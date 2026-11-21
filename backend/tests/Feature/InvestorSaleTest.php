@@ -445,6 +445,91 @@ class InvestorSaleTest extends TestCase
         $this->assertDatabaseCount('call_logs', 0);
     }
 
+    public function test_investor_dues_are_listed_for_collection(): void
+    {
+        $sale = $this->installmentSale();
+        $owing = $this->postJson("/api/sales/{$sale['id']}/investor-sale", $this->investorSaleData(['investor_down_payment' => 250000]))->assertCreated()->json('data.id');
+        $paid = $this->installmentSale('CH-2');
+        $this->postJson("/api/sales/{$paid['id']}/investor-sale", $this->investorSaleData())->assertCreated(); // gave it all
+
+        $this->getJson('/api/investor-sales/dues')->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $owing)
+            ->assertJsonPath('data.0.investor_owes', 50000);
+        $this->getJson('/api/investor-sales/dues?search=CH-1')->assertJsonCount(1, 'data');
+        // the investors list shows what each still owes the shop
+        $this->assertEquals(50000, collect($this->getJson('/api/investors')->json('data'))->firstWhere('id', $this->investor->id)['investor_owes']);
+        $this->getJson("/api/investor-sales/dues?investor_id={$this->investor->id}")->assertJsonCount(1, 'data');
+        $this->getJson('/api/investor-sales/dues?search=nobody')->assertJsonCount(0, 'data');
+
+        // once collected it is off the list
+        $this->postJson('/api/investor-settlements', ['investor_id' => $this->investor->id, 'investor_sale_id' => $owing, 'type' => 'investment', 'amount' => 50000, 'date' => '2026-01-10'])->assertCreated();
+        $this->getJson('/api/investor-sales/dues')->assertJsonCount(0, 'data');
+
+        // only for those who may manage investor money
+        $this->as(User::factory()->create(['role' => 'moderator', 'shop_id' => $this->shop->id]));
+        $this->getJson('/api/investor-sales/dues')->assertForbidden();
+    }
+
+    public function test_an_investor_sale_can_be_edited_until_money_moves(): void
+    {
+        $sale = $this->installmentSale();
+        $id = $this->postJson("/api/sales/{$sale['id']}/investor-sale", $this->investorSaleData(['investor_down_payment' => 250000]))->assertCreated()->json('data.id');
+        $edit = fn (array $extra = []) => $this->putJson("/api/investor-sales/{$id}", $extra + [
+            'date' => '2026-01-07', 'sale_price' => 500000, 'down_payment' => 200000, 'investor_down_payment' => 280000, 'plan_amount' => 300000,
+            'profit_rate' => 10, 'installment_count' => 6, 'frequency' => 'monthly', 'first_due_date' => '2026-02-07', 'memo_no' => 'M-2',
+        ]);
+
+        // the terms change: a new schedule, a new down payment entry, what the investor owes follows
+        $edit()->assertOk()
+            ->assertJsonPath('data.total_payable', 330000)
+            ->assertJsonPath('data.number_of_installments', 6)
+            ->assertJsonPath('data.memo_no', 'M-2')
+            ->assertJsonPath('data.investor_owes', 20000);
+        $this->assertSame(6, Installment::where('investor_sale_id', $id)->count());
+        $this->assertDatabaseHas('installments', ['investor_sale_id' => $id, 'seq_no' => 1, 'due_date' => '2026-02-07', 'amount' => 55000]);
+        $this->assertDatabaseHas('investor_settlements', ['investor_sale_id' => $id, 'type' => 'investment', 'amount' => 280000, 'date' => '2026-01-07']);
+
+        // limits as when it was made
+        $edit(['plan_amount' => 300001])->assertStatus(409);
+        $edit(['investor_down_payment' => 300001])->assertStatus(409);
+        $edit(['date' => '2026-01-04', 'first_due_date' => '2026-02-07'])->assertStatus(409); // before the sale
+
+        // once the investor is paid, only the details can change
+        $this->pay($id, 'principal_return', 1000)->assertCreated();
+        $edit(['installment_count' => 12])->assertStatus(409);
+        $edit(['memo_no' => 'M-3', 'guarantor_name' => 'Karim'])->assertOk()->assertJsonPath('data.memo_no', 'M-3')->assertJsonPath('data.number_of_installments', 6);
+
+        // a cancelled one cannot be edited, and editing needs its permission
+        $this->as(User::factory()->create(['role' => 'moderator', 'shop_id' => $this->shop->id]));
+        $edit(['memo_no' => 'X'])->assertForbidden();
+    }
+
+    public function test_a_profit_given_as_an_amount_does_not_block_editing_the_details(): void
+    {
+        $sale = $this->installmentSale();
+        // 10,000 on 300,000 is stored as 3.33%, and 3.33% of 300,000 is 9,990: an edit sending the rate back must keep 10,000
+        $x = $this->postJson("/api/sales/{$sale['id']}/investor-sale", $this->investorSaleData(['profit_rate' => null, 'profit_amount' => 10000]))->assertCreated()->json('data');
+        $this->pay($x['id'], 'principal_return', 1000)->assertCreated();
+
+        $this->putJson("/api/investor-sales/{$x['id']}", [
+            'date' => $x['date'], 'sale_price' => 500000, 'down_payment' => 200000, 'investor_down_payment' => 300000, 'plan_amount' => 300000,
+            'profit_rate' => $x['profit_rate'], 'installment_count' => 12, 'frequency' => 'monthly', 'first_due_date' => '2026-02-05', 'memo_no' => 'M-9',
+        ])->assertOk()->assertJsonPath('data.memo_no', 'M-9')->assertJsonPath('data.profit_amount', 10000);
+    }
+
+    public function test_the_vehicle_history_shows_its_investor_sales(): void
+    {
+        $sale = $this->installmentSale();
+        $id = $this->postJson("/api/sales/{$sale['id']}/investor-sale", $this->investorSaleData(['investor_down_payment' => 250000]))->assertCreated()->json('data.id');
+
+        $this->getJson("/api/vehicles/{$sale['vehicle_id']}/history")->assertOk()
+            ->assertJsonCount(1, 'data.investor_sales')
+            ->assertJsonPath('data.investor_sales.0.id', $id)
+            ->assertJsonPath('data.investor_sales.0.investor.name', 'Rahim')
+            ->assertJsonPath('data.investor_sales.0.investor_owes', 50000);
+    }
+
     public function test_investor_sales_need_their_permissions(): void
     {
         $sale = $this->installmentSale();
