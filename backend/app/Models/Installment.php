@@ -65,6 +65,12 @@ class Installment extends Model
         $query->whereNotNull('plan_id');
     }
 
+    /** How the installment is named to people: number 0 is a sale's promised amount (paid by its date, outside the installments). */
+    public static function labelOf(int $seqNo): string
+    {
+        return $seqNo === 0 ? 'Promise' : "Installment #$seqNo";
+    }
+
     public function remaining(): float
     {
         return Money::add($this->amount, -$this->paid_amount);

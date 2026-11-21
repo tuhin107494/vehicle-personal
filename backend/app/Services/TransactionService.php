@@ -155,7 +155,7 @@ class TransactionService
                 $paid = Money::paisa($installment->paid_amount) - $old + $new;
 
                 if ($paid > Money::paisa($installment->amount)) {
-                    throw new BusinessRuleException('That is more than installment #'.$installment->seq_no.' ('.Money::format(Money::paisa($installment->amount)).').');
+                    throw new BusinessRuleException('That is more than '.($installment->seq_no === 0 ? 'the promised amount' : 'installment #'.$installment->seq_no).' ('.Money::format(Money::paisa($installment->amount)).').');
                 }
 
                 $installment->paid_amount = Money::taka($paid);

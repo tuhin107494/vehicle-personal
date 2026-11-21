@@ -397,7 +397,7 @@ class VehicleFlowTest extends TestCase
         $sale = $this->postJson('/api/sales', $this->saleData($v, [
             'payment_type' => 'installment', 'down_payment' => 400000, 'investor_id' => $investor->id,
             'installment_count' => 3, 'first_due_date' => today()->addMonth()->toDateString(),
-            'interest_rate' => 10, 'investor_share_percent' => 50,
+            'interest_rate' => 40, 'investor_share_percent' => 50, // 40% a year over 3 months: 10%
         ]))->assertCreated()->json('data');
 
         // principal 600000 + 10% = 660000 over 3 installments
@@ -429,7 +429,7 @@ class VehicleFlowTest extends TestCase
 
         // principal 600000 + 60000 interest = 660000, the shop finances it itself
         $this->assertEquals(660000, $sale['plan']['total_payable']);
-        $this->assertEquals(10, $sale['plan']['interest_rate']);
+        $this->assertEquals(40, $sale['plan']['interest_rate']); // 10% over 3 months is 40% a year
         $this->assertNull($sale['investor']);
 
         $this->postJson("/api/sales/{$sale['id']}/payments", ['amount' => 220000])->assertCreated();
@@ -522,7 +522,7 @@ class VehicleFlowTest extends TestCase
         $sale = $this->postJson('/api/sales', $this->saleData($v, [
             'payment_type' => 'installment', 'down_payment' => 400000, 'investor_id' => $investor->id,
             'installment_count' => 3, 'first_due_date' => today()->addMonth()->toDateString(),
-            'interest_rate' => 10, 'investor_share_percent' => 50,
+            'interest_rate' => 40, 'investor_share_percent' => 50, // 40% a year over 3 months: 10%
         ]))->assertCreated()->json('data');
 
         // 330000 collected returns 300000 of the 600000 principal; cancelling returns the other 300000

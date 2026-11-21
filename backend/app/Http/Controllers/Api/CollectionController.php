@@ -109,7 +109,7 @@ class CollectionController extends Controller implements HasMiddleware
             ->whereDate('due_date', '<=', $limit)
             ->whereHas('plan.sale', fn ($q) => $q->where('status', 'active'))
             ->get()
-            ->map(fn (Installment $i) => $this->row('installment', $i->id, "Installment #{$i->seq_no}", $i->plan->sale, $i->due_date, $i->remaining()));
+            ->map(fn (Installment $i) => $this->row('installment', $i->id, Installment::labelOf($i->seq_no), $i->plan->sale, $i->due_date, $i->remaining()));
 
         $promises = DuePromise::with(['sale.customer', 'sale.vehicle'])
             ->whereIn('status', ['open', 'broken'])
@@ -189,7 +189,7 @@ class CollectionController extends Controller implements HasMiddleware
             ->map(fn (CallLog $c) => [
                 'id' => $c->id,
                 'called_at' => $c->called_at->toIso8601String(),
-                'for' => $c->kind === 'installment' ? 'Installment #'.($installments[$c->ref_id] ?? '') : 'Due',
+                'for' => $c->kind === 'installment' ? (isset($installments[$c->ref_id]) ? Installment::labelOf($installments[$c->ref_id]) : 'Installment') : 'Due',
                 'by' => $c->caller?->name,
                 'meet_date' => $c->meet_date?->toDateString(),
                 'note' => $c->note,

@@ -23,6 +23,7 @@ class SettingsRequest extends ApiRequest
             'forms.auto_date' => ['nullable', 'boolean'],
             'forms.memo_no' => ['nullable', 'boolean'],
             'forms.additional_customer' => ['nullable', 'boolean'],
+            'forms.promise_amount' => ['nullable', 'boolean'],
             'forms.removal' => ['nullable', Rule::in(['delete', 'cancel'])],
             'booking.days' => ['nullable', 'integer', 'min:1', 'max:365'],
             'booking.on_cancel' => ['nullable', 'in:refund,keep'],

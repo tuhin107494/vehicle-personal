@@ -61,6 +61,7 @@ export default function SettingsPage() {
   const [recallDays, setRecallDays] = useState<number | null>(null); // saved on its own, apart from the settings table
   const [memoNo, setMemoNo] = useState<boolean | null>(null); // same, for the memo number field
   const [extraCustomer, setExtraCustomer] = useState<boolean | null>(null); // same, for the additional customer option
+  const [promiseField, setPromiseField] = useState<boolean | null>(null); // same, for the promise amount field
   const [removal, setRemoval] = useState<"delete" | "cancel" | null>(null); // same, for removing a payment
   const [autoDate, setAutoDate] = useState<boolean | null>(null); // same, for the date setting
   const [keepSelection, setKeepSelection] = useState<boolean | null>(null); // same, for the payment forms
@@ -317,6 +318,21 @@ export default function SettingsPage() {
             }
           }} />
           Show the additional customer option
+        </label>
+        <p className="mb-3 mt-4 text-xs text-slate-500">Show the optional &quot;Promise amount&quot; on installment sales: part of the price the customer pays by a date, without interest.</p>
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" className="size-4 accent-emerald-600" checked={promiseField ?? settings.data.forms?.promise_amount ?? true} onChange={async (e) => {
+            const value = e.target.checked;
+            try {
+              await api("/settings", { method: "PUT", body: { forms: { promise_amount: value } } });
+              setPromiseField(value);
+              settings.reload();
+              toast.success("Saved");
+            } catch (err) {
+              toast.error(err instanceof ApiError ? err.message : "Failed to save");
+            }
+          }} />
+          Show the promise amount field
         </label>
         <p className="mb-3 mt-4 text-xs text-slate-500">For a wrong payment: Delete removes it, Cancel keeps it with a reason.</p>
         <div role="radiogroup" aria-label="Remove a payment by" className="flex flex-wrap gap-x-6 gap-y-2">

@@ -38,6 +38,7 @@ export type Installment = {
 };
 export type Plan = {
   id: number; sale_id: number; principal: number; interest_rate: number; interest_amount: number;
+  promise_amount?: number; promise_date?: string | null; // part of the price promised by a date, outside the installments
   total_payable: number; number_of_installments: number; frequency: string; start_date: string;
   investor_share_percent: number; installments?: Installment[]; sale?: Sale;
 };
