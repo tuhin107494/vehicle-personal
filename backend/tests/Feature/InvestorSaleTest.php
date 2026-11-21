@@ -537,6 +537,18 @@ class InvestorSaleTest extends TestCase
         $this->putJson('/api/settings', ['forms' => ['additional_customer' => 'x']])->assertJsonValidationErrors('forms.additional_customer');
     }
 
+    public function test_only_due_and_installment_sales_are_offered_for_an_investor_sale(): void
+    {
+        $installment = $this->installmentSale('CH-1');
+        $due = $this->installmentSale('CH-2', ['payment_type' => 'due', 'down_payment' => 300000]);
+        $this->installmentSale('CH-3', ['payment_type' => 'cash', 'down_payment' => 500000]); // cash: nothing to fund
+        $funded = $this->installmentSale('CH-4');
+        $this->postJson("/api/sales/{$funded['id']}/investor-sale", $this->investorSaleData())->assertCreated(); // has one already
+
+        $ids = collect($this->getJson('/api/vehicles?status=sold&fundable=1')->assertOk()->json('data'))->pluck('id')->sort()->values()->all();
+        $this->assertSame([$installment['vehicle_id'], $due['vehicle_id']], $ids);
+    }
+
     public function test_investor_sales_need_their_permissions(): void
     {
         $sale = $this->installmentSale();

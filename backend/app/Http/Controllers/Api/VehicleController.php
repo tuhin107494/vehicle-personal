@@ -44,6 +44,11 @@ class VehicleController extends Controller implements HasMiddleware
             ->when($request->status, fn ($q, $s) => $s === 'stock' ? $q->whereIn('status', ['in_stock', 'booked']) : $q->where(fn ($q) => $q->where('status', $s)
                 // the vehicle a sale draft holds still shows in that draft's own vehicle list
                 ->when($s === 'in_stock' && $request->draft_id, fn ($q) => $q->orWhereIn('id', Draft::whereKey($request->draft_id)->whereNotNull('vehicle_id')->select('vehicle_id')))))
+            // for a new investor sale: the current sale is an active due or installment sale (never cash) with no investor yet
+            ->when($request->boolean('fundable'), fn ($q) => $q->whereIn('current_sale_id', Sale::where('status', 'active')
+                ->whereIn('payment_type', ['due', 'installment'])->whereNull('investor_id')
+                ->whereDoesntHave('plan', fn ($q) => $q->whereNotNull('investor_id'))
+                ->whereDoesntHave('investorSale')->select('id')))
             // where the registration of the vehicle's current sale stands
             ->when($request->registration_status, fn ($q, $s) => $q->whereIn('current_sale_id', Sale::where('registration_status', $s)->select('id')))
             ->when($request->search, fn ($q, $s) => $q->where(fn ($q) => $q

@@ -98,7 +98,7 @@ export function InvestorSaleForm() {
   const [opened, setOpened] = useState(false);
   const [search, setSearch] = useState("");
   const searched = useDebounced(search.trim());
-  const vehicles = useLoadMore<Vehicle>(opened || w.vehicle_id ? `/vehicles?status=sold${searched ? `&search=${encodeURIComponent(searched)}` : ""}` : null);
+  const vehicles = useLoadMore<Vehicle>(opened || w.vehicle_id ? `/vehicles?status=sold&fundable=1${searched ? `&search=${encodeURIComponent(searched)}` : ""}` : null);
   const [chosen, setChosen] = useState<Vehicle | null>(null);
   // opened from a sale's page (?vehicle=): that vehicle is chosen already
   const preset = useSearchParams().get("vehicle");
@@ -112,7 +112,8 @@ export function InvestorSaleForm() {
   const sale = useFetch<Sale>(chosen?.current_sale_id ? `/sales/${chosen.current_sale_id}` : null);
   const s = sale.data && sale.data.id === chosen?.current_sale_id ? sale.data : null;
   const blocked = !s ? null
-    : s.status !== "active" || s.payment_type === "cash" ? "This vehicle was sold for cash, so there is nothing left for an investor to fund."
+    : s.status !== "active" ? "This sale was cancelled, so there is nothing for an investor to fund."
+    : s.payment_type === "cash" ? "This vehicle was sold for cash, so there is nothing left for an investor to fund."
     : s.investor_sale ? "This sale already has an investor sale."
     : s.investor ? "This sale is already financed by an investor on its own installment plan."
     : null;
