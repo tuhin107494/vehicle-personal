@@ -37,7 +37,7 @@ export function CollectPaymentModal({ open, sale, onClose, onDone }: { open: boo
   type Values = z.infer<typeof schema>;
   const autoDate = useAutoDate();
   const showMemo = useMemoField();
-  const { register, handleSubmit, reset, setError, formState: { errors, isSubmitting } } = useForm<Values>({
+  const { register, handleSubmit, reset, setError, setValue, getValues, formState: { errors, isSubmitting } } = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: { amount: "", installment_id: "", method: "cash", paid_at: autoDate, reference: "", memo_no: "", note: "" },
   });
@@ -69,9 +69,17 @@ export function CollectPaymentModal({ open, sale, onClose, onDone }: { open: boo
         </div>
         {sale.payment_type === "installment" && (
           <Field label="Apply to installment (optional)" error={errors.installment_id?.message}>
-            <NativeSelect className={inputCls} {...register("installment_id")}>
-              <option value="">Oldest unpaid first</option>
-              {unpaid.map((i) => <option key={i.id} value={i.id}>#{i.seq_no} · {fmtDate(i.due_date)} · remaining {money(i.amount - i.paid_amount)}</option>)}
+            <NativeSelect className={inputCls} {...register("installment_id", {
+              // choosing an installment fills in what is left on it, and today's date when no date is entered yet
+              onChange: (e) => {
+                const i = unpaid.find((x) => String(x.id) === e.target.value);
+                if (!i) return;
+                setValue("amount", String(Math.round((i.amount - i.paid_amount) * 100) / 100), { shouldValidate: true });
+                if (!getValues("paid_at")) setValue("paid_at", todayStr(), { shouldValidate: true });
+              },
+            })}>
+              <option value="">Earliest due first</option>
+              {unpaid.map((i) => <option key={i.id} value={i.id}>{i.seq_no === 0 ? "Promise" : `#${i.seq_no}`} · {fmtDate(i.due_date)} · remaining {money(i.amount - i.paid_amount)}</option>)}
             </NativeSelect>
           </Field>
         )}

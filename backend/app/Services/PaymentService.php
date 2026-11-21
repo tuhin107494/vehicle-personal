@@ -142,9 +142,10 @@ class PaymentService
      */
     private function allocate(Sale $sale, int $amount, ?int $preferredId): array
     {
+        // the one falling due first is paid first (a promised amount, number 0, may fall due after some installments)
         $installments = $sale->plan->installments
             ->whereNotIn('status', ['cancelled', 'paid'])
-            ->sortBy('seq_no')
+            ->sortBy([fn ($a, $b) => $a->due_date <=> $b->due_date, fn ($a, $b) => $a->seq_no <=> $b->seq_no])
             ->values();
 
         if ($preferredId) {

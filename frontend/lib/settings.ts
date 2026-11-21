@@ -11,7 +11,7 @@ export type Settings = {
   purchase: { vehicle_type: string | null; prices: Record<string, number>; from_customer: boolean };
   sale: { vehicle_type: string | null; prices: Record<string, number> };
   collections: { recall_days: number; keep_selection: boolean };
-  forms: { auto_date: boolean; memo_no: boolean; additional_customer: boolean; removal: "delete" | "cancel" };
+  forms: { auto_date: boolean; memo_no: boolean; additional_customer: boolean; promise_amount: boolean; removal: "delete" | "cancel" };
   booking: { days: number; on_cancel: "refund" | "keep"; on_expire: "refund" | "keep" };
 };
 
@@ -39,6 +39,11 @@ export function useMemoField(): boolean {
 /** Whether the sale forms offer an additional customer besides the buyer (on unless the shop turns it off). */
 export function useAdditionalCustomer(): boolean {
   return useSettings().data?.forms?.additional_customer !== false;
+}
+
+/** Whether the installment sale form shows the optional promise amount field (on unless the shop turns it off). */
+export function usePromiseField(): boolean {
+  return useSettings().data?.forms?.promise_amount !== false;
 }
 
 /** What the statements offer on a payment entered by mistake: "delete" removes it, "cancel" keeps it as cancelled with a reason (delete unless the shop chose otherwise). */

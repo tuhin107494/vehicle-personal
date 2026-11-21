@@ -60,7 +60,7 @@ class ReportController extends Controller implements HasMiddleware
             'sales' => $sales->map(fn ($s) => [
                 ...SaleResource::make($s)->resolve(),
                 'next_due_date' => $s->payment_type === 'installment'
-                    ? $s->plan?->installments->whereIn('status', ['pending', 'partial', 'overdue'])->sortBy('seq_no')->first()?->due_date?->toDateString()
+                    ? $s->plan?->installments->whereIn('status', ['pending', 'partial', 'overdue'])->sortBy('due_date')->first()?->due_date?->toDateString()
                     : $s->promises->where('status', 'open')->sortBy('promised_date')->first()?->promised_date?->toDateString(),
             ]),
         ]);
@@ -245,7 +245,7 @@ class ReportController extends Controller implements HasMiddleware
     {
         $parts = $rows->sortBy('id')->map(function ($p) {
             $label = $p->installment
-                ? '#'.$p->installment->seq_no.' ('.$p->installment->due_date->format('M Y').')'
+                ? ($p->installment->seq_no === 0 ? 'Promise' : '#'.$p->installment->seq_no).' ('.$p->installment->due_date->format('M Y').')'
                 : ($p->charge ? $p->charge->purpose : 'Payment');
 
             return $label.': '.number_format((float) $p->amount, 2);
@@ -281,7 +281,7 @@ class ReportController extends Controller implements HasMiddleware
                 // a refund gives money back, so it adds to what they owe again
                 $out[] = $this->entry($sale->customer_id, $pay->paid_at->toDateString(), 1, $pay->id, 'payment', $label, $vehicle, $total < 0 ? abs($total) : 0, $total > 0 ? $total : 0, $pay->reference, 'CP-'.$pay->id, [
                     ['Vehicle', $name ?: null], ['Chassis', $vehicle], ['Sale', "#{$sale->id}"], ['Method', ucfirst($pay->method)],
-                    ['Installment', $rows->count() === 1 && $pay->installment ? "#{$pay->installment->seq_no}" : null], ...$split,
+                    ['Installment', $rows->count() === 1 && $pay->installment ? ($pay->installment->seq_no === 0 ? 'Promise' : "#{$pay->installment->seq_no}") : null], ...$split,
                     ['Received by', $pay->receiver?->name], ['Memo no.', $pay->memo_no], ['Note', $pay->note],
                 ], TransactionService::tx($pay));
             }

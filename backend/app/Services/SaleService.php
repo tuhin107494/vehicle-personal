@@ -207,9 +207,12 @@ class SaleService
 
         if ($type === 'installment') {
             $plan = $sale->plan;
-            [, $interest] = $this->interestOf($data, $price - $down);
+            $promise = Money::paisa($data['promise_amount'] ?? 0);
+            [, $interest] = $this->interestOf($data, $price - $down - $promise);
 
             return ! $plan
+                || Money::paisa($plan->promise_amount ?? 0) !== $promise
+                || ($promise > 0 && $plan->promise_date?->toDateString() !== Carbon::parse($data['promised_date'] ?? 'today')->toDateString())
                 || $plan->number_of_installments !== (int) $data['installment_count']
                 || $plan->frequency !== ($data['frequency'] ?? 'monthly')
                 || $plan->start_date->toDateString() !== Carbon::parse($data['first_due_date'])->toDateString()
@@ -385,26 +388,42 @@ class SaleService
         ]);
     }
 
-    /** @return array{0: float|int, 1: int} the interest rate (percent) and the interest in paisa, from either the rate or the amount given */
+    /** @return array{0: float|int, 1: int} the yearly interest rate (percent) and the interest in paisa, from either the rate or the amount given */
     private function interestOf(array $data, int $principal): array
     {
+        // the rate is a flat yearly rate: 100% over 12 months is the principal once, over 24 months twice
+        $years = max((int) ($data['installment_count'] ?? 0), 1) / (($data['frequency'] ?? 'monthly') === 'weekly' ? 52 : 12);
+
         if (isset($data['interest_amount']) && $data['interest_amount'] !== '') {
             $interest = Money::paisa($data['interest_amount']);
 
-            return [$principal > 0 ? round($interest / $principal * 100, 2) : 0, $interest];
+            return [$principal > 0 ? round($interest / $principal * 100 / $years, 2) : 0, $interest];
         }
 
         $rate = round((float) ($data['interest_rate'] ?? 0), 2);
 
-        return [$rate, Money::percent($principal, $rate)];
+        return [$rate, Money::percent($principal, $rate * $years)];
     }
 
-    /** @param  int  $principal  what is financed (sale price less down payment), in paisa */
+    /**
+     * @param  int  $principal  what is financed (sale price less down payment), in paisa. A promised amount (paid by its date,
+     *                          without interest) is part of it: the interest is on the rest, which is split into the installments.
+     */
     private function createPlan(Sale $sale, array $data, int $principal, User $user): void
     {
         $count = (int) $data['installment_count'];
         $frequency = $data['frequency'] ?? 'monthly';
-        [$rate, $interest] = $this->interestOf($data, $principal);
+        $promise = Money::paisa($data['promise_amount'] ?? 0);
+
+        if ($promise > 0 && $promise >= $principal) {
+            throw new BusinessRuleException('The promised amount must be less than the '.Money::format($principal).' left after the down payment.');
+        }
+
+        if ($promise > 0 && empty($data['promised_date'])) {
+            throw new BusinessRuleException('Enter the date the promised amount will be paid by.');
+        }
+
+        [$rate, $interest] = $this->interestOf($data, $principal - $promise);
         $total = $principal + $interest;
         $start = Carbon::parse($data['first_due_date']);
 
@@ -412,6 +431,8 @@ class SaleService
             'sale_id' => $sale->id,
             'investor_id' => $data['investor_id'] ?? null,
             'principal' => Money::taka($principal),
+            'promise_amount' => Money::taka($promise),
+            'promise_date' => $promise > 0 ? $data['promised_date'] : null,
             'interest_rate' => $rate,
             'interest_amount' => Money::taka($interest),
             'total_payable' => Money::taka($total),
@@ -421,7 +442,12 @@ class SaleService
             'investor_share_percent' => ($data['investor_id'] ?? null) ? ($data['investor_share_percent'] ?? 0) : 0,
         ]);
 
-        foreach (Money::split($total, $count) as $i => $amount) {
+        // the promised amount: its own installment (number 0), due on the promise date
+        if ($promise > 0) {
+            $plan->installments()->create(['seq_no' => 0, 'due_date' => $data['promised_date'], 'amount' => Money::taka($promise)]);
+        }
+
+        foreach (Money::split($total - $promise, $count) as $i => $amount) {
             $due = $frequency === 'weekly' ? $start->copy()->addWeeks($i) : $start->copy()->addMonthsNoOverflow($i);
 
             $plan->installments()->create([

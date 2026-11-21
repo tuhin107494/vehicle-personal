@@ -16,9 +16,10 @@ import { draftValues } from "@/components/DraftsBar";
 import { Button, Card, Field, inputCls, Modal, PageHeader } from "@/components/app-ui";
 import { openSaleMemo } from "@/components/SaleMemo";
 import { useAuth } from "@/lib/auth";
+import { useT } from "@/lib/i18n";
 import { CustomerSelect } from "@/components/Selects";
 import { SearchSelect } from "@/components/SearchSelect";
-import { useAdditionalCustomer, useAutoDate, useFillDate, useMemoField, useSettings } from "@/lib/settings";
+import { useAdditionalCustomer, useAutoDate, useFillDate, useMemoField, usePromiseField, useSettings } from "@/lib/settings";
 import { useCategories } from "@/lib/categories";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -37,6 +38,7 @@ const schema = z.object({
   down_payment: z.string(),
   method: z.enum(["cash", "bank", "mobile"]),
   promised_date: z.string(),
+  promise_amount: z.string(), // installment: part of the price promised by promised_date, outside the installments and without interest
   promise_note: z.string(),
   investor_id: z.string(),
   guarantor_phone: z.string(),
@@ -74,16 +76,22 @@ const schema = z.object({
   }
   if (v.payment_type === "installment") {
     if (!num(v.installment_count) || Number(v.installment_count) < 1 || Number(v.installment_count) > 120) add("installment_count", "Enter 1 to 120 installments.");
+    const promise = Number(v.promise_amount || 0);
+    if (v.promise_amount !== "" && !(num(v.promise_amount) && promise >= 0)) add("promise_amount", "Enter the promised amount (0 if none).");
+    else if (promise > 0 && promise >= price - down) add("promise_amount", "The promised amount must be less than the price less the down payment.");
+    else if (promise > 0 && !v.promised_date) add("promised_date", "Enter the date it will be paid by.");
+    else if (promise > 0 && v.promised_date <= v.sale_date) add("promised_date", "Promise date must be after the sale date.");
     if (!v.first_due_date) add("first_due_date", "First installment date is required.");
     else if (v.first_due_date <= v.sale_date) add("first_due_date", "First installment date must be after the sale date.");
     if (v.interest_mode === "percent" && v.interest_rate !== "" && Number(v.interest_rate) < 0) add("interest_rate", "Interest cannot be negative.");
+    else if (v.interest_mode === "percent" && Number(v.interest_rate) > 100) add("interest_rate", "Interest can be at most 100% a year.");
     if (v.interest_mode === "amount" && v.interest_amount !== "" && Number(v.interest_amount) < 0) add("interest_amount", "Interest cannot be negative.");
     if (!v.investor_id) {
       // no investor: the shop finances the plan, so there is no share to check
     } else if (v.investor_share_mode === "percent") {
       if (v.investor_share_percent !== "" && (Number(v.investor_share_percent) < 0 || Number(v.investor_share_percent) > 100)) add("investor_share_percent", "Enter 0 to 100.");
     } else if (v.investor_share_amount !== "") {
-      const interest = v.interest_mode === "amount" ? Number(v.interest_amount || 0) : ((price - Number(v.down_payment || 0)) * Number(v.interest_rate || 0)) / 100;
+      const interest = v.interest_mode === "amount" ? Number(v.interest_amount || 0) : ((price - Number(v.down_payment || 0) - Number(v.promise_amount || 0)) * Number(v.interest_rate || 0) * planYears(v.installment_count, v.frequency)) / 100;
       if (Number(v.investor_share_amount) < 0) add("investor_share_amount", "Amount cannot be negative.");
       else if (Number(v.investor_share_amount) > interest + 0.005) add("investor_share_amount", "Cannot be more than the total interest.");
     }
@@ -101,6 +109,9 @@ const PROMISE_OPTIONS = [
   ...[1, 2, 3, 4].map((m) => ({ value: `m${m}`, label: `${m} month${m > 1 ? "s" : ""}` })),
   { value: "other", label: "Other (pick a date)" },
 ];
+
+// The interest rate is a flat yearly rate: the plan's length in years (100% over 12 months is the principal once).
+const planYears = (count: string, frequency: string) => Math.max(Number(count) || 0, 1) / (frequency === "weekly" ? 52 : 12);
 
 // The promise date a quick choice means, counted from the sale date.
 function promiseDate(choice: string, from: string) {
@@ -123,6 +134,7 @@ const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
  */
 export function SaleForm({ booking = null, onSold }: { booking?: Booking | null; onSold?: (sale: Sale) => void }) {
   const { user } = useAuth();
+  const { lang } = useT();
   const [created, setCreated] = useState<Sale | null>(null); // the sale just saved: the form stays and offers the memo
   const params = useSearchParams();
   const [vehicleListOpened, setVehicleListOpened] = useState(false); // the vehicle list loads when the field is first used, or when a vehicle is already chosen
@@ -130,7 +142,7 @@ export function SaleForm({ booking = null, onSold }: { booking?: Booking | null;
 
   const blank = (vehicleId: string): Values => ({
       vehicle_id: booking?.vehicle_id ? String(booking.vehicle_id) : vehicleId, party_id: booking ? String(booking.customer_id) : "", additional_customer_id: "", sale_date: "", sale_price: booking?.agreed_price ? String(Number(booking.agreed_price)) : "", payment_type: "cash", down_payment: booking ? String(Number(booking.advance_amount)) : "", // from a booking this is the total received at the sale: the advance, plus what is paid now (typed apart from it)
-      method: "cash", advance_amount: "", advance_date: "", promised_date: "", promise_note: "", investor_id: "", guarantor_phone: "", guarantor_name: "", memo_no: "", installment_count: "24", first_due_date: nextMonth(),
+      method: "cash", advance_amount: "", advance_date: "", promised_date: "", promise_amount: "", promise_note: "", investor_id: "", guarantor_phone: "", guarantor_name: "", memo_no: "", installment_count: "24", first_due_date: nextMonth(),
       frequency: "monthly", interest_rate: "0", interest_mode: "percent", interest_amount: "", investor_share_percent: "0", investor_share_mode: "percent", investor_share_amount: "",
   });
 
@@ -142,6 +154,7 @@ export function SaleForm({ booking = null, onSold }: { booking?: Booking | null;
   const settings = useSettings();
   const autoDate = useAutoDate();
   const showMemo = useMemoField();
+  const showPromise = usePromiseField();
   const showExtra = useAdditionalCustomer(); // the shop can turn the additional customer option off in Settings
   useFillDate(autoDate, () => !getValues("sale_date"), (d) => setValue("sale_date", d));
 
@@ -227,7 +240,9 @@ export function SaleForm({ booking = null, onSold }: { booking?: Booking | null;
     if (type !== "installment") return null;
     const price = Number(w.sale_price), down = Number(w.down_payment || 0), n = Number(w.installment_count);
     if (!(price > down) || !(n >= 1) || n > 120 || !w.first_due_date) return null;
-    const principal = r2(price - down), interest = w.interest_mode === "amount" ? r2(Number(w.interest_amount || 0)) : r2((principal * Number(w.interest_rate || 0)) / 100), total = r2(principal + interest);
+    // a promised amount is paid by its date without interest: the interest is on the rest, which the installments carry
+    const promise = Math.min(Number(w.promise_amount || 0), Math.max(price - down, 0));
+    const principal = r2(price - down - promise), interest = w.interest_mode === "amount" ? r2(Number(w.interest_amount || 0)) : r2((principal * Number(w.interest_rate || 0) * planYears(w.installment_count, w.frequency)) / 100), total = r2(principal + interest);
     const each = r2(total / n);
     const rows = Array.from({ length: n }, (_, i) => {
       const d = new Date(w.first_due_date + "T00:00:00");
@@ -240,8 +255,8 @@ export function SaleForm({ booking = null, onSold }: { booking?: Booking | null;
       }
       return { n: i + 1, date: d.toLocaleDateString("en-CA"), amount: i === n - 1 ? r2(total - each * (n - 1)) : each };
     });
-    return { principal, interest, total, rows, profit: w.investor_share_mode === "amount" ? r2(Number(w.investor_share_amount || 0)) : r2((interest * Number(w.investor_share_percent || 0)) / 100) };
-  }, [type, w.sale_price, w.down_payment, w.installment_count, w.first_due_date, w.frequency, w.interest_rate, w.interest_mode, w.interest_amount, w.investor_share_percent, w.investor_share_mode, w.investor_share_amount]);
+    return { principal, promise, interest, total, rows, profit: w.investor_share_mode === "amount" ? r2(Number(w.investor_share_amount || 0)) : r2((interest * Number(w.investor_share_percent || 0)) / 100) };
+  }, [type, w.sale_price, w.down_payment, w.promise_amount, w.installment_count, w.first_due_date, w.frequency, w.interest_rate, w.interest_mode, w.interest_amount, w.investor_share_percent, w.investor_share_mode, w.investor_share_amount]);
 
   // the shop's profit on the plan is its interest (an investor is paid on their own investor sale)
   const ownerProfit = plan?.interest ?? 0;
@@ -315,6 +330,7 @@ export function SaleForm({ booking = null, onSold }: { booking?: Booking | null;
         ...(v.payment_type === "due" && { promised_date: v.promised_date, promise_note: v.promise_note }),
         ...(v.payment_type === "installment" && {
           investor_id: v.investor_id, installment_count: v.installment_count, first_due_date: v.first_due_date, frequency: v.frequency,
+          ...(Number(v.promise_amount || 0) > 0 && { promise_amount: v.promise_amount, promised_date: v.promised_date }),
           ...(v.interest_mode === "amount" ? { interest_amount: v.interest_amount || "0" } : { interest_rate: v.interest_rate }),
           // An amount given directly is turned into the percentage of the plan's interest that the server keeps.
           investor_share_percent: !v.investor_id ? "0"
@@ -457,6 +473,13 @@ export function SaleForm({ booking = null, onSold }: { booking?: Booking | null;
                 <Field required label="Down payment" error={errors.down_payment?.message}><Input type="number" step="0.01" className={inputCls} {...register("down_payment")} /></Field>
               )
             )}
+            {/* installment: part of the price the customer promises to pay by a date, outside the installments */}
+            {type === "installment" && showPromise && (
+              <Field label="Promise amount (optional)" error={errors.promise_amount?.message}><Input type="number" step="0.01" placeholder="0" className={inputCls} {...register("promise_amount")} /></Field>
+            )}
+            {type === "installment" && showPromise && Number(w.promise_amount || 0) > 0 && (
+              <Field required label="Promise date" error={errors.promised_date?.message}><Input type="date" min={w.sale_date || undefined} className={inputCls} {...register("promised_date")} /></Field>
+            )}
             {type !== "cash" && (
               <Field label="Guarantor name (optional)" error={errors.guarantor_name?.message}><Input className={inputCls} {...register("guarantor_name")} /></Field>
             )}
@@ -515,18 +538,29 @@ export function SaleForm({ booking = null, onSold }: { booking?: Booking | null;
                 <NativeSelect className={inputCls} {...register("frequency")}><option value="monthly">Monthly</option><option value="weekly">Weekly</option></NativeSelect>
               </Field>
               <Field required label="First installment date" error={errors.first_due_date?.message}><Input type="date" className={inputCls} {...register("first_due_date")} /></Field>
-              <Field label="Interest (flat, whole plan)" error={errors.interest_rate?.message ?? errors.interest_amount?.message}>
+              <Field label="Interest (flat, per year)" error={errors.interest_rate?.message ?? errors.interest_amount?.message}>
                 <div className="flex gap-2">
                   <NativeSelect className={`${inputCls} w-28 shrink-0`} {...register("interest_mode")}>
                     <option value="percent">Percent %</option><option value="amount">Amount (Tk)</option>
                   </NativeSelect>
                   {w.interest_mode === "amount"
-                    ? <Input type="number" step="0.01" placeholder="Amount" className={inputCls} {...register("interest_amount")} />
-                    : <Input type="number" step="0.01" placeholder="Percent" className={inputCls} {...register("interest_rate")} />}
+                    ? <Input key="interest-amount" type="number" step="0.01" placeholder="Amount" className={inputCls} {...register("interest_amount")} />
+                    : <Input
+                        key="interest-rate" type="number" step="0.01" min="0" max="100" placeholder="Percent" className={inputCls} value={w.interest_rate ?? ""}
+                        // at most 100% a year: a key that would go past 100 is not taken
+                        onChange={(e) => { if (!(Number(e.target.value) > 100)) setValue("interest_rate", e.target.value, { shouldValidate: true }); }}
+                      />}
                 </div>
-                {plan && w.interest_mode === "amount" && plan.principal > 0 && <p className="mt-1 text-xs text-slate-500">That is {r2((plan.interest / plan.principal) * 100)}% of {money(plan.principal)}</p>}
+                {plan && w.interest_mode === "amount" && plan.principal > 0 && <p className="mt-1 text-xs text-slate-500">That is {r2((plan.interest / plan.principal) * 100 / planYears(w.installment_count, w.frequency))}% a year of {money(plan.principal)}</p>}
               </Field>
             </div>
+            {plan && plan.promise > 0 && (
+              <p className="mt-3 rounded-md border border-sky-200 bg-sky-50 p-2 text-sm text-sky-900">
+                {lang === "bn"
+                  ? `প্রতিশ্রুত ${money(plan.promise)} ${w.promised_date ? fmtDate(w.promised_date) : "নির্ধারিত তারিখ"}-এর মধ্যে (লাভ ছাড়া); কিস্তিতে ${money(plan.principal)} + লাভ।`
+                  : `Promised ${money(plan.promise)} by ${w.promised_date ? fmtDate(w.promised_date) : "its date"} (no interest); in installments ${money(plan.principal)} + interest.`}
+              </p>
+            )}
             {plan && (
               <div className={`mt-3 grid rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-900 ${showProfit ? "grid-cols-3" : "grid-cols-2"}`}>
                 <div>

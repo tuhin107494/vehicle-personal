@@ -33,7 +33,8 @@ export default function SaleDetailPage() {
   const installments = sale.plan?.installments ?? [];
 
   const instCols: Col<Installment>[] = [
-    { header: "#", accessorKey: "seq_no" },
+    // number 0 is the promised amount (paid by its date, outside the installments)
+    { header: "#", cell: ({ row }) => (row.original.seq_no === 0 ? "Promise" : row.original.seq_no) },
     { header: "Due date", cell: ({ row }) => fmtDate(row.original.due_date) },
     { header: "Amount", cell: ({ row }) => money(row.original.amount) },
     { header: "Paid", cell: ({ row }) => money(row.original.paid_amount) },
@@ -142,7 +143,7 @@ export default function SaleDetailPage() {
           ...(sale.guarantor_name ? [["Guarantor name", sale.guarantor_name] as [string, React.ReactNode]] : []),
           ...(sale.guarantor_phone ? [["Guarantor", <a key="g" className="underline" href={`tel:${sale.guarantor_phone}`}>{sale.guarantor_phone}</a>] as [string, React.ReactNode]] : []),
           ...(sale.investor ? [["Investor", <Link key="i" className="underline" href={`/investors/${sale.investor.id}`}>{sale.investor.name}</Link>] as [string, React.ReactNode]] : []),
-          ...(sale.plan ? [["Plan", `${money(sale.plan.principal)} + ${sale.plan.interest_rate}% = ${money(sale.plan.total_payable)}`] as [string, React.ReactNode]] : []),
+          ...(sale.plan ? [["Plan", `${money(sale.plan.principal)} + ${sale.plan.interest_rate}% a year = ${money(sale.plan.total_payable)}`] as [string, React.ReactNode]] : []),
         ]} />
       </Card>
 

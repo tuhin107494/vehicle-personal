@@ -17,7 +17,7 @@ class ShopSettings
             'sale' => ['vehicle_type' => self::primaryType('sale'), 'prices' => (object) self::prices('sale')],
             'type_defaults' => (object) self::typeDefaults(),
             'collections' => ['recall_days' => self::recallDays(), 'keep_selection' => self::keepSelection()],
-            'forms' => ['auto_date' => self::autoDate(), 'memo_no' => self::memoNo(), 'additional_customer' => self::additionalCustomer(), 'removal' => self::removal()],
+            'forms' => ['auto_date' => self::autoDate(), 'memo_no' => self::memoNo(), 'additional_customer' => self::additionalCustomer(), 'promise_amount' => self::promiseAmount(), 'removal' => self::removal()],
             'booking' => ['days' => self::bookingDays(), 'on_cancel' => self::bookingPolicy('on_cancel'), 'on_expire' => self::bookingPolicy('on_expire')],
         ];
     }
@@ -58,6 +58,12 @@ class ShopSettings
     public static function additionalCustomer(): bool
     {
         return ShopSetting::where('key', 'forms.additional_customer')->value('value') !== '0';
+    }
+
+    /** Whether the installment sale form shows the optional promise amount field (on unless the shop turns it off). */
+    public static function promiseAmount(): bool
+    {
+        return ShopSetting::where('key', 'forms.promise_amount')->value('value') !== '0';
     }
 
     /** What the statements offer on a payment that was entered by mistake: "delete" removes it (the default), "cancel" keeps it as cancelled with a reason. */
@@ -131,6 +137,10 @@ class ShopSettings
 
             if (isset($input['forms']['additional_customer'])) {
                 ShopSetting::updateOrCreate(['key' => 'forms.additional_customer'], ['value' => $input['forms']['additional_customer'] ? '1' : '0']);
+            }
+
+            if (isset($input['forms']['promise_amount'])) {
+                ShopSetting::updateOrCreate(['key' => 'forms.promise_amount'], ['value' => $input['forms']['promise_amount'] ? '1' : '0']);
             }
 
             if (isset($input['forms']['removal'])) {

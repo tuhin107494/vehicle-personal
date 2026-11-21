@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { api, applyServerErrors } from "@/lib/api";
 import { toPayload } from "@/lib/format";
-import { useAdditionalCustomer, useMemoField } from "@/lib/settings";
+import { useAdditionalCustomer, useMemoField, usePromiseField } from "@/lib/settings";
 import type { Sale } from "@/lib/types";
 import { Button, Field, inputCls, Modal } from "@/components/app-ui";
 import { CustomerSelect, InvestorSelect } from "@/components/Selects";
@@ -16,7 +16,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 type Values = {
   party_id: string; additional_customer_id: string; sale_date: string; sale_price: string; payment_type: "cash" | "due" | "installment"; down_payment: string; method: string;
   installment_count: string; first_due_date: string; frequency: string; interest_amount: string; investor_id: string; investor_share_percent: string;
-  promised_date: string; promise_note: string; memo_no: string; guarantor_name: string; guarantor_phone: string;
+  promised_date: string; promise_note: string; promise_amount: string; memo_no: string; guarantor_name: string; guarantor_phone: string;
 };
 
 /** What the sale holds now, as the form's text fields. */
@@ -30,7 +30,9 @@ function valuesOf(sale: Sale): Values {
     installment_count: plan ? String(plan.number_of_installments) : "12", first_due_date: plan?.start_date ?? "", frequency: plan?.frequency ?? "monthly",
     interest_amount: plan ? String(plan.interest_amount) : "", investor_id: plan && sale.investor ? String(sale.investor.id) : "",
     investor_share_percent: plan?.investor_share_percent ? String(plan.investor_share_percent) : "",
-    promised_date: promise?.promised_date ?? "", promise_note: promise?.note ?? "", memo_no: sale.memo_no ?? "",
+    // an installment sale's promised amount keeps its date in the same field as a due sale's promise
+    promised_date: plan?.promise_date ?? promise?.promised_date ?? "", promise_note: promise?.note ?? "",
+    promise_amount: plan?.promise_amount ? String(plan.promise_amount) : "", memo_no: sale.memo_no ?? "",
     guarantor_name: sale.guarantor_name ?? "", guarantor_phone: sale.guarantor_phone ?? "",
   };
 }
@@ -38,6 +40,7 @@ function valuesOf(sale: Sale): Values {
 /** Edit a sale: every field can change, and each edit is kept in the sale's history. Money terms lock once a payment is collected (the server says so). */
 export function SaleEditModal({ open, sale, onClose, onDone }: { open: boolean; sale: Sale; onClose: () => void; onDone: () => void }) {
   const showMemo = useMemoField() || !!sale.memo_no;
+  const showPromise = usePromiseField() || !!sale.plan?.promise_amount; // a sale that already has a promise keeps showing it
   const showExtra = useAdditionalCustomer() || !!sale.additional_customer_id; // off in Settings, but a sale that has one keeps it
   const { register, handleSubmit, reset, setValue, setError, watch, formState: { errors, isSubmitting } } = useForm<Values>({ defaultValues: valuesOf(sale) });
   const w = watch();
@@ -63,6 +66,7 @@ export function SaleEditModal({ open, sale, onClose, onDone }: { open: boolean; 
         ...(type === "due" && { promised_date: v.promised_date, promise_note: v.promise_note }),
         ...(type === "installment" && {
           installment_count: v.installment_count, first_due_date: v.first_due_date, frequency: v.frequency, interest_amount: v.interest_amount || "0",
+          ...(Number(v.promise_amount || 0) > 0 && { promise_amount: v.promise_amount, promised_date: v.promised_date }),
           investor_id: v.investor_id, ...(v.investor_id && { investor_share_percent: v.investor_share_percent || "0" }),
         }),
       }, ["customer_id", "additional_customer_id", "sale_price", "down_payment", "installment_count", "interest_amount", "investor_id", "investor_share_percent"]);
@@ -115,6 +119,8 @@ export function SaleEditModal({ open, sale, onClose, onDone }: { open: boolean; 
               <NativeSelect className={inputCls} {...register("frequency")}><option value="monthly">Monthly</option><option value="weekly">Weekly</option></NativeSelect>
             </Field>
             <Field label="Interest amount" error={errors.interest_amount?.message}><Input type="number" step="0.01" min="0" className={inputCls} {...register("interest_amount")} /></Field>
+            {showPromise && <Field label="Promise amount (optional)" error={errors.promise_amount?.message}><Input type="number" step="0.01" min="0" placeholder="0" className={inputCls} {...register("promise_amount")} /></Field>}
+            {showPromise && Number(w.promise_amount || 0) > 0 && <Field required label="Promise date" error={errors.promised_date?.message}><Input type="date" min={w.sale_date || undefined} className={inputCls} {...register("promised_date")} /></Field>}
             <InvestorSelect optional value={w.investor_id} onChange={(id) => setValue("investor_id", id)} error={errors.investor_id?.message} />
             {w.investor_id && <Field label="Investor share %" error={errors.investor_share_percent?.message}><Input type="number" step="0.01" min="0" max="100" className={inputCls} {...register("investor_share_percent")} /></Field>}
           </div>
