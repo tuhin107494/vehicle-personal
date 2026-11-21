@@ -18,6 +18,9 @@ class InvestorSaleResource extends JsonResource
             'investor' => InvestorResource::make($this->whenLoaded('investor')),
             'customer' => CustomerResource::make($this->whenLoaded('customer')),
             'sale' => SaleResource::make($this->whenLoaded('sale')),
+            // with its payments loaded: what the investor has given the shop of their amount, and still owes it
+            'investor_paid' => $this->whenLoaded('settlements', fn () => Money::sum($this->settlements->where('type', 'investment'), 'amount')),
+            'investor_owes' => $this->whenLoaded('settlements', fn () => Money::taka(max(Money::paisa($this->principal) - Money::paisa(Money::sum($this->settlements->where('type', 'investment'), 'amount')), 0))),
             'schedule' => array_map(fn (array $row) => [
                 'seq_no' => $row['seq_no'], 'due_date' => $row['due_date']->toDateString(), 'amount' => Money::taka($row['amount']),
             ], $this->resource->schedule()),

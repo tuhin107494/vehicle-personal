@@ -39,8 +39,20 @@ class InvestorSaleService
                 throw new BusinessRuleException('The investor sale date cannot be before the sale date.');
             }
 
-            // the investor funds what is left after the down payment
-            $principal = Money::paisa($data['sale_price']) - Money::paisa($data['down_payment']);
+            // the investor's amount: what is left after the customer's down payment, unless less is given
+            $afterCustomer = Money::paisa($data['sale_price']) - Money::paisa($data['down_payment']);
+            $principal = isset($data['plan_amount']) && $data['plan_amount'] !== '' ? Money::paisa($data['plan_amount']) : $afterCustomer;
+
+            if ($principal > $afterCustomer) {
+                throw new BusinessRuleException('The amount on the plan cannot be more than the '.Money::format($afterCustomer).' left after the customer\'s down payment.');
+            }
+
+            // what the investor gives the shop now; the rest of their amount they owe the shop
+            $investorDown = isset($data['investor_down_payment']) && $data['investor_down_payment'] !== '' ? Money::paisa($data['investor_down_payment']) : $principal;
+
+            if ($investorDown > $principal) {
+                throw new BusinessRuleException('The investor\'s down payment cannot be more than the amount on the plan ('.Money::format($principal).').');
+            }
 
             if (! empty($data['customer_id']) && (int) $data['customer_id'] === $sale->customer_id) {
                 throw new BusinessRuleException('The additional customer must be someone other than the buyer.');
@@ -59,6 +71,7 @@ class InvestorSaleService
                 'date' => $data['date'],
                 'sale_price' => $data['sale_price'],
                 'down_payment' => $data['down_payment'],
+                'investor_down_payment' => Money::taka($investorDown),
                 'method' => $data['method'] ?? null,
                 'memo_no' => $data['memo_no'] ?? null,
                 'guarantor_name' => $data['guarantor_name'] ?? null,
@@ -74,16 +87,18 @@ class InvestorSaleService
                 'created_by' => $user->id,
             ]);
 
-            // the money the investor put in for this vehicle
-            InvestorSettlement::create([
-                'investor_id' => $investorSale->investor_id,
-                'investor_sale_id' => $investorSale->id,
-                'type' => 'investment',
-                'amount' => Money::taka($principal),
-                'date' => $investorSale->date->toDateString(),
-                'note' => "Auto: investor sale on sale #{$sale->id}",
-                'created_by' => $user->id,
-            ]);
+            // the money the investor put in for this vehicle now (the rest of their amount comes later)
+            if ($investorDown > 0) {
+                InvestorSettlement::create([
+                    'investor_id' => $investorSale->investor_id,
+                    'investor_sale_id' => $investorSale->id,
+                    'type' => 'investment',
+                    'amount' => Money::taka($investorDown),
+                    'date' => $investorSale->date->toDateString(),
+                    'note' => "Auto: investor sale on sale #{$sale->id}",
+                    'created_by' => $user->id,
+                ]);
+            }
 
             return $investorSale;
         });
@@ -101,6 +116,10 @@ class InvestorSaleService
 
             if ($investorSale->settlements()->whereIn('type', ['principal_return', 'profit_share'])->exists()) {
                 throw new BusinessRuleException('The investor has already been paid on this investor sale, so it cannot be cancelled.');
+            }
+
+            if ($investorSale->settlements()->where('type', 'investment')->where(fn ($q) => $q->whereNull('note')->orWhere('note', 'not like', 'Auto:%'))->exists()) {
+                throw new BusinessRuleException('The investor has paid their due on this investor sale, so it cannot be cancelled.');
             }
 
             $investorSale->settlements()->where('type', 'investment')->where('note', 'like', 'Auto:%')->delete();
@@ -139,7 +158,7 @@ class InvestorSaleService
             $investorSale = InvestorSale::lockForUpdate()->findOrFail($settlement->investor_sale_id);
             $settlement = InvestorSettlement::lockForUpdate()->findOrFail($settlement->id);
 
-            if ($settlement->type === 'investment') {
+            if ($this->madeWithSale($settlement)) {
                 throw new BusinessRuleException('This investment came with the investor sale. Cancel the investor sale to change it.');
             }
 
@@ -156,7 +175,7 @@ class InvestorSaleService
         DB::transaction(function () use ($settlement) {
             $investorSale = InvestorSale::lockForUpdate()->findOrFail($settlement->investor_sale_id);
 
-            if ($settlement->type === 'investment' && $investorSale->status === 'active') {
+            if ($this->madeWithSale($settlement) && $investorSale->status === 'active') {
                 throw new BusinessRuleException('This investment came with the investor sale. Cancel the investor sale instead.');
             }
 
@@ -171,20 +190,31 @@ class InvestorSaleService
             throw new BusinessRuleException('This investor sale is not active for this investor.');
         }
 
-        $owed = ['principal_return' => Money::paisa($investorSale->principal), 'profit_share' => Money::paisa($investorSale->profit_amount)];
+        // the shop pays the investor principal and profit; the investor gives the shop the rest of their amount (an investment)
+        $owed = ['principal_return' => Money::paisa($investorSale->principal), 'profit_share' => Money::paisa($investorSale->profit_amount), 'investment' => Money::paisa($investorSale->principal)];
 
         if (! isset($owed[$data['type']])) {
-            throw new BusinessRuleException('Only principal and profit can be paid on an investor sale.');
+            throw new BusinessRuleException('Only principal, profit or the investor\'s due can be entered on an investor sale.');
         }
 
         $paid = Money::paisa($investorSale->settlements()->where('type', $data['type'])->when($exceptId, fn ($q, $id) => $q->whereKeyNot($id))->sum('amount'));
         $left = $owed[$data['type']] - $paid;
+
+        if (Money::paisa($data['amount']) > $left && $data['type'] === 'investment') {
+            throw new BusinessRuleException('The investor owes only '.Money::format(max($left, 0)).' more on this investor sale.');
+        }
 
         if (Money::paisa($data['amount']) > $left) {
             $what = $data['type'] === 'principal_return' ? 'principal' : 'profit';
 
             throw new BusinessRuleException('Only '.Money::format(max($left, 0))." of {$what} is left to pay on this investor sale.");
         }
+    }
+
+    /** The investment recorded when the investor sale was made: it changes only with the investor sale. */
+    private function madeWithSale(InvestorSettlement $settlement): bool
+    {
+        return $settlement->type === 'investment' && str_starts_with((string) $settlement->note, 'Auto:');
     }
 
     /**
