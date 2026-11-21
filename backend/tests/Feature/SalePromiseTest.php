@@ -101,6 +101,23 @@ class SalePromiseTest extends TestCase
         $this->assertSame('2026-04-01', Installment::where('seq_no', 0)->first()->due_date->toDateString());
     }
 
+    public function test_after_a_payment_the_schedule_can_still_move(): void
+    {
+        $sale = $this->sell()->assertCreated()->json('data');
+        $this->postJson("/api/sales/{$sale['id']}/payments", ['amount' => 10000])->assertCreated();
+
+        // a later sale date and first installment: the installments move a month, the amounts and what was paid stay
+        $this->putJson("/api/sales/{$sale['id']}", [
+            'customer_id' => $sale['customer_id'], 'sale_date' => '2026-01-08', 'sale_price' => 600000, 'payment_type' => 'installment', 'down_payment' => 200000,
+            'installment_count' => 5, 'first_due_date' => '2026-03-08', 'interest_amount' => 35000, 'promise_amount' => 50000, 'promised_date' => '2026-03-01',
+        ])->assertOk()->assertJsonPath('data.plan.start_date', '2026-03-08')->assertJsonPath('data.plan.total_payable', 435000);
+
+        $rows = Installment::where('plan_id', $sale['plan']['id'])->orderBy('seq_no')->get()->keyBy('seq_no');
+        $this->assertSame('2026-03-01', $rows[0]->due_date->toDateString()); // the promise keeps its date
+        $this->assertSame(['2026-03-08', '2026-04-08'], [$rows[1]->due_date->toDateString(), $rows[2]->due_date->toDateString()]);
+        $this->assertEquals(10000, $rows[1]->paid_amount);
+    }
+
     public function test_the_promised_amount_has_limits(): void
     {
         $this->sell(['promise_amount' => 400000])->assertStatus(409); // not less than the 400,000 left after the down payment

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
-import { money, todayStr } from "@/lib/format";
+import { money, nextMonth, todayStr } from "@/lib/format";
 import { useFetch } from "@/lib/hooks";
 import type { Customer, InvestorSale } from "@/lib/types";
 import { Button, Field, inputCls, Modal } from "@/components/app-ui";
@@ -67,10 +67,15 @@ export function InvestorSaleEditModal({ x, onClose, onSaved }: { x: InvestorSale
     <Modal open wide title={`Edit investor sale #${x.id}`} onClose={onClose}>
       <div className="space-y-4">
         <div className="grid gap-3 md:grid-cols-2">
-          <Field required label="Date"><Input type="date" max={todayStr()} className={inputCls} value={v.date} onChange={set("date")} /></Field>
+          <Field required label="Date"><Input type="date" max={todayStr()} className={inputCls} value={v.date} onChange={(e) => {
+            const date = e.target.value;
+            // the first installment follows the date (a month later); after payments too, the schedule just moves
+            setV((o) => ({ ...o, date, ...(date && Number(o.installment_count) > 0 ? { first_due_date: nextMonth(date) } : {}) }));
+          }} /></Field>
           <Field label="Memo no. (optional)"><Input className={inputCls} value={v.memo_no} onChange={set("memo_no")} /></Field>
           <Field label="Guarantor name (optional)"><Input className={inputCls} value={v.guarantor_name} onChange={set("guarantor_name")} /></Field>
           <Field label="Guarantor mobile (optional)"><Input type="tel" className={inputCls} value={v.guarantor_phone} onChange={set("guarantor_phone")} /></Field>
+          {Number(x.number_of_installments) > 0 && <Field required label="First installment date"><Input type="date" min={v.date} className={inputCls} value={v.first_due_date} onChange={set("first_due_date")} /></Field>}
         </div>
         {/* the additional customer (a co-buyer or guarantor): add one, change to someone else, or remove */}
         <div>
@@ -83,7 +88,7 @@ export function InvestorSaleEditModal({ x, onClose, onSaved }: { x: InvestorSale
 
         {locked && (
           <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-sm text-amber-800">
-            Money has already been paid on this investor sale, so its amounts and schedule cannot change. Only the details above can be edited.
+            Money has already been paid on this investor sale, so its amounts cannot change. The details above, and the installment dates, can still be edited.
           </p>
         )}
         <fieldset disabled={locked} className={`grid gap-3 md:grid-cols-3 ${locked ? "opacity-60" : ""}`}>
@@ -106,7 +111,6 @@ export function InvestorSaleEditModal({ x, onClose, onSaved }: { x: InvestorSale
           <Field label="Frequency">
             <NativeSelect className={inputCls} value={v.frequency} onChange={set("frequency")}><option value="monthly">Monthly</option><option value="weekly">Weekly</option></NativeSelect>
           </Field>
-          <Field required label="First installment date"><Input type="date" min={v.date} className={inputCls} value={v.first_due_date} onChange={set("first_due_date")} /></Field>
           <div className="self-end rounded-md bg-emerald-50 p-2 text-sm">We pay back in total: <b>{money(Math.round(total * 100) / 100)}</b></div>
         </fieldset>
 

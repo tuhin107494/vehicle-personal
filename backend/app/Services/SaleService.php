@@ -176,14 +176,22 @@ class SaleService
 
             if ($this->moneyTermsChanged($sale, $data, $price, $down, $type)) {
                 $this->rebuildMoneyTerms($sale, $data, $user, $booking, $price, $down, $type);
-            } elseif ($dateChanged) {
-                // the payments taken at the sale follow its date
-                foreach ($sale->payments->whereIn('note', ['Full payment at sale', 'Down payment']) as $payment) {
-                    $payment->update(['paid_at' => Carbon::parse($data['sale_date'])->setTimeFrom($payment->paid_at)]);
+            } else {
+                if ($dateChanged) {
+                    // the payments taken at the sale follow its date
+                    foreach ($sale->payments->whereIn('note', ['Full payment at sale', 'Down payment']) as $payment) {
+                        $payment->update(['paid_at' => Carbon::parse($data['sale_date'])->setTimeFrom($payment->paid_at)]);
+                    }
+
+                    if ($sale->plan) {
+                        InvestorSettlement::where('plan_id', $sale->plan->id)->where('type', 'investment')->where('note', 'like', 'Auto:%')->update(['date' => $sale->sale_date]);
+                    }
                 }
 
-                if ($sale->plan) {
-                    InvestorSettlement::where('plan_id', $sale->plan->id)->where('type', 'investment')->where('note', 'like', 'Auto:%')->update(['date' => $sale->sale_date]);
+                // a new first installment date moves the schedule, even after payments: the amounts stay, only the dates change
+                if ($type === 'installment' && $sale->plan && ! empty($data['first_due_date'])
+                    && $sale->plan->start_date->toDateString() !== Carbon::parse($data['first_due_date'])->toDateString()) {
+                    $this->moveSchedule($sale->plan, Carbon::parse($data['first_due_date']));
                 }
             }
 
@@ -198,7 +206,23 @@ class SaleService
         });
     }
 
-    /** Whether the price, down payment, type, installment plan or promise differ from what the sale holds now. */
+    /** Moves a plan's installments to a new first date (number 1 on it, the rest following monthly or weekly). What is paid stays; a promised amount keeps its own date. */
+    private function moveSchedule(InstallmentPlan $plan, Carbon $start): void
+    {
+        $plan->update(['start_date' => $start->toDateString()]);
+
+        foreach ($plan->installments->where('seq_no', '>', 0) as $installment) {
+            $installment->due_date = $plan->frequency === 'weekly' ? $start->copy()->addWeeks($installment->seq_no - 1) : $start->copy()->addMonthsNoOverflow($installment->seq_no - 1);
+
+            if (! in_array($installment->status, ['paid', 'cancelled'], true)) {
+                $installment->status = $installment->due_date->lt(today()) ? 'overdue' : ($installment->paid_amount > 0 ? 'partial' : 'pending');
+            }
+
+            $installment->save();
+        }
+    }
+
+    /** Whether the price, down payment, type, installment plan or promise differ from what the sale holds now (the first installment date only moves the schedule). */
     private function moneyTermsChanged(Sale $sale, array $data, int $price, int $down, string $type): bool
     {
         if (Money::paisa($sale->sale_price) !== $price || Money::paisa($sale->down_payment) !== $down || $sale->payment_type !== $type) {
@@ -215,7 +239,6 @@ class SaleService
                 || ($promise > 0 && $plan->promise_date?->toDateString() !== Carbon::parse($data['promised_date'] ?? 'today')->toDateString())
                 || $plan->number_of_installments !== (int) $data['installment_count']
                 || $plan->frequency !== ($data['frequency'] ?? 'monthly')
-                || $plan->start_date->toDateString() !== Carbon::parse($data['first_due_date'])->toDateString()
                 || Money::paisa($plan->interest_amount) !== $interest
                 || $plan->investor_id !== (empty($data['investor_id']) ? null : (int) $data['investor_id'])
                 || (! empty($data['investor_id']) && round((float) $plan->investor_share_percent, 2) !== round((float) ($data['investor_share_percent'] ?? 0), 2));
