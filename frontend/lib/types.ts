@@ -7,14 +7,14 @@ export type Customer = {
   address: string | null; notes: string | null; receivable_due?: number; photo_url?: string | null;
 };
 export type Supplier = {
-  id: number; name: string; phone: string; alt_phone: string | null; nid: string | null; address: string | null; notes: string | null; photo_url?: string | null;
+  id: number; name: string; father_name?: string | null; phone: string; alt_phone: string | null; nid: string | null; address: string | null; notes: string | null; photo_url?: string | null;
   bank_name?: string | null; bank_branch?: string | null; bank_account_name?: string | null; bank_account_no?: string | null; bank_info?: string | null; payable_due?: number;
 };
 /** Whoever sold a purchase to us: the supplier, or the customer for a second-hand buy-back. */
 export type Seller = { id: number; name: string; phone: string; alt_phone: string | null; nid?: string | null; photo_url?: string | null };
 export type Investor = {
   investor_owes?: number; // what the investor still has to give the shop on their investor sales (the list sends it)
-  id: number; name: string; phone: string | null; alt_phone: string | null; nid: string | null; address: string | null;
+  id: number; name: string; father_name?: string | null; phone: string | null; alt_phone: string | null; nid: string | null; address: string | null;
   bank_name?: string | null; bank_branch?: string | null; bank_account_name?: string | null; bank_account_no?: string | null; bank_info: string | null; opening_balance: number;
   current_due?: number; installments_due?: number; photo_url?: string | null;
   formula_invested?: number | null; formula_profit?: number | null; formula_months?: number | null; formula_rate_month?: number | null; formula_rate_year?: number | null; notes: string | null; is_active: boolean;

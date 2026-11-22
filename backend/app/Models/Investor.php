@@ -15,6 +15,7 @@ class Investor extends Model
     protected $fillable = [
         'shop_id',
         'name',
+        'father_name',
         'phone',
         'alt_phone',
         'nid',

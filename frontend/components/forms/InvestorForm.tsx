@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 const schema = z.object({
   name: z.string().min(1, "Investor name is required."),
+  father_name: z.string(),
   phone: z.string().min(1, "Mobile number is required.").regex(MOBILE_RX, MOBILE_MSG),
   alt_phone: z.string().refine((v) => v === "" || MOBILE_RX.test(v), MOBILE_MSG),
   nid: z.string(),
@@ -32,7 +33,7 @@ const schema = z.object({
 });
 type Values = z.infer<typeof schema>;
 
-const blank: Values = { name: "", phone: "", alt_phone: "", nid: "", address: "", bank_name: "", bank_branch: "", bank_account_name: "", bank_account_no: "", bank_info: "", opening_balance: "0", notes: "", is_active: true };
+const blank: Values = { name: "", father_name: "", phone: "", alt_phone: "", nid: "", address: "", bank_name: "", bank_branch: "", bank_account_name: "", bank_account_no: "", bank_info: "", opening_balance: "0", notes: "", is_active: true };
 
 /** Add or edit an investor. `initialText` pre-fills the name (or the mobile number, if it looks like one) from a search box. */
 export function InvestorForm({ open, investor, onClose, onSaved, initialText = "" }: { open: boolean; investor?: Investor | null; onClose: () => void; onSaved: (i: Investor) => void; initialText?: string }) {
@@ -47,7 +48,7 @@ export function InvestorForm({ open, investor, onClose, onSaved, initialText = "
     if (!open) return;
     setPhoto(null);
     reset(investor ? {
-      name: investor.name, phone: investor.phone ?? "", alt_phone: investor.alt_phone ?? "", nid: investor.nid ?? "", address: investor.address ?? "",
+      name: investor.name, father_name: investor.father_name ?? "", phone: investor.phone ?? "", alt_phone: investor.alt_phone ?? "", nid: investor.nid ?? "", address: investor.address ?? "",
       bank_name: investor.bank_name ?? "", bank_branch: investor.bank_branch ?? "", bank_account_name: investor.bank_account_name ?? "", bank_account_no: investor.bank_account_no ?? "", bank_info: investor.bank_info ?? "", opening_balance: String(investor.opening_balance ?? 0),
       notes: investor.notes ?? "", is_active: investor.is_active,
     } : /^[+\d][\d\s-]{4,}$/.test(initialText) ? { ...blank, phone: initialText } : { ...blank, name: initialText });
@@ -58,7 +59,7 @@ export function InvestorForm({ open, investor, onClose, onSaved, initialText = "
       const res = await api<Investor>(investor ? `/investors/${investor.id}` : "/investors", {
         method: investor ? "PUT" : "POST",
         body: {
-          ...v, phone: v.phone || null, alt_phone: v.alt_phone || null, nid: v.nid || null, address: v.address || null, bank_name: v.bank_name || null, bank_branch: v.bank_branch || null, bank_account_name: v.bank_account_name || null, bank_account_no: v.bank_account_no || null, bank_info: v.bank_info || null,
+          ...v, father_name: v.father_name || null, phone: v.phone || null, alt_phone: v.alt_phone || null, nid: v.nid || null, address: v.address || null, bank_name: v.bank_name || null, bank_branch: v.bank_branch || null, bank_account_name: v.bank_account_name || null, bank_account_no: v.bank_account_no || null, bank_info: v.bank_info || null,
           notes: v.notes || null, opening_balance: Number(v.opening_balance || 0),
         },
       });
@@ -83,6 +84,7 @@ export function InvestorForm({ open, investor, onClose, onSaved, initialText = "
         <p className="text-xs text-slate-500"><span className="text-red-600">*</span> Required</p>
         <PhotoField name={watch("name")} url={investor?.photo_url} change={photo} onChange={setPhoto} />
         <Field required label="Name" error={errors.name?.message}><Input className={inputCls} {...register("name")} /></Field>
+        <Field label="Father's name" error={errors.father_name?.message}><Input className={inputCls} {...register("father_name")} /></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field required label="Mobile number" error={errors.phone?.message}><Input className={inputCls} {...register("phone")} /></Field>
           <Field label="Alt. mobile number" error={errors.alt_phone?.message}><Input className={inputCls} {...register("alt_phone")} /></Field>

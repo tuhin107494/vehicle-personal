@@ -30,7 +30,7 @@ class SupplierController extends Controller implements HasMiddleware
     {
         $suppliers = Supplier::query()
             ->when($request->search, fn ($q, $s) => $q->where(fn ($q) => $q
-                ->where('name', 'like', "%$s%")->orWhere('phone', 'like', "%$s%")->orWhere('alt_phone', 'like', "%$s%")->orWhere('nid', 'like', "%$s%")))
+                ->where('name', 'like', "%$s%")->orWhere('father_name', 'like', "%$s%")->orWhere('phone', 'like', "%$s%")->orWhere('alt_phone', 'like', "%$s%")->orWhere('nid', 'like', "%$s%")))
             ->latest('id')
             ->paginate($this->perPage($request));
 

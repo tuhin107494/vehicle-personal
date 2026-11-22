@@ -91,7 +91,7 @@ export default function InvestorPortfolioPage() {
         <Stat color="amber" label="Due amount" value={due.data ? money(due.data.totals.current_due) : "-"} />
         {(summary.investor_owes ?? 0) > 0 && <Stat color="blue" label="To collect from investor" value={money(summary.investor_owes ?? 0)} />}
       </div>
-      <Card className="mb-4"><div className="mb-3"><Avatar name={investor.name} url={investor.photo_url} size="lg" /></div><KV items={[["Phone", investor.phone], ["Alt. phone", investor.alt_phone], ["NID", investor.nid], ["Opening balance", money(investor.opening_balance)], ["Bank", investor.bank_name], ["Branch", investor.bank_branch], ["Account name", investor.bank_account_name], ["Account no", investor.bank_account_no], ["Other bank details", investor.bank_info], ["Address", investor.address]]} /></Card>
+      <Card className="mb-4"><div className="mb-3"><Avatar name={investor.name} url={investor.photo_url} size="lg" /></div><KV items={[["Father's name", investor.father_name ?? "-"], ["Phone", investor.phone], ["Alt. phone", investor.alt_phone], ["NID", investor.nid], ["Opening balance", money(investor.opening_balance)], ["Bank", investor.bank_name], ["Branch", investor.bank_branch], ["Account name", investor.bank_account_name], ["Account no", investor.bank_account_no], ["Other bank details", investor.bank_info], ["Address", investor.address]]} /></Card>
       <h2 className="mb-2 font-semibold">Assigned sales</h2>
       <DataTable columns={saleCols} data={sales} empty="No sales assigned." />
       {investorSales.length > 0 && (<><h2 className="mb-2 mt-6 font-semibold">Investor sales</h2><DataTable columns={investorSaleCols} data={investorSales} /></>)}
