@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Col, DataTable } from "@/components/DataTable";
 import { SettlementForm } from "@/components/forms/SettlementForm";
 
-type Row = InvestorSale["schedule"][number] & { paidAmount: number; left: number };
+type Row = InvestorSale["schedule"][number] & { paidAmount: number; left: number; paidOn: string | null };
 
 /** The rest of the investor's amount, given to the shop after the investor sale: no more than they still owe. */
 export function ReceiveModal({ x, owed, onClose, onSaved }: { x: InvestorSale; owed: number; onClose: () => void; onSaved: () => void }) {
@@ -84,20 +84,31 @@ export function InvestorSaleCard({ investorSale: x, onChanged, investorOnly = fa
   // what has been paid back fills the installments in order (as the stored installments are filled)
   const rows = useMemo(() => {
     const out: Row[] = [];
+    // the payments in the order they were made, with the running total after each: an installment was paid on the
+    // date the running total reached its end (or, when only part of it is paid, on the last payment that went to it)
+    const payments = (x.settlements ?? []).filter((t) => t.type === "principal_return" || t.type === "profit_share")
+      .sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+    const reached: { date: string; total: number }[] = [];
+    for (const t of payments) reached.push({ date: t.date, total: Math.round(((reached.at(-1)?.total ?? 0) + t.amount) * 100) / 100 });
     let rest = paid;
+    let start = 0;
     for (const r of x.schedule) {
       const paidAmount = Math.round(Math.min(rest, r.amount) * 100) / 100;
       rest = Math.max(rest - paidAmount, 0);
-      out.push({ ...r, paidAmount, left: Math.round((r.amount - paidAmount) * 100) / 100 });
+      const end = start + paidAmount;
+      const paidOn = paidAmount > 0 ? (reached.find((t) => t.total >= end - 0.004)?.date ?? null) : null;
+      start = end;
+      out.push({ ...r, paidAmount, left: Math.round((r.amount - paidAmount) * 100) / 100, paidOn });
     }
     return out;
-  }, [x.schedule, paid]);
+  }, [x.schedule, x.settlements, paid]);
   const cols: Col<Row>[] = [
     { header: "#", accessorKey: "seq_no" },
     { header: "Date", cell: ({ row }) => fmtDate(row.original.due_date) },
     { header: "Amount", cell: ({ row }) => money(row.original.amount) },
     { header: "Paid", cell: ({ row }) => row.original.paidAmount > 0 ? <span className="text-emerald-700">{money(row.original.paidAmount)}</span> : "-" },
     { header: "Left", cell: ({ row }) => row.original.left > 0.004 ? money(row.original.left) : "-" },
+    { header: "Paid on", cell: ({ row }) => row.original.paidOn ? fmtDate(row.original.paidOn) : "-" },
     {
       header: "Status",
       cell: ({ row }) => {
