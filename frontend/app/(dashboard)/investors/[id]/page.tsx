@@ -66,9 +66,24 @@ export default function InvestorPortfolioPage() {
     { header: "Status", cell: ({ row }) => <StatusBadge status={row.original.status} /> },
     viewCol<InvestorSale>((x) => `/investor-sales/${x.id}`),
   ];
-  const setCols: Col<Settlement>[] = [
+  // one payment to the investor is saved as two entries (its principal and its profit): the statement shows it as one row
+  type Line = { key: string; date: string; type: string; amount: number; note: string | null };
+  const lines: Line[] = [];
+  const byPayment = new Map<string, Line>();
+  for (const x of settlements) {
+    const split = x.type === "principal_return" || x.type === "profit_share";
+    const key = split ? `${x.date}|${x.investor_sale_id ?? ""}|${x.note ?? ""}` : `#${x.id}`;
+    let line = byPayment.get(key);
+    if (!line) {
+      line = { key, date: x.date, type: split ? "payment" : x.type, amount: 0, note: x.note };
+      byPayment.set(key, line);
+      lines.push(line);
+    }
+    line.amount = Math.round((line.amount + x.amount) * 100) / 100;
+  }
+  const setCols: Col<Line>[] = [
     { header: "Date", cell: ({ row }) => fmtDate(row.original.date) },
-    { header: "Type", cell: ({ row }) => label(row.original.type) },
+    { header: "Type", cell: ({ row }) => row.original.type === "payment" ? "Payment to investor" : label(row.original.type) },
     { header: "Amount", cell: ({ row }) => money(row.original.amount) },
     { header: "Note", cell: ({ row }) => row.original.note ?? "-" },
   ];
@@ -96,10 +111,10 @@ export default function InvestorPortfolioPage() {
       <DataTable columns={saleCols} data={sales} empty="No sales assigned." />
       {investorSales.length > 0 && (<><h2 className="mb-2 mt-6 font-semibold">Investor sales</h2><DataTable columns={investorSaleCols} data={investorSales} /></>)}
       <div className="mb-2 mt-6 flex items-center justify-between gap-2">
-        <h2 className="font-semibold">Statement <span className="text-sm font-normal text-slate-500">({settlements.length})</span></h2>
+        <h2 className="font-semibold">Statement <span className="text-sm font-normal text-slate-500">({lines.length})</span></h2>
         <Button variant="outline" onClick={() => setStatement((v) => !v)}>{statement ? "Hide statement" : "Show statement"}</Button>
       </div>
-      {statement && <DataTable columns={setCols} data={settlements} empty="No settlements yet." />}
+      {statement && <DataTable columns={setCols} data={lines} empty="No settlements yet." />}
       <ProfitCalculator key={`${investor.id}-${calc}`} open={calc} name={investor.name} initial={{ amount: summary.invested, profit: summary.profit_earned }} investorId={investor.id} saved={investor} canSave={can("investors.edit")} onSaved={reload} onClose={() => setCalc(false)} />
       <Modal open={collecting} title={`Collect due · ${investor.name}`} onClose={() => setCollecting(false)}>
         <p className="mb-3 text-sm text-slate-600">What {investor.name} still has to give the shop: <b className="text-amber-700">{money(owing.reduce((t, x) => t + (x.investor_owes ?? 0), 0))}</b></p>
