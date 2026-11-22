@@ -53,6 +53,7 @@ export type InvestorSale = {
   total_payable: number; number_of_installments: number; frequency: "monthly" | "weekly"; start_date: string; status: "active" | "cancelled";
   customer_id?: number | null; customer?: Customer | null; // an additional customer besides the sale's buyer
   investor?: Investor; sale?: Sale; schedule: { seq_no: number; due_date: string; amount: number }[];
+  settlements?: Settlement[]; // its payments, when loaded
   position?: {
     principal: number; profit: number; principal_paid: number; profit_paid: number; monthly: number; current_due: number; total_due: number;
     installments: number; installments_due: number; installments_left: number; next_date: string | null;
