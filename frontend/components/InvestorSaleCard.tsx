@@ -144,6 +144,7 @@ export function InvestorSaleCard({ investorSale: x, onChanged, investorOnly = fa
         ]} />
       ) : <KV items={[
         ["Investor", x.investor ? <Link key="i" className="underline" href={`/investors/${x.investor.id}`}>{x.investor.name}</Link> : "-"],
+        ...(x.investor?.father_name ? [["Investor's father's name", x.investor.father_name] as [string, React.ReactNode]] : []),
         ...(x.customer && !investorOnly ? [["Additional customer", <Link key="c" className="underline" href={`/customers/${x.customer.id}`}>{x.customer.name}{x.customer.phone ? ` · ${x.customer.phone}` : ""}</Link>] as [string, React.ReactNode]] : []),
         ["Date", fmtDate(x.date)],
         ...(x.sale_price !== null && !investorOnly ? [["Sale price", money(x.sale_price)] as [string, React.ReactNode]] : []),
@@ -155,7 +156,7 @@ export function InvestorSaleCard({ investorSale: x, onChanged, investorOnly = fa
         ...(x.memo_no ? [["Memo no.", x.memo_no] as [string, React.ReactNode]] : []),
         ...(x.guarantor_name && !investorOnly ? [["Guarantor name", x.guarantor_name] as [string, React.ReactNode]] : []),
         ...(x.guarantor_phone && !investorOnly ? [["Guarantor", <a key="g" className="underline" href={`tel:${x.guarantor_phone}`}>{x.guarantor_phone}</a>] as [string, React.ReactNode]] : []),
-        ["Investor's profit", `${money(x.profit_amount)} (${x.profit_rate}% a year)`],
+        ["Investor's profit", money(x.profit_amount)],
         ["We pay back in total", money(x.total_payable)],
         ["Installments", x.number_of_installments > 0 ? `${x.number_of_installments} ${x.frequency === "weekly" ? "weeks" : "months"}` : "No plan (the investor collects from the customer)"],
         ...(p ? [

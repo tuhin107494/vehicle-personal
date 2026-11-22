@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\VehicleRequest;
 use App\Http\Resources\BookingResource;
@@ -19,6 +18,7 @@ use App\Models\Sale;
 use App\Models\Vehicle;
 use App\Models\VehicleCategory;
 use App\Services\BookingService;
+use App\Services\VehicleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -96,15 +96,12 @@ class VehicleController extends Controller implements HasMiddleware
         return $this->success(VehicleResource::make($vehicle), 'Vehicle updated');
     }
 
+    /** Deletes the vehicle with all its purchases, sales and payments (for a vehicle entered twice by mistake). */
     public function destroy(Vehicle $vehicle): JsonResponse
     {
-        if ($vehicle->purchases()->exists()) {
-            throw new BusinessRuleException('This vehicle has purchase history and cannot be deleted.');
-        }
+        app(VehicleService::class)->delete($vehicle);
 
-        $vehicle->delete();
-
-        return $this->success(null, 'Vehicle deleted');
+        return $this->success(null, 'Vehicle and all its records deleted');
     }
 
     /** Find a vehicle by chassis number or by registration number (used to repurchase a vehicle we already know). */

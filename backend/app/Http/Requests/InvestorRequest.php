@@ -9,6 +9,7 @@ class InvestorRequest extends ApiRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'string', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
+            'father_name' => ['nullable', 'string', 'max:255'],
             'alt_phone' => ['nullable', 'string', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
             'nid' => ['nullable', 'string', 'max:50'],
             'address' => ['nullable', 'string', 'max:1000'],

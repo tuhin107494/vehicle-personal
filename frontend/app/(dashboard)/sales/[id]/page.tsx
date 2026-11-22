@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { fmtDate, label, money } from "@/lib/format";
+import { fmtDate, label, money, todayStr } from "@/lib/format";
 import { useFetch } from "@/lib/hooks";
 import type { Installment, Payment, Promise_, RegLog, Sale } from "@/lib/types";
 import { Badge, Button, Card, ErrorText, KV, Loading, PageHeader, StatusBadge } from "@/components/app-ui";
@@ -31,6 +31,13 @@ export default function SaleDetailPage() {
 
   const active = sale.status === "active";
   const installments = sale.plan?.installments ?? [];
+  // what is payable now (dates reached), as the Accounts page works it out: an installment's or promise's date reached;
+  // a due with no promised date is all payable now
+  const today = todayStr();
+  const dated = sale.payment_type === "installment" && sale.plan
+    ? installments.filter((i) => ["pending", "partial", "overdue"].includes(i.status)).map((i) => [i.due_date, i.amount - i.paid_amount] as const)
+    : (sale.promises ?? []).filter((p) => ["open", "broken"].includes(p.status)).map((p) => [p.promised_date, Math.min(p.promised_amount, sale.due_amount)] as const);
+  const currentDue = dated.length ? Math.min(dated.filter(([d]) => d.slice(0, 10) <= today).reduce((t, [, a]) => t + a, 0), sale.due_amount) : sale.due_amount;
 
   const instCols: Col<Installment>[] = [
     // number 0 is the promised amount (paid by its date, outside the installments)
@@ -138,12 +145,16 @@ export default function SaleDetailPage() {
           ...(sale.additional_customer ? [["Additional customer", <Link key="ac" className="underline" href={`/customers/${sale.additional_customer.id}`}>{sale.additional_customer.name}{sale.additional_customer.phone ? ` · ${sale.additional_customer.phone}` : ""}</Link>] as [string, React.ReactNode]] : []),
           ["Sale date", fmtDate(sale.sale_date)], ["Sale price", money(sale.sale_price)], ["Down payment", money(Number(sale.down_payment) - Number(sale.advance?.amount ?? 0))],
           ["Type", <Badge key="t" tone="blue">{sale.payment_type}</Badge>], ["Status", <StatusBadge key="s" status={sale.status} />],
+          ...(active && sale.payment_type !== "cash" ? [
+            ["Total due", <b key="td" className={sale.due_amount > 0 ? "text-amber-700" : "text-emerald-700"}>{money(sale.due_amount)}</b>] as [string, React.ReactNode],
+            ["Current due", <b key="cd" className={currentDue > 0 ? "text-rose-700" : "text-emerald-700"}>{money(Math.round(currentDue * 100) / 100)}</b>] as [string, React.ReactNode],
+          ] : []),
           ...(sale.advance ? [[sale.advance.booking_id ? "Booking advance" : "Advance", `${money(sale.advance.amount)} received on ${fmtDate(sale.advance.date)} (${sale.advance.method})`] as [string, React.ReactNode]] : []),
           ...(sale.memo_no ? [["Memo no.", sale.memo_no] as [string, React.ReactNode]] : []),
           ...(sale.guarantor_name ? [["Guarantor name", sale.guarantor_name] as [string, React.ReactNode]] : []),
           ...(sale.guarantor_phone ? [["Guarantor", <a key="g" className="underline" href={`tel:${sale.guarantor_phone}`}>{sale.guarantor_phone}</a>] as [string, React.ReactNode]] : []),
           ...(sale.investor ? [["Investor", <Link key="i" className="underline" href={`/investors/${sale.investor.id}`}>{sale.investor.name}</Link>] as [string, React.ReactNode]] : []),
-          ...(sale.plan ? [["Plan", `${money(sale.plan.principal)} + ${sale.plan.interest_rate}% a year = ${money(sale.plan.total_payable)}`] as [string, React.ReactNode]] : []),
+          ...(sale.plan ? [["Plan", `${money(sale.plan.principal)} + ${money(sale.plan.interest_amount)} = ${money(sale.plan.total_payable)}`] as [string, React.ReactNode]] : []),
         ]} />
       </Card>
 

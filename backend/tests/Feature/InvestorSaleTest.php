@@ -79,6 +79,34 @@ class InvestorSaleTest extends TestCase
         ]);
     }
 
+    public function test_deleting_a_vehicle_removes_everything_recorded_on_it(): void
+    {
+        $sale = $this->installmentSale('CH-TYPO');
+        $xs = $this->postJson("/api/sales/{$sale['id']}/investor-sale", $this->investorSaleData())->assertCreated()->json('data');
+        $this->pay($xs['id'], 'profit_share', 1000)->assertCreated();
+        $this->postJson("/api/sales/{$sale['id']}/payments", ['amount' => 5000])->assertCreated();
+        $this->postJson("/api/purchases/{$sale['purchase_id']}/payments", ['amount' => 1000, 'method' => 'cash'])->assertCreated();
+        $other = $this->installmentSale('CH-OTHER'); // another vehicle: left as it is
+
+        $this->deleteJson("/api/vehicles/{$sale['vehicle_id']}")->assertOk();
+
+        $this->assertDatabaseMissing('vehicles', ['id' => $sale['vehicle_id']]);
+        $this->assertDatabaseMissing('sales', ['id' => $sale['id']]);
+        $this->assertDatabaseMissing('purchases', ['id' => $sale['purchase_id']]);
+        $this->assertDatabaseMissing('investor_sales', ['id' => $xs['id']]);
+        $this->assertSame(0, InvestorSettlement::where('investor_sale_id', $xs['id'])->count());
+        $this->assertDatabaseMissing('payments', ['sale_id' => $sale['id']]);
+        $this->assertDatabaseMissing('purchase_payments', ['purchase_id' => $sale['purchase_id']]);
+        $this->assertDatabaseHas('sales', ['id' => $other['id']]);
+        $this->assertTrue(Installment::where('plan_id', $other['plan']['id'])->exists());
+
+        // the same numbers can be recorded again
+        $this->postJson('/api/purchases', [
+            'vehicle_type' => 'motorcycle', 'chassis_no' => 'CH-TYPO', 'engine_no' => 'EN-CH-TYPO', 'brand' => 'Honda', 'model' => 'CB',
+            'supplier_id' => Supplier::first()->id, 'purchase_date' => '2026-01-01', 'price' => 400000,
+        ])->assertCreated();
+    }
+
     public function test_an_investor_sale_is_added_to_a_customer_sale_on_its_own_terms(): void
     {
         $sale = $this->installmentSale();

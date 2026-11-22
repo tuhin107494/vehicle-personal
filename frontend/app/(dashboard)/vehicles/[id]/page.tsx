@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
-import { ChevronDown, Pencil } from "lucide-react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
+import { api, ApiError } from "@/lib/api";
+import { ChevronDown, Pencil, Trash2 } from "lucide-react";
 import { fmtDate, label as statusLabel, money } from "@/lib/format";
 import { useCategories } from "@/lib/categories";
 import { useFetch } from "@/lib/hooks";
@@ -20,6 +22,8 @@ type Event = { type: string; date: string; title: string; amount: number | null;
 export default function VehicleDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { can } = useAuth();
+  const router = useRouter();
+  const [deleting, setDeleting] = useState(false);
   const { nameOf } = useCategories();
   // View opens the vehicle's details; History (?tab=history) opens its purchase and sale chain
   const history = useSearchParams().get("tab") === "history";
@@ -50,6 +54,22 @@ export default function VehicleDetailPage() {
     { header: "Amount", cell: ({ row }) => <span className="font-semibold">{money(row.original.amount)}</span> },
   ];
 
+  // for a vehicle entered twice by mistake: it goes with every purchase, sale and payment recorded on it
+  const remove = async () => {
+    const typed = prompt(`Delete this vehicle with ALL its purchases, sales, installments, investor sales and payments? This cannot be undone.\n\nType the chassis number (${v.chassis_no}) to confirm.`);
+    if (typed === null) return;
+    if (typed.trim() !== v.chassis_no) return void toast.error("The chassis number does not match. Nothing was deleted.");
+    setDeleting(true);
+    try {
+      await api(`/vehicles/${v.id}`, { method: "DELETE" });
+      toast.success("Vehicle and all its records deleted");
+      router.replace("/vehicles");
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Failed");
+      setDeleting(false);
+    }
+  };
+
   const Facts = ({ items }: { items: [string, React.ReactNode][] }) => {
     const shown = items.filter(([, v]) => v !== null && v !== undefined && v !== "");
     if (!shown.length) return null;
@@ -68,6 +88,7 @@ export default function VehicleDetailPage() {
         title={[v.brand, v.model, v.year].filter(Boolean).join(" ") || v.chassis_no}
         actions={<>
           {can("vehicles.edit") && <Button variant="outline" onClick={() => setEditing(true)}><Pencil className="size-4 text-emerald-600" /> Edit</Button>}
+          {can("vehicles.delete") && <Button variant="danger" disabled={deleting} onClick={remove}><Trash2 className="size-4" /> Delete</Button>}
           {v.status === "sold" ? !can("purchases.create") ? null : <Link className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-green-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:from-emerald-500 hover:to-green-500" href={`/purchases/new?chassis=${encodeURIComponent(v.chassis_no)}`}>Repurchase</Link> : v.status === "in_stock" ? !can("sales.create") ? null : <Link className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-green-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:from-emerald-500 hover:to-green-500" href={`/sales/new?vehicle=${v.id}`}>Sell</Link> : null}
         </>}
       />

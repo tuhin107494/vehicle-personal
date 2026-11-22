@@ -49,7 +49,7 @@ td.k{width:38%;background:#f3f4f6;font-weight:600}th{background:#ecfdf5;font-siz
 <div class="meta"><b>${esc(x.memo_no ? `Memo no. ${x.memo_no}` : `Investor sale #${x.id}`)}</b>Date: ${esc(pdate(x.date))}<br>Sale #${esc(x.sale_id)}</div></div>
 
 <div class="two">
-<div><h2>Investor</h2><table>${rows([["Name", inv?.name], ["Mobile", [inv?.phone, inv?.alt_phone].filter(Boolean).join(" / ")], ["NID", inv?.nid], ["Address", inv?.address]])}</table></div>
+<div><h2>Investor</h2><table>${rows([["Name", inv?.name], ["Father's name", inv?.father_name], ["Mobile", [inv?.phone, inv?.alt_phone].filter(Boolean).join(" / ")], ["NID", inv?.nid], ["Address", inv?.address]])}</table></div>
 <div><h2>Vehicle</h2><table>${rows([["Vehicle", vehicleName], ["Type", cap(v?.vehicle_type)], ["Chassis no.", v?.chassis_no], ["Engine no.", v?.engine_no], ["Reg. no.", v?.registration_no]])}</table></div>
 </div>
 
@@ -63,7 +63,7 @@ ${c ? `<h2>Customer</h2><table>${rows([["Name", c.name], ["Mobile", [c.phone, c.
     ["Investor due", money(x.investor_owes ?? Math.max(r2(afterCustomer - investorDown), 0))],
     ["Investor's money (on the plan)", money(x.principal)],
     ...(plan ? [
-      ["Investor's profit", `${money(x.profit_amount)} (${x.profit_rate}% a year)`],
+      ["Investor's profit", money(x.profit_amount)],
       ["Installments", `${x.number_of_installments} ${x.frequency === "weekly" ? "weeks" : "months"}, from ${pdate(x.start_date)}`],
       ["Paid back so far", money(paidBack)],
     ] as [string, unknown][] : [["Plan", "None: the investor collects from the customer"]] as [string, unknown][]),
