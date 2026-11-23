@@ -14,8 +14,8 @@ import { Col, DataTable } from "@/components/DataTable";
 import { CancelSaleModal, CollectPaymentModal, PromiseModal } from "@/components/forms/SaleModals";
 import { SaleEditModal } from "@/components/forms/SaleEditModal";
 import { SaleChargeModal } from "@/components/forms/SaleChargeModal";
-import { Ban, CalendarClock, HandCoins, Landmark, Pencil, Plus, Printer, Trash2 } from "lucide-react";
-import { openSaleMemo } from "@/components/SaleMemo";
+import { Ban, CalendarClock, FileText, HandCoins, Landmark, Pencil, Plus, Printer, Trash2 } from "lucide-react";
+import { openSaleMemo, openSaleStatement } from "@/components/SaleMemo";
 import { InvestorSaleCard } from "@/components/InvestorSaleCard";
 import { RegistrationStepper } from "@/components/RegistrationStepper";
 
@@ -136,6 +136,7 @@ export default function SaleDetailPage() {
         title={`Sale #${sale.id}`}
         actions={<>
           <Button variant="outline" onClick={() => openSaleMemo(sale, user?.shop?.name ?? "Gari Becho", { installments: false })}><Printer className="size-4 text-sky-600" /> Memo</Button>
+          <Button variant="outline" onClick={() => openSaleStatement(sale, user?.shop?.name ?? "Gari Becho")}><FileText className="size-4 text-emerald-600" /> Statement</Button>
           {active && can("payments.collect") && sale.due_amount > 0 && <Button onClick={() => setModal("pay")}><HandCoins className="size-4 " /> Collect payment</Button>}
           {active && can("promises.manage") && sale.due_amount > 0 && sale.payment_type === "due" && <Button variant="outline" onClick={() => setModal("promise")}><CalendarClock className="size-4 text-amber-500" /> Add promise</Button>}
           {active && can("sales.charge") && <Button variant="outline" onClick={() => setChargeFor("new")}><Plus className="size-4 text-amber-600" /> Add charge</Button>}
@@ -152,6 +153,7 @@ export default function SaleDetailPage() {
         <KV items={[
           ["Vehicle", <Link key="v" className="underline" href={`/vehicles/${sale.vehicle_id}`}>{sale.vehicle?.chassis_no}</Link>],
           ["Buyer", <Link key="b" className="underline" href={`/customers/${sale.customer_id}`}>{sale.customer?.name}</Link>],
+          ...(sale.customer?.father_name ? [["Father's name", sale.customer.father_name] as [string, React.ReactNode]] : []),
           ...(sale.additional_customer ? [["Additional customer", <Link key="ac" className="underline" href={`/customers/${sale.additional_customer.id}`}>{sale.additional_customer.name}{sale.additional_customer.phone ? ` · ${sale.additional_customer.phone}` : ""}</Link>] as [string, React.ReactNode]] : []),
           ["Sale date", fmtDate(sale.sale_date)], ["Sale price", money(sale.sale_price)], ["Down payment", money(Number(sale.down_payment) - Number(sale.advance?.amount ?? 0))],
           ["Type", <Badge key="t" tone="blue">{sale.payment_type}</Badge>], ["Status", <StatusBadge key="s" status={sale.status} />],

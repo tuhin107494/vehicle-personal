@@ -34,6 +34,19 @@ const STYLE: Record<string, { ring: string; active: string; text: string }> = {
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
+/** A vehicle's row: its first (oldest) item's details, with every item of it in this list. */
+type Group = CallRow & { items: CallRow[] };
+
+/** "Installment #23", "Installments #23–#28", "Installments #3, #5", or the promise's label */
+function groupLabel(items: CallRow[]): string {
+  if (items.length === 1) return items[0].label;
+  const nos = items.map((i) => Number(/#(\d+)/.exec(i.label)?.[1])).filter((n) => !Number.isNaN(n)).sort((a, b) => a - b);
+  const others = items.filter((i) => !/#\d+/.test(i.label)).map((i) => i.label);
+  const run = nos.length > 1 && nos.every((n, k) => k === 0 || n === nos[k - 1] + 1);
+  const inst = nos.length ? `Installment${nos.length > 1 ? "s" : ""} ${run ? `#${nos[0]}–#${nos[nos.length - 1]}` : nos.map((n) => `#${n}`).join(", ")}` : "";
+  return [inst, ...others].filter(Boolean).join(" + ");
+}
+
 /** "2 months 3 days over", "4 days over" */
 const overText = (o: NonNullable<CallRow["overdue_by"]>) => `${[o.months ? plural(o.months, "month") : "", o.days || !o.months ? plural(o.days, "day") : ""].filter(Boolean).join(" ")} over`;
 
@@ -54,7 +67,32 @@ export default function CollectionsPage() {
   const summary = { data: (list.meta as { summary?: { buckets: Bucket[]; current_due: number; total_due: number; recall_days: number } } | null)?.summary };
 
   const term = q.trim().toLowerCase();
-  const rows = (list.data ?? []).filter((r) => callFilter === "" || (callFilter === "done") === !!r.called_until).filter((r) => !term ||[r.customer.name, r.customer.phone, r.customer.alt_phone, r.vehicle.brand, r.vehicle.model, r.vehicle.chassis_no].some((v) => v?.toLowerCase().includes(term)));
+  // one row per vehicle (sale): its installments or promises in this list are added together and shown from the oldest.
+  // The call buttons act on the one that was called (or the oldest), and its call history covers the whole sale.
+  const grouped: Group[] = [];
+  const bySale = new Map<number, Group>();
+  for (const r of list.data ?? []) {
+    const g = bySale.get(r.sale_id);
+    if (!g) {
+      const fresh: Group = { ...r, items: [r] };
+      bySale.set(r.sale_id, fresh);
+      grouped.push(fresh);
+      continue;
+    }
+    g.items.push(r);
+  }
+  for (const g of grouped) {
+    const items = [...g.items].sort((a, b) => a.due_date.localeCompare(b.due_date));
+    const oldest = items[0];
+    // the latest call mark among them, so a call made about any of them shows on the row
+    const called = items.filter((i) => i.called_until).sort((a, b) => (b.called_until ?? "").localeCompare(a.called_until ?? ""))[0];
+    Object.assign(g, oldest, called ? { id: called.id, type: called.type, called_until: called.called_until, called_meet_date: called.called_meet_date, called_note: called.called_note } : {}, {
+      items,
+      amount: Math.round(items.reduce((t, i) => t + i.amount, 0) * 100) / 100,
+      label: groupLabel(items),
+    });
+  }
+  const rows = grouped.filter((r) => callFilter === "" || (callFilter === "done") === !!r.called_until).filter((r) => !term ||[r.customer.name, r.customer.father_name, r.customer.phone, r.customer.alt_phone, r.vehicle.brand, r.vehicle.model, r.vehicle.chassis_no, r.vehicle.engine_no].some((v) => v?.toLowerCase().includes(term)));
 
   const statsOf = (b: Bucket): Stats => (kind ? b.kinds[kind] : b);
   const current = summary.data?.buckets.find((b) => b.key === bucket);
@@ -100,8 +138,8 @@ export default function CollectionsPage() {
     }
   };
 
-  const columns: Col<CallRow>[] = [
-    { header: "Customer", meta: { className: "!px-1.5" }, cell: ({ row }) => <span className="text-xs font-medium">{row.original.customer.name}</span> },
+  const columns: Col<Group>[] = [
+    { header: "Customer", meta: { className: "!px-1.5" }, cell: ({ row }) => <span className="block text-xs font-medium leading-tight">{row.original.customer.name}{row.original.customer.father_name && <span className="block text-[11px] font-normal text-slate-500">Father: {row.original.customer.father_name}</span>}</span> },
     {
       header: "Call", meta: { className: "!px-1" },
       cell: ({ row }) => (
@@ -133,8 +171,16 @@ export default function CollectionsPage() {
         );
       },
     },
-    { header: "For", cell: ({ row }) => <Badge tone={row.original.type === "installment" ? "blue" : "gray"}>{row.original.label}</Badge> },
-    { header: "Due date", meta: { className: "!px-1" }, cell: ({ row }) => <span className="flex flex-col items-end gap-1 text-xs md:items-start [&_*]:!text-xs [&_*]:!px-1.5">{fmtDate(row.original.due_date)} <When row={row.original} /></span> },
+    {
+      header: "For",
+      cell: ({ row }) => (
+        <span className="flex flex-col items-end gap-1 md:items-start">
+          <Badge tone={row.original.type === "installment" ? "blue" : "gray"}>{row.original.label}</Badge>
+          {row.original.items.length > 1 && <span className="text-[11px] font-medium text-slate-500">{row.original.items.length} {row.original.items.every((i) => i.type === "installment") ? "installments" : "dues"}</span>}
+        </span>
+      ),
+    },
+    { header: "Due date", meta: { className: "!px-1" }, cell: ({ row }) => <span className="flex flex-col items-end gap-1 text-xs md:items-start [&_*]:!text-xs [&_*]:!px-1.5">{row.original.items.length > 1 && <span className="text-[11px] text-slate-500">from</span>}{fmtDate(row.original.due_date)} <When row={row.original} /></span> },
     { header: "Amount", cell: ({ row }) => <b className={row.original.overdue_by ? "text-red-700" : "text-amber-700"}>{money(row.original.amount)}</b> },
     { header: "Total due", cell: ({ row }) => <b className="text-slate-800">{money(row.original.customer_total_due)}</b> },
     {

@@ -4,7 +4,7 @@ import { viewCol } from "@/components/ViewLink";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { openSaleMemo } from "@/components/SaleMemo";
+import { openSaleMemo, openSaleStatement } from "@/components/SaleMemo";
 import { printVoucher } from "@/components/TransactionVoucher";
 import { purchaseVoucher } from "@/lib/purchaseVoucher";
 import { Suspense, useState } from "react";
@@ -15,7 +15,7 @@ import { useFetch } from "@/lib/hooks";
 import type { InvestorSale, Purchase, Sale, Vehicle } from "@/lib/types";
 import { Button, ErrorText, Field, inputCls, Loading, Modal, PageHeader, Stat, StatusBadge } from "@/components/app-ui";
 import Link from "next/link";
-import { ArrowUpRight, ChevronDown, Eye } from "lucide-react";
+import { ArrowUpRight, ChevronDown, Eye, FileText, Printer } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Col, DataTable } from "@/components/DataTable";
@@ -26,7 +26,7 @@ import { useHiddenMenu } from "@/lib/menu";
 import { ReportPrint, useReportPrint } from "@/components/ReportPrint";
 import { PersonStatement } from "@/components/PersonStatement";
 import { ReceiveModal } from "@/components/InvestorSaleCard";
-import { printInvestorSaleInvoice } from "@/components/InvestorSaleInvoice";
+import { printInvestorSaleInvoice, printInvestorSaleStatement } from "@/components/InvestorSaleInvoice";
 
 type Stock = { total_count: number; total_cost: number; vehicles: Vehicle[] };
 type Dues = { total_due: number; sales: (Sale & { next_due_date: string | null })[] };
@@ -121,7 +121,24 @@ function InvestorSalesReport() {
       ) : "-",
     },
     { header: "Status", cell: ({ row }) => <StatusBadge status={row.original.status} /> },
-    viewCol<InvestorSale>((x) => `/investor-sales/${x.id}`, (x) => printInvestorSaleInvoice(x, user?.shop?.name ?? "Gari Becho")),
+    {
+      header: "Action",
+      id: "view",
+      cell: ({ row }) => (
+        <div className="flex flex-wrap items-center justify-end gap-1.5 md:flex-nowrap">
+          <Link className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 px-2.5 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-50" href={`/investor-sales/${row.original.id}`}><Eye className="size-4" /> View</Link>
+          <button type="button" onClick={() => printInvestorSaleInvoice(row.original, user?.shop?.name ?? "Gari Becho")} className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 px-2.5 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50"><Printer className="size-4" /> Invoice</button>
+          <button type="button" onClick={async () => {
+            // the statement needs the investor sale's payments, so the full investor sale is loaded
+            try {
+              printInvestorSaleStatement((await api<InvestorSale>(`/investor-sales/${row.original.id}`)).data, user?.shop?.name ?? "Gari Becho");
+            } catch (e) {
+              toast.error(e instanceof ApiError ? e.message : "Could not load the investor sale.");
+            }
+          }} className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50"><FileText className="size-4" /> Statement</button>
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -239,6 +256,17 @@ function SalesReport() {
 
   const { user } = useAuth();
   const pr = useReportPrint("Sales report");
+  // the memo and the statement need the full sale (its plan and payments), so it is loaded when printed
+  const printSale = async (id: number, kind: "memo" | "statement") => {
+    try {
+      const sale = (await api<Sale>(`/sales/${id}`)).data;
+      const shop = user?.shop?.name ?? "Gari Becho";
+      if (kind === "memo") openSaleMemo(sale, shop, { installments: false });
+      else openSaleStatement(sale, shop);
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Could not load the sale.");
+    }
+  };
   const cols: Col<NonNullable<typeof data>["sales"][number]>[] = [
     { header: "Date", cell: ({ row }) => fmtDate(row.original.sale_date) },
     { header: "Sale", cell: ({ row }) => <span className="font-medium">#{row.original.id}</span> },
@@ -253,13 +281,17 @@ function SalesReport() {
     { header: "Cost", cell: ({ row }) => money(row.original.cost) },
     { header: "Profit", cell: ({ row }) => <b className="text-emerald-700">{row.original.status === "active" ? money(row.original.profit) : "-"}</b> },
     { header: "Status", cell: ({ row }) => <StatusBadge status={row.original.status} /> },
-    viewCol<NonNullable<typeof data>["sales"][number]>((x) => `/sales/${x.id}`, async (x) => {
-      try {
-        openSaleMemo((await api<Sale>(`/sales/${x.id}`)).data, user?.shop?.name ?? "Gari Becho"); // the memo needs the full sale: plan and payments
-      } catch (e) {
-        toast.error(e instanceof ApiError ? e.message : "Could not load the sale.");
-      }
-    }),
+    {
+      header: "Action",
+      id: "view",
+      cell: ({ row }) => (
+        <div className="flex flex-wrap items-center justify-end gap-1.5 md:flex-nowrap">
+          <Link className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 px-2.5 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-50" href={`/sales/${row.original.id}`}><Eye className="size-4" /> View</Link>
+          <button type="button" onClick={() => printSale(row.original.id, "memo")} className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 px-2.5 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50"><Printer className="size-4" /> Memo</button>
+          <button type="button" onClick={() => printSale(row.original.id, "statement")} className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50"><FileText className="size-4" /> Statement</button>
+        </div>
+      ),
+    },
   ];
 
   return (

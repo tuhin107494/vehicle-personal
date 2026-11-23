@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useParams } from "next/navigation";
-import { ArrowRight, Ban, ChevronDown, HandCoins, Pencil, Printer, Wallet } from "lucide-react";
-import { printInvestorSaleInvoice } from "@/components/InvestorSaleInvoice";
+import { ArrowRight, Ban, ChevronDown, FileText, HandCoins, Pencil, Printer, Wallet } from "lucide-react";
+import { printInvestorSaleInvoice, printInvestorSaleStatement } from "@/components/InvestorSaleInvoice";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 import { InvestorSaleEditModal } from "@/components/forms/InvestorSaleEditModal";
@@ -59,7 +59,8 @@ export default function InvestorSaleDetailPage() {
           {active && can("settlements.manage") && (x.investor_owes ?? 0) > 0 && <Button variant="outline" className="border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100 hover:text-sky-800" onClick={() => setReceiving(true)}><HandCoins className="size-4" /> Collect due</Button>}
           {active && can("sales.edit") && <Button variant="outline" className="border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800" onClick={() => setEditing(true)}><Pencil className="size-4" /> Edit</Button>}
           {active && can("sales.cancel") && !moneyMoved && <Button variant="outline" className="border-red-300 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800" disabled={busy} onClick={cancel}><Ban className="size-4" /> Cancel</Button>}
-          <Button variant="outline" className="border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-800" onClick={() => printInvestorSaleInvoice(x, shop)}><Printer className="size-4" /> Print</Button>
+          <Button variant="outline" className="border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-800" onClick={() => printInvestorSaleInvoice(x, shop)}><Printer className="size-4" /> Invoice</Button>
+          <Button variant="outline" className="border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800" onClick={() => printInvestorSaleStatement(x, shop)}><FileText className="size-4" /> Statement</Button>
           <Link className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-4 text-sm font-medium text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800" href={`/sales/${x.sale_id}`}>Related sale #{x.sale_id} <ArrowRight className="size-4" /></Link>
         </>}
       />

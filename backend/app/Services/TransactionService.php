@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Edits the details of a recorded payment (date, method, reference, memo number, note) and keeps a history.
@@ -121,7 +122,7 @@ class TransactionService
     }
 
     /** Applies a new amount (in paisa) to the payment and to every figure it fed. */
-    private function changeAmount(Model $m, int $new): void
+    private function changeAmount(Model $m, int $new, User $user): void
     {
         $old = Money::paisa($m->amount);
 
@@ -151,15 +152,26 @@ class TransactionService
             }
 
             if ($m->installment_id) {
+                // more than is left on its installment: the installment is paid in full and the rest goes on to the next
+                // installments due, as a collection of that amount would (one payment, shown as one transaction)
                 $installment = Installment::lockForUpdate()->findOrFail($m->installment_id);
-                $paid = Money::paisa($installment->paid_amount) - $old + $new;
+                $room = Money::paisa($installment->amount) - (Money::paisa($installment->paid_amount) - $old);
+                $extra = max($new - $room, 0);
+                $own = $new - $extra;
 
-                if ($paid > Money::paisa($installment->amount)) {
-                    throw new BusinessRuleException('That is more than '.($installment->seq_no === 0 ? 'the promised amount' : 'installment #'.$installment->seq_no).' ('.Money::format(Money::paisa($installment->amount)).').');
+                $installment->paid_amount = Money::taka(Money::paisa($installment->paid_amount) - $old + $own);
+                app(PaymentService::class)->refreshInstallment($installment, $m->paid_at);
+                $m->update(['amount' => Money::taka($own), 'batch_no' => $m->batch_no ?: (string) Str::uuid()]);
+                app(PaymentService::class)->recalculate($sale);
+
+                if ($extra > 0) {
+                    app(PaymentService::class)->collect($sale, [
+                        'amount' => Money::taka($extra), 'batch_no' => $m->batch_no, 'method' => $m->method, 'paid_at' => $m->paid_at->toDateString(),
+                        'reference' => $m->reference, 'memo_no' => $m->memo_no, 'note' => $m->note,
+                    ], $user);
                 }
 
-                $installment->paid_amount = Money::taka($paid);
-                app(PaymentService::class)->refreshInstallment($installment, $m->paid_at);
+                return;
             }
 
             $m->update(['amount' => Money::taka($new)]);
@@ -216,7 +228,7 @@ class TransactionService
 
             // the amount first, while the payment still shows what it was
             if (isset($data['amount']) && $data['amount'] !== '' && Money::paisa($data['amount']) !== Money::paisa($before['amount'])) {
-                $this->changeAmount($m, Money::paisa($data['amount']));
+                $this->changeAmount($m, Money::paisa($data['amount']), $user);
             }
 
             $fields = [

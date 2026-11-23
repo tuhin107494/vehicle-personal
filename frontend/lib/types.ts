@@ -102,7 +102,7 @@ export type CallRow = {
   type: "installment" | "promise"; id: number; label: string; sale_id: number; due_date: string; days_left: number;
   amount: number; sale_due: number; customer_total_due: number; guarantor_phone: string | null;
   overdue_by: { months: number; days: number; total_days: number } | null;
-  customer: { id: number; name: string; phone: string; alt_phone: string | null; address: string | null };
+  customer: { id: number; name: string; father_name?: string | null; phone: string; alt_phone: string | null; address: string | null };
   vehicle: { id: number; chassis_no: string; engine_no: string | null; brand: string | null; model: string | null };
   /** set when the row was marked "call done": the day it comes back to the list */
   called_until: string | null;
