@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Pencil, Trash2 } from "lucide-react";
+import { Merge, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -13,6 +13,7 @@ import { Button, Card, ErrorText, KV, Loading, PageHeader, StatusBadge } from "@
 import { Avatar } from "@/components/Avatar";
 import { Col, DataTable } from "@/components/DataTable";
 import { CustomerForm } from "@/components/forms/CustomerForm";
+import { CustomerMergeDialog } from "@/components/forms/CustomerMergeDialog";
 import { viewCol } from "@/components/ViewLink";
 
 type VehicleInfo = { chassis_no: string; engine_no?: string | null; brand?: string | null; model?: string | null };
@@ -36,6 +37,7 @@ export default function CustomerDetailPage() {
   const { can } = useAuth();
   const { data, loading, error, reload } = useFetch<History>(`/customers/${id}/history`);
   const [editing, setEditing] = useState(false);
+  const [merging, setMerging] = useState(false);
 
   if (loading && !data) return <Loading />;
   if (error || !data) return <ErrorText message={error ?? "Not found"} />;
@@ -77,9 +79,11 @@ export default function CustomerDetailPage() {
         title={customer.name}
         actions={<>
           {can("parties.edit") && <Button variant="outline" onClick={() => setEditing(true)}><Pencil className="size-4 text-emerald-600" /> Edit</Button>}
+          {can("parties.delete") && <Button variant="outline" onClick={() => setMerging(true)}><Merge className="size-4 text-emerald-600" /> Merge duplicates</Button>}
           {can("parties.delete") && <Button variant="danger" onClick={remove}><Trash2 className="size-4 " /> Delete</Button>}
         </>}
       />
+      {merging && <CustomerMergeDialog open primary={customer} onClose={() => setMerging(false)} onMerged={reload} />}
       <Card className="mb-4">
         {customer.photo_url && <div className="mb-3"><Avatar name={customer.name} url={customer.photo_url} size="lg" /></div>}
         <KV items={[["Father's name", customer.father_name], ["Phone", customer.phone], ["Alt. phone", customer.alt_phone], ["NID", customer.nid], ["Address", customer.address], ["Notes", customer.notes]]} />

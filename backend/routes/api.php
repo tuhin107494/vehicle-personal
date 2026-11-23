@@ -168,6 +168,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('collections/call', [CollectionController::class, 'markCalled']);
         Route::delete('collections/call', [CollectionController::class, 'unmarkCalled']);
         Route::delete('customers/{customer}', [CustomerController::class, 'destroy']);
+        Route::post('customers/{customer}/merge', [CustomerController::class, 'merge']);
         Route::delete('suppliers/{supplier}', [SupplierController::class, 'destroy']);
         Route::delete('investors/{investor}', [InvestorController::class, 'destroy']);
         Route::delete('vehicles/{vehicle}', [VehicleController::class, 'destroy']);
