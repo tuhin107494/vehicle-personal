@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Phone } from "lucide-react";
+import { Eraser, Phone, X } from "lucide-react";
 import { api, applyServerErrors } from "@/lib/api";
 import { fmtDate, money, todayStr, toPayload } from "@/lib/format";
 import { useDebounced, useFetch } from "@/lib/hooks";
@@ -95,7 +95,11 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
     setSaleId("");
     setFound(null);
     setVq("");
+    // opened from a customer or vehicle link: drop it from the address too, so a reload starts empty
+    if (window.location.search) window.history.replaceState(null, "", window.location.pathname);
   };
+  // anything typed or chosen on the form, for the Clear button
+  const filled = !!(w.party_id || w.amount || w.reference || w.memo_no || w.note || vq || (w.paid_at && w.paid_at !== autoDate) || w.method !== "cash");
 
   const onSubmit = async (v: Values) => {
     if (tooMuch) {
@@ -129,16 +133,15 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="max-w-2xl">
         <Card>
           <div className="space-y-4">
-
             {(() => {
               const Pick = side === "customer" ? CustomerSelect : SupplierSelect;
-              return <Pick label={SIDES[side].label} allowCreate={false} value={w.party_id} selectedLabel={found?.party} onChange={(id: string) => { setSaleId(""); setFound(null); setValue("party_id", id, { shouldValidate: true }); }} error={errors.party_id?.message} />;
+              return <Pick label={SIDES[side].label} allowCreate={false} value={w.party_id} selectedLabel={found?.party} onChange={(id: string) => { setSaleId(""); setFound(null); setValue("party_id", id, { shouldValidate: !!id }); }} error={errors.party_id ? `Select the ${side}.` : undefined} />;
             })()}
 
             {side === "customer" && !w.party_id && (
               <Field label="Or find by vehicle">
                 <SearchSelect
-                  options={(dueSales.data ?? []).map((x) => ({ value: String(x.id), label: x.vehicle?.chassis_no ?? `Sale #${x.id}`, hint: `${x.customer?.name} · due ${money(x.due_amount)}` }))}
+                  options={(dueSales.data ?? []).map((x) => ({ value: String(x.id), label: x.vehicle ? `Chassis: ${x.vehicle.chassis_no}${x.vehicle.engine_no ? ` · Engine: ${x.vehicle.engine_no}` : ""}` : `Sale #${x.id}`, hint: `${x.customer?.name} · due ${money(x.due_amount)}` }))}
                   value=""
                   onChange={(id) => {
                     const x = dueSales.data?.find((r) => String(r.id) === id);
@@ -236,9 +239,15 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
 
             {side === "customer" && summary.data && summary.data.items.length > 0 && (
               <Field required label="Vehicle">
-                <NativeSelect className={inputCls} value={saleId} onChange={(e) => setSaleId(e.target.value)}>
-                  {summary.data.items.map((i) => <option key={i.id} value={String(i.id)}>{i.vehicle} · due {money(i.due)}{i.days_late ? ` · ${i.days_late}d late` : ""}</option>)}
-                </NativeSelect>
+                <div className="relative">
+                  <NativeSelect className={`${inputCls} pr-14`} value={saleId} onChange={(e) => setSaleId(e.target.value)}>
+                    {summary.data.items.map((i) => <option key={i.id} value={String(i.id)}>Chassis: {i.vehicle}{i.engine_no ? ` · Engine: ${i.engine_no}` : ""}</option>)}
+                  </NativeSelect>
+                  {/* clears the vehicle and its customer, to start again from another customer or vehicle */}
+                  <button type="button" aria-label="Clear vehicle" title="Clear" onClick={() => { setSaleId(""); setFound(null); setValue("party_id", ""); setVq(""); }} className="absolute right-8 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-red-600">
+                    <X className="size-3.5" />
+                  </button>
+                </div>
               </Field>
             )}
 
@@ -264,7 +273,8 @@ export function AccountForm({ side, vehicleId, partyId }: { side: Side; vehicleI
             {!(side === "customer" && showMemo) && <Field label="Note" error={errors.note?.message}><Input className={inputCls} {...register("note")} /></Field>}
 
             <div className="flex justify-end gap-2">
-              {keepSelection && <Button type="button" variant="outline" onClick={clearAll}>Reset</Button>}
+              {/* one Clear for the whole form: the customer or supplier, the vehicle and every field */}
+              <Button type="button" variant="outline" disabled={!filled} onClick={clearAll}><Eraser className="size-4" /> Clear</Button>
               <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Saving..." : text.done}</Button>
             </div>
           </div>
