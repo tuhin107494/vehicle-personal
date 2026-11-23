@@ -39,6 +39,15 @@ export default function SaleDetailPage() {
     : (sale.promises ?? []).filter((p) => ["open", "broken"].includes(p.status)).map((p) => [p.promised_date, Math.min(p.promised_amount, sale.due_amount)] as const);
   const currentDue = dated.length ? Math.min(dated.filter(([d]) => d.slice(0, 10) <= today).reduce((t, [, a]) => t + a, 0), sale.due_amount) : sale.due_amount;
 
+  // when each installment was paid: the date of the latest payment that went to it (fully or in part)
+  const paidOn = new Map<number, string>();
+  for (const pay of sale.payments ?? []) {
+    if (!pay.installment_id) continue;
+    const before = paidOn.get(pay.installment_id);
+    if (!before || pay.paid_at > before) paidOn.set(pay.installment_id, pay.paid_at);
+  }
+  for (const i of sale.plan?.installments ?? []) if (!paidOn.has(i.id) && i.paid_at && i.paid_amount > 0) paidOn.set(i.id, i.paid_at);
+
   const instCols: Col<Installment>[] = [
     // number 0 is the promised amount (paid by its date, outside the installments)
     { header: "#", cell: ({ row }) => (row.original.seq_no === 0 ? "Promise" : row.original.seq_no) },
@@ -46,6 +55,7 @@ export default function SaleDetailPage() {
     { header: "Amount", cell: ({ row }) => money(row.original.amount) },
     { header: "Paid", cell: ({ row }) => money(row.original.paid_amount) },
     { header: "Remaining", cell: ({ row }) => money(row.original.amount - row.original.paid_amount) },
+    { header: "Paid on", cell: ({ row }) => (paidOn.get(row.original.id) ? fmtDate(paidOn.get(row.original.id)!) : "-") },
     { header: "Status", cell: ({ row }) => <StatusBadge status={row.original.status} /> },
   ];
   // one collection spread over several installments is one row: the amounts add up and the installments are listed together
