@@ -27,7 +27,7 @@ function valuesOf(sale: Sale): Values {
   return {
     party_id: String(sale.customer_id), additional_customer_id: sale.additional_customer_id ? String(sale.additional_customer_id) : "", sale_date: sale.sale_date, sale_price: String(sale.sale_price), payment_type: sale.payment_type,
     down_payment: sale.payment_type === "cash" ? "" : String(sale.down_payment), method: atSale?.method ?? "cash",
-    installment_count: plan ? String(plan.number_of_installments) : "12", first_due_date: plan?.start_date ?? "", frequency: plan?.frequency ?? "monthly",
+    installment_count: plan ? String(plan.number_of_installments) : "12", first_due_date: plan?.start_date ?? nextMonth(sale.sale_date), frequency: plan?.frequency ?? "monthly",
     interest_amount: plan ? String(plan.interest_amount) : "", investor_id: plan && sale.investor ? String(sale.investor.id) : "",
     investor_share_percent: plan?.investor_share_percent ? String(plan.investor_share_percent) : "",
     // an installment sale's promised amount keeps its date in the same field as a due sale's promise
@@ -101,7 +101,10 @@ export function SaleEditModal({ open, sale, onClose, onDone }: { open: boolean; 
           })} /></Field>
           <Field required label="Sale price" error={errors.sale_price?.message}><Input type="number" step="0.01" className={inputCls} {...register("sale_price")} /></Field>
           <Field required label="Payment type" error={errors.payment_type?.message}>
-            <NativeSelect className={inputCls} {...register("payment_type")}>
+            <NativeSelect className={inputCls} {...register("payment_type", {
+              // turning a sale into installments starts them a month after the sale date
+              onChange: (e) => { if (e.target.value === "installment" && w.sale_date) setValue("first_due_date", nextMonth(w.sale_date)); },
+            })}>
               <option value="cash">Cash (paid in full)</option><option value="due">Due (pay the rest later)</option><option value="installment">Installment</option>
             </NativeSelect>
           </Field>
