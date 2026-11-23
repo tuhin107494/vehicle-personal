@@ -227,7 +227,7 @@ class VehicleFlowTest extends TestCase
         $this->getJson("/api/transactions/customer_payment/{$down->id}")->assertOk()->assertJsonPath('data.values.amount_lock', 'This was taken at the sale: change it with Edit sale.');
     }
 
-    public function test_an_installment_amount_is_kept_within_its_installment(): void
+    public function test_an_installment_amount_raised_past_its_installment_goes_on_to_the_next(): void
     {
         $v = $this->stockVehicle('AMT-2');
         $plan = ['installment_count' => 4, 'first_due_date' => today()->addMonth()->toDateString(), 'interest_rate' => 0];
@@ -237,7 +237,18 @@ class VehicleFlowTest extends TestCase
 
         $this->putJson("/api/transactions/customer_payment/{$pay->id}", ['amount' => 120000, 'paid_at' => today()->toDateString(), 'method' => 'cash'])->assertOk();
         $this->assertDatabaseHas('installments', ['id' => $pay->installment_id, 'paid_amount' => 120000]);
-        $this->putJson("/api/transactions/customer_payment/{$pay->id}", ['amount' => 200000, 'paid_at' => today()->toDateString(), 'method' => 'cash'])->assertStatus(409); // installments are 150,000
+
+        // installments are 150,000: 200,000 fills #1 and the other 50,000 goes on #2, as one payment
+        $this->putJson("/api/transactions/customer_payment/{$pay->id}", ['amount' => 200000, 'paid_at' => today()->toDateString(), 'method' => 'cash'])->assertOk();
+        $rows = Payment::where('sale_id', $sale['id'])->whereNotNull('installment_id')->orderBy('id')->get();
+        $this->assertEquals([150000, 50000], $rows->pluck('amount')->all());
+        $this->assertSame($rows[0]->batch_no, $rows[1]->batch_no);
+        $this->assertDatabaseHas('installments', ['id' => $pay->installment_id, 'paid_amount' => 150000, 'status' => 'paid']);
+        $this->assertDatabaseHas('installments', ['id' => $rows[1]->installment_id, 'paid_amount' => 50000]);
+        $this->assertEquals(400000, Sale::findOrFail($sale['id'])->due_amount); // 600,000 left after the down payment, less 200,000
+
+        // now spread over two installments, so its amount is fixed (the sale total limit is checked above)
+        $this->putJson("/api/transactions/customer_payment/{$rows[1]->id}", ['amount' => 700000, 'paid_at' => today()->toDateString(), 'method' => 'cash'])->assertStatus(409);
     }
 
     public function test_a_supplier_amount_and_advance_amount_keep_the_totals_right(): void

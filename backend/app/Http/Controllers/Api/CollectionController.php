@@ -233,7 +233,7 @@ class CollectionController extends Controller implements HasMiddleware
             'amount' => $amount,
             'sale_due' => $sale->due_amount,
             'guarantor_phone' => $sale->guarantor_phone,
-            'customer' => $sale->customer->only(['id', 'name', 'phone', 'alt_phone', 'address']),
+            'customer' => $sale->customer->only(['id', 'name', 'father_name', 'phone', 'alt_phone', 'address']),
             'vehicle' => $sale->vehicle->only(['id', 'chassis_no', 'engine_no', 'brand', 'model']),
         ];
     }

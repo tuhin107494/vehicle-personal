@@ -204,7 +204,10 @@ export default function VehicleDetailPage() {
             const line = st.kind === "sale" ? "border-green-200" : isReturn ? "border-amber-200" : "border-sky-200";
             const person = st.kind === "sale" ? st.s.customer : st.p.seller;
             const personHref = st.kind === "sale" || st.p.source === "customer" ? `/customers/${person?.id}` : `/suppliers/${person?.id}`;
-            const amount = st.kind === "sale" ? st.s.sale_price : st.p.price;
+            // an installment sale's total is its price with the installment interest (and any charges): what the customer pays in all
+            const interest = st.kind === "sale" ? st.s.plan?.interest_amount ?? 0 : 0;
+            const withTotal = st.kind === "sale" && Math.abs((st.s.grand_total ?? st.s.sale_price) - st.s.sale_price) > 0.004;
+            const amount = st.kind === "sale" ? (st.s.grand_total ?? st.s.sale_price) : st.p.price;
             return (
               <li key={key} className="relative flex gap-3 pb-4">
                 {!last && <span className="absolute left-[13px] top-7 h-[calc(100%-1.75rem)] w-0.5 bg-emerald-200" />}
@@ -225,9 +228,11 @@ export default function VehicleDetailPage() {
                     <b className="shrink-0 text-base">{money(amount)}</b>
                     <ChevronDown className={`size-4 shrink-0 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
                     </div>
-                    <dl className={`mt-2 grid grid-cols-2 gap-x-4 gap-y-1 border-t pt-2 sm:grid-cols-5 ${line}`}>
+                    <dl className={`mt-2 grid grid-cols-2 gap-x-4 gap-y-1 border-t pt-2 ${withTotal ? "sm:grid-cols-4 lg:grid-cols-7" : "sm:grid-cols-5"} ${line}`}>
                       {(st.kind === "sale"
-                        ? [["Sale price", money(st.s.sale_price)], ["Down payment", money(st.s.down_payment)], ["Paid", money(st.s.total_paid)], ["Due", money(st.s.status === "active" ? st.s.due_amount : 0)], ["Type", <span key="t" className="capitalize">{st.s.payment_type}</span>]]
+                        ? [["Sale price", money(st.s.sale_price)],
+                          ...(withTotal ? [...(interest > 0 ? [["Installment cost", money(interest)] as [string, React.ReactNode]] : []), ["Total", money(st.s.grand_total)] as [string, React.ReactNode]] : []),
+                          ["Down payment", money(st.s.down_payment)], ["Paid", money(st.s.total_paid)], ["Due", money(st.s.status === "active" ? st.s.due_amount : 0)], ["Type", <span key="t" className="capitalize">{st.s.payment_type}</span>]]
                         : [["Price", money(st.p.price)], ["Paid", money(st.p.paid_amount)], ["Due set off", money(st.p.due_adjustment)], ["Method", <span key="m" className="capitalize">{st.p.payment_method || "-"}</span>]]
                       ).map(([k, val]) => (
                         <div key={String(k)}><dt className="text-xs text-gray-500">{k}</dt><dd className={`font-semibold ${k === "Due" && st.kind === "sale" && st.s.status === "active" && st.s.due_amount > 0 ? "text-amber-700" : "text-slate-800"}`}>{val}</dd></div>
