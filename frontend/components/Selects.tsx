@@ -20,7 +20,7 @@ export function CustomerSelect({ label = "Customer", value, onChange, error, all
   const debounced = useDebounced(search);
 
   const list = useFetch<Customer[]>(debounced || value ? `/customers?per_page=30${debounced ? `&search=${encodeURIComponent(debounced)}` : ""}` : null);
-  const options = (list.data ?? []).map((p) => ({ value: String(p.id), label: p.name, hint: [[p.phone, p.alt_phone].filter(Boolean).join(" / "), p.nid ? `NID ${p.nid}` : ""].filter(Boolean).join(" · ") }));
+  const options = (list.data ?? []).map((p) => ({ value: String(p.id), label: p.name, hint: [p.father_name ? `Father: ${p.father_name}` : "", [p.phone, p.alt_phone].filter(Boolean).join(" / "), p.nid ? `NID ${p.nid}` : ""].filter(Boolean).join(" · ") }));
 
   return (
     <Field required={!filter && !optional} label={label} error={error}>
@@ -49,7 +49,7 @@ export function SupplierSelect({ label = "Supplier", value, onChange, error, all
   const debounced = useDebounced(search);
 
   const list = useFetch<Supplier[]>(opened || value ? `/suppliers?per_page=30${debounced ? `&search=${encodeURIComponent(debounced)}` : ""}` : null);
-  const options = (list.data ?? []).map((p) => ({ value: String(p.id), label: p.name, hint: [[p.phone, p.alt_phone].filter(Boolean).join(" / "), p.nid ? `NID ${p.nid}` : ""].filter(Boolean).join(" · ") }));
+  const options = (list.data ?? []).map((p) => ({ value: String(p.id), label: p.name, hint: [p.father_name ? `Father: ${p.father_name}` : "", [p.phone, p.alt_phone].filter(Boolean).join(" / "), p.nid ? `NID ${p.nid}` : ""].filter(Boolean).join(" · ") }));
 
   return (
     <Field required={!filter} label={label} error={error}>
@@ -76,7 +76,7 @@ export function InvestorSelect({ value, onChange, error, optional, filter, allow
   const [typed, setTyped] = useState(""); // what was typed in the search when "+ Add new" was chosen
   const [opened, setOpened] = useState(false); // fetched when the field is first used, or when a value is already chosen and needs its name
   const list = useFetch<Investor[]>(opened || value ? "/investors?per_page=100&is_active=1" : null);
-  const options = (list.data ?? []).map((i) => ({ value: String(i.id), label: i.name, hint: [i.phone, i.alt_phone].filter(Boolean).join(" / ") }));
+  const options = (list.data ?? []).map((i) => ({ value: String(i.id), label: i.name, hint: [i.father_name ? `Father: ${i.father_name}` : "", [i.phone, i.alt_phone].filter(Boolean).join(" / ")].filter(Boolean).join(" · ") }));
 
   return (
     <Field required={!optional && !filter} label={filter ? "Investor" : optional ? "Investor (optional)" : "Investor"} error={error}>
