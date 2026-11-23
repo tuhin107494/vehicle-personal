@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\BusinessRuleException;
 use App\Models\Booking;
 use App\Models\Customer;
+use App\Models\Draft;
 use App\Models\InvestorSale;
 use App\Models\Purchase;
 use App\Models\Sale;
@@ -14,7 +15,7 @@ class CustomerMergeService
 {
     /**
      * Merges duplicate entries of one customer (entered again, often under another phone number) into the primary one:
-     * their sales, buy-backs, bookings and investor sales move to the primary customer, with every payment and
+     * their sales, buy-backs, bookings, investor sales and unfinished drafts move to the primary customer, with every payment and
      * installment on them. A detail the primary is missing (father's name, NID, address, photo, a second number) is
      * taken from a duplicate. The duplicates are then deleted (soft: the rows stay in the database).
      *
@@ -43,6 +44,27 @@ class CustomerMergeService
             Purchase::whereIn('customer_id', $ids)->update(['customer_id' => $primary->id]);
             Booking::whereIn('customer_id', $ids)->update(['customer_id' => $primary->id]);
             InvestorSale::whereIn('customer_id', $ids)->update(['customer_id' => $primary->id]);
+
+            // unfinished forms (drafts) keep the customer inside their saved values: a sale's buyer and additional
+            // customer, or the customer a second-hand vehicle is bought back from (a supplier draft's party is a supplier)
+            foreach (Draft::all() as $draft) {
+                $data = $draft->data;
+                $isCustomer = $draft->type === 'sale' || ($data['source'] ?? 'supplier') === 'customer';
+                $changed = false;
+
+                foreach (['party_id', 'additional_customer_id'] as $key) {
+                    $value = $data['values'][$key] ?? null;
+
+                    if (($key === 'additional_customer_id' || $isCustomer) && filled($value) && in_array((int) $value, $ids, true)) {
+                        $data['values'][$key] = (string) $primary->id;
+                        $changed = true;
+                    }
+                }
+
+                if ($changed) {
+                    $draft->update(['data' => $data]);
+                }
+            }
 
             $fill = [];
             $phones = array_filter([$primary->phone, $primary->alt_phone]);

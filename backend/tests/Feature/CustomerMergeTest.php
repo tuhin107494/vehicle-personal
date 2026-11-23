@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Customer;
+use App\Models\Draft;
 use App\Models\Payment;
 use App\Models\Sale;
 use App\Models\Shop;
@@ -53,6 +54,8 @@ class CustomerMergeTest extends TestCase
         $mainSale = $this->sellTo($main, 'CH-1');
         $dupSale = $this->sellTo($dup, 'CH-2');
         $this->postJson("/api/sales/{$dupSale}/payments", ['amount' => 10000])->assertCreated();
+        $saleDraft = $this->postJson('/api/drafts', ['type' => 'sale', 'label' => 'x', 'data' => ['values' => ['party_id' => (string) $dup->id, 'additional_customer_id' => (string) $dup->id]]])->assertCreated()->json('data.id');
+        $supplierDraft = $this->postJson('/api/drafts', ['type' => 'purchase', 'label' => 'y', 'data' => ['source' => 'supplier', 'values' => ['party_id' => (string) $dup->id]]])->assertCreated()->json('data.id');
 
         $this->postJson("/api/customers/{$main->id}/merge", ['duplicate_ids' => [$dup->id]])->assertOk()
             ->assertJsonPath('data.alt_phone', '01822222222')->assertJsonPath('data.father_name', 'Rahim')->assertJsonPath('data.nid', '123');
@@ -60,6 +63,9 @@ class CustomerMergeTest extends TestCase
         $this->assertSame([$main->id, $main->id], [Sale::find($mainSale)->customer_id, Sale::find($dupSale)->customer_id]);
         $this->assertSame(3, Payment::where('sale_id', $dupSale)->count() + Payment::where('sale_id', $mainSale)->count()); // the down payments and the payment
         $this->assertSoftDeleted('customers', ['id' => $dup->id]);
+        // a sale draft now names the main customer; a supplier draft's party is a supplier, so it is left alone
+        $this->assertSame(['party_id' => (string) $main->id, 'additional_customer_id' => (string) $main->id], Draft::find($saleDraft)->data['values']);
+        $this->assertSame((string) $dup->id, Draft::find($supplierDraft)->data['values']['party_id']);
         // the main customer owes both dues now
         $this->getJson("/api/accounts?side=customer&customer_id={$main->id}")->assertOk()->assertJsonPath('data.total_due', 190000);
     }
