@@ -52,8 +52,9 @@ class VehicleService
             $supplierPayments = PurchasePayment::withoutGlobalScope(NotCancelledScope::class)->whereIn('purchase_id', $purchaseIds)->get();
 
             // supplier payments made from an advance: that advance is the supplier's again (a cancelled one already gave it back)
+            $supplierOf = Purchase::whereIn('id', $purchaseIds)->pluck('supplier_id', 'id');
             foreach ($supplierPayments->where('method', 'advance')->whereNull('cancelled_at') as $p) {
-                $supplierId = Purchase::find($p->purchase_id)?->supplier_id;
+                $supplierId = $supplierOf[$p->purchase_id] ?? null;
                 if ($supplierId) {
                     $this->giveBackAdvance($supplierId, Money::paisa($p->amount));
                 }
@@ -99,9 +100,9 @@ class VehicleService
      */
     private function log(Vehicle $vehicle, Collection $saleIds, Collection $purchaseIds, Collection $investorSaleIds, ?User $user): void
     {
-        $sales = Sale::with(['customer:id,name', 'plan'])->whereIn('id', $saleIds)->get()->map(fn (Sale $s) => [
+        $sales = Sale::with(['customer:id,name', 'plan', 'payments'])->whereIn('id', $saleIds)->get()->map(fn (Sale $s) => [
             'id' => $s->id, 'date' => $s->sale_date->toDateString(), 'customer' => $s->customer?->name, 'payment_type' => $s->payment_type,
-            'status' => $s->status, 'total' => $s->grandTotal(), 'paid' => Money::sum(Payment::where('sale_id', $s->id)->get(), 'amount'), 'due' => (float) $s->due_amount,
+            'status' => $s->status, 'total' => $s->grandTotal(), 'paid' => Money::sum($s->payments, 'amount'), 'due' => (float) $s->due_amount,
         ])->values();
         $purchases = Purchase::with(['supplier:id,name', 'customer:id,name'])->whereIn('id', $purchaseIds)->get()->map(fn (Purchase $p) => [
             'id' => $p->id, 'date' => $p->purchase_date->toDateString(), 'from' => $p->supplier->name ?? $p->customer->name ?? null,

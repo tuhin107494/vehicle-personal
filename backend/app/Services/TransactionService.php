@@ -56,7 +56,8 @@ class TransactionService
             return null;
         }
 
-        $free = app(self::class)->deleteLock($m) === null; // asked once: it reads the sale, so a statement of many payments should not do it twice per row
+        // it reads the sale (and the payment's collection): a statement passes payments with their sale loaded, so no query per row
+        $free = app(self::class)->deleteLock($m) === null;
 
         return ['type' => self::typeOf($m), 'id' => $m->id, 'deletable' => $free, 'cancellable' => $free && ! $m instanceof Advance];
     }
@@ -72,7 +73,7 @@ class TransactionService
     public function values(Model $m): array
     {
         return [
-            'amount' => $this->plain($m->amount),
+            'amount' => Money::plain($m->amount),
             'amount_lock' => $this->amountLock($m),
             'note_locked' => $this->noteLocked($m) ? '1' : null,
             'paid_at' => $m->paid_at->toDateString(),
@@ -83,18 +84,19 @@ class TransactionService
         ];
     }
 
-    /** An amount as plain text: 15000 when there are no decimals, 15000.5 or 15000.75 when there are. */
-    private function plain(float|int|string $amount): string
-    {
-        $text = number_format((float) $amount, 2, '.', '');
-
-        return rtrim(rtrim($text, '0'), '.');
-    }
-
     /** The rows of the collection a payment belongs to (just itself when it was not spread). */
     private function batch(Model $m): Collection
     {
-        return $m instanceof Payment && $m->batch_no ? Payment::where('sale_id', $m->sale_id)->where('batch_no', $m->batch_no)->get() : collect([$m]);
+        if (! $m instanceof Payment || ! $m->batch_no) {
+            return collect([$m]);
+        }
+
+        // a statement hands over the sale with its payments already loaded: no query per row then
+        if ($m->relationLoaded('sale') && $m->sale->relationLoaded('payments')) {
+            return $m->sale->payments->where('batch_no', $m->batch_no)->values();
+        }
+
+        return Payment::where('sale_id', $m->sale_id)->where('batch_no', $m->batch_no)->get();
     }
 
     /** A payment taken at the sale is recognised by its note ("Down payment"...), so the note stays as it is. */
@@ -107,7 +109,7 @@ class TransactionService
     public function amountLock(Model $m): ?string
     {
         if ($m instanceof Payment) {
-            $sale = $m->sale()->with('plan')->first();
+            $sale = $m->relationLoaded('sale') ? $m->sale : $m->sale()->with('plan')->first();
 
             return match (true) {
                 $sale->status !== 'active' => 'The sale was cancelled, so its payments are fixed.',
@@ -314,7 +316,7 @@ class TransactionService
                 throw new BusinessRuleException($reason === null ? $lock : str_replace('cannot be deleted', 'cannot be cancelled', $lock));
             }
 
-            $summary = $this->plain($m->amount).' on '.$m->paid_at->toDateString().' ('.$m->method.')';
+            $summary = Money::plain($m->amount).' on '.$m->paid_at->toDateString().' ('.$m->method.')';
             $leave = fn () => $reason === null
                 ? $m->delete()
                 : $m->forceFill(['cancelled_at' => now(), 'cancelled_by' => $user->id, 'cancel_reason' => $reason])->save(); // not fillable: only this method may cancel

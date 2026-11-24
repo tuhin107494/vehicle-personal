@@ -16,13 +16,16 @@ class RoleController extends Controller
     public function index(): JsonResponse
     {
         $shopId = auth()->user()->shop_id;
+        // every role's permissions in one query
+        $keys = DB::table('role_permissions')
+            ->join('permissions', 'permissions.id', '=', 'role_permissions.permission_id')
+            ->where('shop_id', $shopId)->whereIn('role', PermissionCatalog::ASSIGNABLE_ROLES)
+            ->get(['role_permissions.role', 'permissions.key'])->groupBy('role');
 
         return $this->success(collect(PermissionCatalog::ASSIGNABLE_ROLES)->map(fn ($role) => [
             'role' => $role,
             'label' => PermissionCatalog::ROLES[$role],
-            'permissions' => DB::table('role_permissions')
-                ->join('permissions', 'permissions.id', '=', 'role_permissions.permission_id')
-                ->where('shop_id', $shopId)->where('role', $role)->pluck('permissions.key')->all(),
+            'permissions' => $keys->get($role, collect())->pluck('key')->all(),
         ])->values(), 'OK', 200, [
             // every permission there is, so the page lists them from this one response
             'permissions' => PermissionResource::collection(Permission::orderBy('group')->orderBy('id')->get())->resolve(),

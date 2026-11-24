@@ -13,6 +13,7 @@ use Database\Seeders\PermissionSeeder;
 use Database\Seeders\VehicleCategorySeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -116,6 +117,29 @@ class CancelledPaymentAndMergeFixesTest extends TestCase
         $this->postJson("/api/customers/{$buyer->id}/merge", ['duplicate_ids' => [$dup->id]])->assertOk();
 
         $this->assertDatabaseHas('investor_sales', ['id' => $investorSale['id'], 'customer_id' => null]);
+    }
+
+    public function test_a_customer_statement_does_not_query_once_per_payment(): void
+    {
+        [$vehicleId] = $this->buy('CH-N1');
+        $customer = $this->customer();
+        $sale = $this->sell($vehicleId, $customer, ['payment_type' => 'installment', 'down_payment' => 200000, 'installment_count' => 12, 'first_due_date' => '2026-02-05', 'interest_rate' => 0]);
+        $queries = function () use ($customer): int {
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            $this->getJson("/api/reports/person-transactions?side=customer&customer_id={$customer->id}")->assertOk();
+
+            return count(DB::getQueryLog());
+        };
+
+        $this->postJson("/api/sales/{$sale['id']}/payments", ['amount' => 1000])->assertCreated();
+        $this->postJson("/api/sales/{$sale['id']}/payments", ['amount' => 1000])->assertCreated();
+        $few = $queries();
+        foreach (range(1, 6) as $i) {
+            $this->postJson("/api/sales/{$sale['id']}/payments", ['amount' => 1000])->assertCreated();
+        }
+
+        $this->assertSame($few, $queries()); // 8 payments cost the same queries as 2
     }
 
     public function test_lowering_a_payment_clears_its_installment_paid_date(): void

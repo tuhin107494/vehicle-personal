@@ -46,7 +46,7 @@ class InvestorSaleController extends Controller implements HasMiddleware
         $request->validate(['investor_id' => ['nullable', 'integer'], 'search' => ['nullable', 'string', 'max:100']]);
 
         $rows = InvestorSale::where('status', 'active')
-            ->with(['investor', 'settlements', 'sale.vehicle', 'sale.customer'])
+            ->with(['investor', 'settlements', 'sale.vehicle', 'sale.customer', 'sale.plan']) // the sale's total needs its plan: loaded here, not once per row
             ->withSum(['settlements as given' => fn ($q) => $q->where('type', 'investment')], 'amount')
             ->when($request->investor_id, fn ($q, $id) => $q->where('investor_id', $id))
             ->when($request->search, fn ($q, $term) => $q->where(fn ($q) => $q

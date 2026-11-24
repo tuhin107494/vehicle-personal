@@ -117,13 +117,16 @@ class PaymentService
     private function payCharges(Sale $sale, int $amount, array $base): array
     {
         $payments = [];
+        // what is already paid on each charge, in one query
+        $paid = Payment::where('sale_id', $sale->id)->whereNotNull('sale_charge_id')->groupBy('sale_charge_id')
+            ->selectRaw('sale_charge_id, SUM(amount) as total')->pluck('total', 'sale_charge_id');
 
         foreach (SaleCharge::where('sale_id', $sale->id)->orderBy('charged_on')->orderBy('id')->get() as $charge) {
             if ($amount <= 0) {
                 break;
             }
 
-            $owed = Money::paisa($charge->amount) - Money::paisa(Payment::where('sale_charge_id', $charge->id)->sum('amount'));
+            $owed = Money::paisa($charge->amount) - Money::paisa($paid[$charge->id] ?? 0);
             $take = min($amount, $owed);
 
             if ($take > 0) {

@@ -93,11 +93,6 @@ class InvestorSale extends Model
     }
 
     /**
-     * What the shop pays the investor and when: the total split evenly over the installments (the last one takes the rounding).
-     *
-     * @return list<array{seq_no:int,due_date:Carbon,amount:int}> amounts in paisa
-     */
-    /**
      * The stored installments the shop pays the investor back on (the schedule, with what has been paid on each).
      *
      * @return HasMany<Installment, $this>
@@ -118,6 +113,11 @@ class InvestorSale extends Model
             : Money::paisa($this->principal);
     }
 
+    /**
+     * What the shop pays the investor and when: the total split evenly over the installments (the last one takes the rounding).
+     *
+     * @return list<array{seq_no:int,due_date:Carbon,amount:int}> amounts in paisa
+     */
     public function schedule(): array
     {
         $rows = [];

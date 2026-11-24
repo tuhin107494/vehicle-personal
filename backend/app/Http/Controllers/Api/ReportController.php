@@ -153,7 +153,8 @@ class ReportController extends Controller implements HasMiddleware
             'investor_id' => ['nullable', 'integer'], 'status' => ['nullable', 'in:active,cancelled'],
         ]);
 
-        $rows = InvestorSale::with(['investor', 'customer', 'settlements', 'sale.vehicle', 'sale.customer'])
+        // the sale's total needs its plan: loaded with the rest, not once per row
+        $rows = InvestorSale::with(['investor', 'customer', 'settlements', 'sale.vehicle', 'sale.customer', 'sale.plan'])
             ->when($request->from, fn ($q, $v) => $q->whereDate('date', '>=', $v))
             ->when($request->to, fn ($q, $v) => $q->whereDate('date', '<=', $v))
             ->when($request->investor_id, fn ($q, $id) => $q->where('investor_id', $id))
@@ -283,7 +284,7 @@ class ReportController extends Controller implements HasMiddleware
                     ['Vehicle', $name ?: null], ['Chassis', $vehicle], ['Sale', "#{$sale->id}"], ['Method', ucfirst($pay->method)],
                     ['Installment', $rows->count() === 1 && $pay->installment ? ($pay->installment->seq_no === 0 ? 'Promise' : "#{$pay->installment->seq_no}") : null], ...$split,
                     ['Received by', $pay->receiver?->name], ['Memo no.', $pay->memo_no], ['Note', $pay->note],
-                ], TransactionService::tx($pay));
+                ], TransactionService::tx($pay->setRelation('sale', $sale))); // its sale (with plan and payments) is already loaded
             }
 
             foreach ($cancelled->get($sale->id, []) as $pay) {
@@ -417,10 +418,11 @@ class ReportController extends Controller implements HasMiddleware
             ->orderBy('id')->get()
             // one collection spread over several installments is one line
             ->groupBy(fn (Payment $p) => $p->batch_no ? $p->sale_id.'|'.$p->batch_no : 'row-'.$p->id)
-            ->map(fn ($rows) => $rows->first())
-            ->map(fn (Payment $p) => [
-                'id' => $p->id, 'sale_id' => $p->sale_id, 'name' => $p->sale->customer->name, 'phone' => $p->sale->customer->phone, 'vehicle' => $p->sale->vehicle->chassis_no,
-                'method' => $p->method, 'amount' => $p->batch_no ? Money::sum(Payment::where('sale_id', $p->sale_id)->where('batch_no', $p->batch_no)->whereDate('paid_at', $date)->get(), 'amount') : (float) $p->amount, 'note' => $p->note,
+            // the rows of one collection are all here already (same sale, batch and day): their sum is the line's amount
+            ->map(fn ($rows) => ['p' => $rows->first(), 'amount' => Money::sum($rows, 'amount')])
+            ->map(fn (array $g) => [
+                'id' => $g['p']->id, 'sale_id' => $g['p']->sale_id, 'name' => $g['p']->sale->customer->name, 'phone' => $g['p']->sale->customer->phone, 'vehicle' => $g['p']->sale->vehicle->chassis_no,
+                'method' => $g['p']->method, 'amount' => $g['amount'], 'note' => $g['p']->note,
             ])->values();
 
         $supplierPayments = collect()

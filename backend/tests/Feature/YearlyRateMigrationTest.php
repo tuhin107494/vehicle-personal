@@ -29,6 +29,37 @@ class YearlyRateMigrationTest extends TestCase
         Sanctum::actingAs($shop->owner);
     }
 
+    public function test_the_investor_installments_backfill_matches_the_service(): void
+    {
+        $supplier = Supplier::create(['name' => 'Seller', 'phone' => '01000000002']);
+        $vehicleId = $this->postJson('/api/purchases', [
+            'vehicle_type' => 'motorcycle', 'chassis_no' => 'CH-FILL', 'engine_no' => 'EN-FILL', 'brand' => 'Honda', 'model' => 'CB',
+            'supplier_id' => $supplier->id, 'purchase_date' => '2026-01-01', 'price' => 400000,
+        ])->assertCreated()->json('data.vehicle_id');
+        $sale = $this->postJson('/api/sales', [
+            'vehicle_id' => $vehicleId, 'customer_id' => Customer::create(['name' => 'Buyer', 'phone' => '02000000002'])->id, 'sale_date' => '2025-06-05',
+            'sale_price' => 500000, 'payment_type' => 'installment', 'down_payment' => 200000, 'installment_count' => 12, 'first_due_date' => '2025-07-05', 'interest_rate' => 10,
+        ])->assertCreated()->json('data');
+        $investor = Investor::create(['name' => 'Nasir']);
+        // 12 installments from mid 2025 (some already overdue), and 50,000 paid back: some paid, one partial
+        $x = $this->postJson("/api/sales/{$sale['id']}/investor-sale", [
+            'investor_id' => $investor->id, 'date' => '2025-06-06', 'sale_price' => 500000, 'down_payment' => 200000,
+            'profit_rate' => 13, 'installment_count' => 12, 'frequency' => 'monthly', 'first_due_date' => '2025-07-06',
+        ])->assertCreated()->json('data');
+        $this->postJson('/api/investor-settlements', ['investor_id' => $investor->id, 'investor_sale_id' => $x['id'], 'type' => 'principal_return', 'amount' => 50000, 'date' => '2026-01-09'])->assertCreated();
+
+        $columns = ['seq_no', 'due_date', 'amount', 'paid_amount', 'status', 'paid_at'];
+        $fromService = DB::table('installments')->where('investor_sale_id', $x['id'])->orderBy('seq_no')->get($columns)->map(fn ($r) => (array) $r)->all();
+        DB::table('installments')->where('investor_sale_id', $x['id'])->delete();
+
+        $migration = require database_path('migrations/2026_11_21_110000_add_investor_sale_id_to_installments_table.php');
+        (new \ReflectionMethod($migration, 'fill'))->invoke($migration, DB::table('investor_sales')->find($x['id']));
+
+        $fromMigration = DB::table('installments')->where('investor_sale_id', $x['id'])->orderBy('seq_no')->get($columns)->map(fn ($r) => (array) $r)->all();
+        $this->assertCount(12, $fromMigration);
+        $this->assertEquals($fromService, $fromMigration);
+    }
+
     private function migration(): object
     {
         return require database_path('migrations/2026_11_24_100000_store_interest_and_profit_rates_per_year.php');

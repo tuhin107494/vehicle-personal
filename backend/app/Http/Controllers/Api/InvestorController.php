@@ -227,7 +227,7 @@ class InvestorController extends Controller implements HasMiddleware
             'investor' => InvestorResource::make($investor),
             'summary' => $portfolio->summary($investor),
             'sales' => SaleResource::collection($investor->sales()->with(['vehicle', 'customer', 'plan'])->latest('id')->get()),
-            'investor_sales' => InvestorSaleResource::collection($investor->investorSales()->with(['sale.vehicle', 'sale.customer', 'settlements'])->latest('id')->get()),
+            'investor_sales' => InvestorSaleResource::collection($investor->investorSales()->with(['sale.vehicle', 'sale.customer', 'sale.plan', 'settlements'])->latest('id')->get()),
             'settlements' => InvestorSettlementResource::collection($investor->settlements()->latest('date')->latest('id')->get()),
         ]);
     }

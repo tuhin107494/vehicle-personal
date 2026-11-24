@@ -16,10 +16,10 @@ use Illuminate\Support\Facades\DB;
  */
 class SubscriptionService
 {
-    /** What a locked shop is told when it tries to change something. It can still sign in, view and export. */
     /** Days before the end when the shop owner is emailed. */
     public const REMINDER_DAYS = [3, 1];
 
+    /** What a locked shop is told when it tries to change something. It can still sign in, view and export. */
     public const ENDED_MESSAGE = 'Your subscription has ended, so your shop is read-only. Contact support to make changes again.';
 
     /** The shop's current subscription (its latest), from anywhere: a request, a worker or the scheduler. */
