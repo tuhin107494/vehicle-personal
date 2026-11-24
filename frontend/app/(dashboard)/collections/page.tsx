@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Check, Eye, History, Search, Undo2 } from "lucide-react";
+import { Check, Eye, History, Printer, Search, Undo2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { fmtDate, money } from "@/lib/format";
 import { useFetch } from "@/lib/hooks";
@@ -13,6 +13,8 @@ import { Badge, Button, Field, inputCls, Modal, PageHeader, Stat } from "@/compo
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Col, DataTable } from "@/components/DataTable";
+import { printDueAlert, type DueAlertRow } from "@/components/DueAlertPrint";
+import { useAuth } from "@/lib/auth";
 
 type Kind = "" | "installment" | "promise";
 type CallEntry = { id: number; called_at: string; for: string; by: string | null; meet_date: string | null; note: string | null };
@@ -35,7 +37,7 @@ const STYLE: Record<string, { ring: string; active: string; text: string }> = {
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /** A vehicle's row: its first (oldest) item's details, with every item of it in this list. */
-type Group = CallRow & { items: CallRow[] };
+type Group = DueAlertRow;
 
 /** "Installment #23", "Installments #23–#28", "Installments #3, #5", or the promise's label */
 function groupLabel(items: CallRow[]): string {
@@ -58,6 +60,7 @@ function When({ row }: { row: CallRow }) {
 
 export default function CollectionsPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [bucket, setBucket] = useState("overdue");
   const [kind, setKind] = useState<Kind>("");
   const [q, setQ] = useState("");
@@ -211,7 +214,14 @@ export default function CollectionsPage() {
 
   return (
     <>
-      <PageHeader title="Due alert" />
+      <PageHeader title="Due alert" actions={
+        // prints the list as shown: this tab (and All / Installments / Due), the call filter and the search
+        <Button variant="outline" disabled={!list.data} onClick={() => printDueAlert(rows, user?.shop?.name ?? "Gari Becho",
+          [current?.label ?? bucket, KINDS.find((k) => k.value === kind)?.label ?? "All"].join(" · "),
+          [callFilter === "done" ? "Call done" : callFilter === "pending" ? "Not called" : "", term ? `Search: ${q.trim()}` : ""].filter(Boolean))}>
+          <Printer className="size-4 text-sky-600" /> Print / PDF
+        </Button>
+      } />
       <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-3 md:gap-3 [&>:last-child]:col-span-2 md:[&>:last-child]:col-span-1">
         <Stat compact color="teal-flat" label="Due now" value={money(summary.data?.current_due ?? 0)} />
         <Stat compact color="cyan-flat" label={`${current?.label ?? "List"}: amount`} value={money(shown?.amount ?? 0)} />
