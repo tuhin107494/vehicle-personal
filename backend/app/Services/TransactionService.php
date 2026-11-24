@@ -160,6 +160,7 @@ class TransactionService
                 $own = $new - $extra;
 
                 $installment->paid_amount = Money::taka(Money::paisa($installment->paid_amount) - $old + $own);
+                $installment->paid_at = null; // set again below only if it is still paid in full
                 app(PaymentService::class)->refreshInstallment($installment, $m->paid_at);
                 $m->update(['amount' => Money::taka($own), 'batch_no' => $m->batch_no ?: (string) Str::uuid()]);
                 app(PaymentService::class)->recalculate($sale);

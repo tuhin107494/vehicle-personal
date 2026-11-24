@@ -44,6 +44,8 @@ class CustomerMergeService
             Purchase::whereIn('customer_id', $ids)->update(['customer_id' => $primary->id]);
             Booking::whereIn('customer_id', $ids)->update(['customer_id' => $primary->id]);
             InvestorSale::whereIn('customer_id', $ids)->update(['customer_id' => $primary->id]);
+            // as on sales: the buyer cannot also be their own additional customer
+            InvestorSale::where('customer_id', $primary->id)->whereHas('sale', fn ($q) => $q->where('customer_id', $primary->id))->update(['customer_id' => null]);
 
             // unfinished forms (drafts) keep the customer inside their saved values: a sale's buyer and additional
             // customer, or the customer a second-hand vehicle is bought back from (a supplier draft's party is a supplier)

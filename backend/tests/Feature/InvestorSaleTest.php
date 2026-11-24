@@ -90,6 +90,12 @@ class InvestorSaleTest extends TestCase
 
         $this->deleteJson("/api/vehicles/{$sale['vehicle_id']}")->assertOk();
 
+        // a record of what was removed is kept: who, the vehicle's numbers, and the money that went with it
+        $log = $this->getJson('/api/vehicle-deletions')->assertOk()->json('data.0');
+        $this->assertSame(['CH-TYPO', 'EN-CH-TYPO', $this->owner->name], [$log['chassis_no'], $log['engine_no'], $log['user']['name']]);
+        $this->assertEquals(['customer_paid' => 205000, 'supplier_paid' => 1000, 'investor_received' => 300000, 'investor_paid_back' => 1000], $log['summary']['totals']);
+        $this->assertSame([$sale['id']], array_column($log['summary']['sales'], 'id'));
+
         $this->assertDatabaseMissing('vehicles', ['id' => $sale['vehicle_id']]);
         $this->assertDatabaseMissing('sales', ['id' => $sale['id']]);
         $this->assertDatabaseMissing('purchases', ['id' => $sale['purchase_id']]);

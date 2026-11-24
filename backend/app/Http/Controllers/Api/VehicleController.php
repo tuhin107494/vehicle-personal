@@ -17,6 +17,7 @@ use App\Models\RegistrationLog;
 use App\Models\Sale;
 use App\Models\Vehicle;
 use App\Models\VehicleCategory;
+use App\Models\VehicleDeletion;
 use App\Services\BookingService;
 use App\Services\VehicleService;
 use Illuminate\Http\JsonResponse;
@@ -31,7 +32,7 @@ class VehicleController extends Controller implements HasMiddleware
         return [
             new Middleware('permission:vehicles.view', only: ['index', 'show', 'lookup', 'history', 'owned']),
             new Middleware('permission:vehicles.edit', only: ['update']),
-            new Middleware('permission:vehicles.delete', only: ['destroy']),
+            new Middleware('permission:vehicles.delete', only: ['destroy', 'deletions']),
         ];
     }
 
@@ -97,11 +98,17 @@ class VehicleController extends Controller implements HasMiddleware
     }
 
     /** Deletes the vehicle with all its purchases, sales and payments (for a vehicle entered twice by mistake). */
-    public function destroy(Vehicle $vehicle): JsonResponse
+    public function destroy(Request $request, Vehicle $vehicle): JsonResponse
     {
-        app(VehicleService::class)->delete($vehicle);
+        app(VehicleService::class)->delete($vehicle, $request->user());
 
         return $this->success(null, 'Vehicle and all its records deleted');
+    }
+
+    /** The vehicles deleted with everything on them, newest first: who, when, and what was removed. */
+    public function deletions(): JsonResponse
+    {
+        return $this->success(VehicleDeletion::with('user:id,name')->latest('id')->limit(500)->get());
     }
 
     /** Find a vehicle by chassis number or by registration number (used to repurchase a vehicle we already know). */

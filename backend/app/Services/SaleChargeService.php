@@ -6,6 +6,7 @@ use App\Exceptions\BusinessRuleException;
 use App\Models\Payment;
 use App\Models\Sale;
 use App\Models\SaleCharge;
+use App\Models\Scopes\NotCancelledScope;
 use App\Models\TransactionEdit;
 use App\Models\User;
 use App\Support\Money;
@@ -83,6 +84,8 @@ class SaleChargeService
                 throw new BusinessRuleException('Something has already been paid on this charge, so it cannot be deleted.');
             }
 
+            // a cancelled payment on it stays on the statement as cancelled, no longer tied to the charge
+            Payment::withoutGlobalScope(NotCancelledScope::class)->where('sale_charge_id', $charge->id)->whereNotNull('cancelled_at')->update(['sale_charge_id' => null]);
             TransactionEdit::create(['type' => 'sale_charge', 'subject_id' => $charge->id, 'user_id' => $user->id, 'changes' => [['field' => 'Charge', 'from' => $charge->purpose.' '.$this->plain($charge->amount), 'to' => 'Deleted']]]);
             $charge->delete();
             $this->refresh($sale);

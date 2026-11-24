@@ -10,12 +10,13 @@ import { typeColor } from "@/lib/typeColors";
 import type { Vehicle } from "@/lib/types";
 import { Badge, Button, Field, inputCls, PageHeader, Pagination, StatusBadge } from "@/components/app-ui";
 import { ResponsiveFilters } from "@/components/ResponsiveFilters";
+import { DeletedVehicles } from "@/components/DeletedVehicles";
 import { Col, DataTable } from "@/components/DataTable";
 import { VehicleForm } from "@/components/forms/VehicleForm";
 import { REGISTRATION_STEPS, RegistrationModal } from "@/components/forms/RegistrationModal";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
-import { ArrowUpRight, Eye, HandCoins, History, Pencil, Plus } from "lucide-react";
+import { ArrowUpRight, Eye, HandCoins, History, Pencil, Plus, Trash2 } from "lucide-react";
 
 function Vehicles() {
   const params = useSearchParams();
@@ -25,6 +26,7 @@ function Vehicles() {
   const [type, setType] = useState("");
   const [registration, setRegistration] = useState(REGISTRATION_STEPS.includes(params.get("registration") ?? "") ? params.get("registration")! : ""); // e.g. ?registration=pending
   const { can } = useAuth();
+  const [showDeleted, setShowDeleted] = useState(false); // the vehicles deleted with everything on them
   const list = usePagedList<Vehicle>("/vehicles", { status, vehicle_type: type, registration_status: registration });
   // the vehicle types come with the list (meta), so this page makes one request
   const categories = list.meta?.categories ?? [];
@@ -77,7 +79,11 @@ function Vehicles() {
 
   return (
     <>
-      <PageHeader title="Vehicles" actions={can("purchases.create") && <Link className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-green-600 px-2.5 py-1.5 text-xs font-medium text-white shadow-sm hover:from-emerald-500 hover:to-green-500 sm:px-3 sm:py-2 sm:text-sm" href="/purchases/new"><Plus className="size-3.5 sm:size-4" /> Buy vehicle</Link>} />
+      <PageHeader title="Vehicles" actions={<div className="flex gap-2">
+        {can("vehicles.delete") && <Button variant="outline" className="h-auto px-2.5 py-1.5 text-xs sm:px-3 sm:py-2 sm:text-sm" onClick={() => setShowDeleted(true)}><Trash2 className="size-3.5 text-red-600 sm:size-4" /> Deleted vehicles</Button>}
+        {can("purchases.create") && <Link className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-green-600 px-2.5 py-1.5 text-xs font-medium text-white shadow-sm hover:from-emerald-500 hover:to-green-500 sm:px-3 sm:py-2 sm:text-sm" href="/purchases/new"><Plus className="size-3.5 sm:size-4" /> Buy vehicle</Link>}
+      </div>} />
+      {showDeleted && <DeletedVehicles onClose={() => setShowDeleted(false)} />}
       <ResponsiveFilters desktopClass="hidden lg:block">
         <div className="space-y-4 lg:space-y-0">
           <div className="grid gap-3 lg:mb-4 lg:flex lg:gap-3">
