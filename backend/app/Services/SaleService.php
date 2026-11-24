@@ -371,7 +371,7 @@ class SaleService
             $this->payments->recalculate($sale);
             $sale->update(['due_amount' => 0]);
 
-            $sale->vehicle->update(['status' => 'in_stock', 'current_sale_id' => null]);
+            Vehicle::lockForUpdate()->findOrFail($sale->vehicle_id)->update(['status' => 'in_stock', 'current_sale_id' => null]);
 
             if ($sale->plan) {
                 $sale->plan->installments()->whereIn('status', ['pending', 'partial', 'overdue'])->update(['status' => 'cancelled']);

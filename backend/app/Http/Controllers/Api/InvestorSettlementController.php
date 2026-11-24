@@ -51,6 +51,8 @@ class InvestorSettlementController extends Controller implements HasMiddleware
 
     public function update(InvestorSettlementRequest $request, InvestorSettlement $settlement, InvestorSaleService $investorSales): JsonResponse
     {
+        $this->refuseAutomatic($settlement);
+
         if ($settlement->investor_sale_id) {
             // a payment on an investor sale stays on it, with the same checks as a new one
             $settlement = $investorSales->updatePayment($settlement, $request->validated());
@@ -65,8 +67,17 @@ class InvestorSettlementController extends Controller implements HasMiddleware
 
     public function destroy(InvestorSettlement $settlement, InvestorSaleService $investorSales): JsonResponse
     {
+        $this->refuseAutomatic($settlement);
         $settlement->investor_sale_id ? $investorSales->deletePayment($settlement) : $settlement->delete();
 
         return $this->success(null, 'Settlement deleted');
+    }
+
+    /** The settlements the system made change with the sale or collection that made them, so the investor's figures stay right. */
+    private function refuseAutomatic(InvestorSettlement $settlement): void
+    {
+        if ($settlement->isAutomatic()) {
+            throw new BusinessRuleException('This settlement was made by the system from a sale or a collection. Change that sale or payment instead.');
+        }
     }
 }

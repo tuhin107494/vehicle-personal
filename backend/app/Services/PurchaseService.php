@@ -54,6 +54,7 @@ class PurchaseService
                 'purchase_date' => $data['purchase_date'],
                 'price' => Money::taka($price),
                 'paid_amount' => Money::taka($paid),
+                'initial_paid' => Money::taka($paid), // paid at the purchase; payments made later add to paid_amount
                 'due_adjustment' => Money::taka($adjustment),
                 'adjusted_sale_id' => $sale?->id,
                 'cost_extra' => Money::taka(Money::paisa($data['cost_extra'] ?? 0)),
@@ -101,6 +102,11 @@ class PurchaseService
             if (isset($data['paid_amount']) && Money::paisa($data['paid_amount']) !== Money::paisa($purchase->paid_amount)
                 && $purchase->payments()->exists()) {
                 throw new BusinessRuleException('Payments were recorded against this purchase, so the paid amount can only change through payments.');
+            }
+
+            // a changed paid amount (only allowed with no payments yet, above) is all paid at the purchase
+            if (isset($data['paid_amount']) && Money::paisa($data['paid_amount']) !== Money::paisa($purchase->paid_amount)) {
+                $data['initial_paid'] = $data['paid_amount'];
             }
 
             $price = Money::paisa($data['price'] ?? $purchase->price);

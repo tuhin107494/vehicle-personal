@@ -25,6 +25,7 @@ class Purchase extends Model
         'purchase_date',
         'price',
         'paid_amount',
+        'initial_paid',
         'due_adjustment',
         'adjusted_sale_id',
         'cost_extra',
@@ -41,6 +42,7 @@ class Purchase extends Model
             'purchase_date' => 'date:Y-m-d',
             'price' => 'float',
             'paid_amount' => 'float',
+            'initial_paid' => 'float',
             'cost_extra' => 'float',
             'due_adjustment' => 'float',
         ];
