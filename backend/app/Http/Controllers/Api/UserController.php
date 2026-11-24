@@ -45,7 +45,8 @@ class UserController extends Controller
         DB::transaction(function () use ($user, $data, $request) {
             $user->fill($data + ['is_active' => $request->boolean('is_active', $user->is_active)])->save();
 
-            if (! $user->is_active) {
+            // deactivated, or a new password (perhaps the old one leaked): every device signed in must sign in again
+            if (! $user->is_active || $request->filled('password')) {
                 DB::table('personal_access_tokens')->where('tokenable_id', $user->id)->where('tokenable_type', User::class)->delete();
             }
         });

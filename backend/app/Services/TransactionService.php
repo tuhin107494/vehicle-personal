@@ -123,6 +123,19 @@ class TransactionService
         return null;
     }
 
+    /**
+     * Locks the sale or purchase a payment is on, before the payment itself: the order a new payment takes them in, so an
+     * edit and a collection on the same sale cannot deadlock, and a cancel of the sale cannot slip between the check and the change.
+     */
+    private function lockParent(Model $m): void
+    {
+        match (true) {
+            $m instanceof Payment => Sale::lockForUpdate()->whereKey($m->sale_id)->value('id'),
+            $m instanceof PurchasePayment => Purchase::lockForUpdate()->whereKey($m->purchase_id)->value('id'),
+            default => null,
+        };
+    }
+
     /** Applies a new amount (in paisa) to the payment and to every figure it fed. */
     private function changeAmount(Model $m, int $new, User $user): void
     {
@@ -185,17 +198,15 @@ class TransactionService
 
         if ($m instanceof PurchasePayment) {
             $purchase = Purchase::lockForUpdate()->findOrFail($m->purchase_id);
-            $paid = Money::paisa($purchase->paid_amount) - $old + $new;
+            $others = Money::paisa(PurchasePayment::where('purchase_id', $purchase->id)->where('id', '!=', $m->id)->sum('amount'));
+            $paid = Money::paisa($purchase->initial_paid) + $others + $new;
 
             if ($paid + Money::paisa($purchase->due_adjustment) > Money::paisa($purchase->price)) {
                 throw new BusinessRuleException('That is more than the purchase price of '.Money::format(Money::paisa($purchase->price)).'.');
             }
 
             $m->update(['amount' => Money::taka($new)]);
-            $purchase->update([
-                'paid_amount' => Money::taka($paid),
-                'payment_status' => $paid + Money::paisa($purchase->due_adjustment) >= Money::paisa($purchase->price) ? 'paid' : 'partial',
-            ]);
+            app(PayableService::class)->recalculate($purchase);
 
             return;
         }
@@ -210,6 +221,7 @@ class TransactionService
     public function update(Model $m, array $data, User $user): Model
     {
         return DB::transaction(function () use ($m, $data, $user) {
+            $this->lockParent($m);
             $m = $m::lockForUpdate()->findOrFail($m->id);
 
             if (! self::editable($m)) {
@@ -310,6 +322,7 @@ class TransactionService
     private function retire(Model $m, User $user, ?string $reason): void
     {
         DB::transaction(function () use ($m, $user, $reason) {
+            $this->lockParent($m);
             $m = $m::lockForUpdate()->findOrFail($m->id);
 
             if ($lock = $this->deleteLock($m)) {
@@ -335,14 +348,9 @@ class TransactionService
                 app(PaymentService::class)->recalculate($sale);
             } elseif ($m instanceof PurchasePayment) {
                 $purchase = Purchase::lockForUpdate()->findOrFail($m->purchase_id);
-                $paid = max(Money::paisa($purchase->paid_amount) - Money::paisa($m->amount), 0);
-                $settled = $paid + Money::paisa($purchase->due_adjustment);
 
                 $leave();
-                $purchase->update([
-                    'paid_amount' => Money::taka($paid),
-                    'payment_status' => $settled >= Money::paisa($purchase->price) ? 'paid' : ($settled > 0 ? 'partial' : 'unpaid'),
-                ]);
+                app(PayableService::class)->recalculate($purchase);
             } else {
                 $leave();
             }
