@@ -90,7 +90,7 @@ class User extends Authenticatable
     {
         return $this->only(['id', 'name', 'email', 'role', 'photo_url']) + [
             'role_label' => PermissionCatalog::ROLES[$this->role] ?? $this->role,
-            'shop' => $this->shop?->only(['id', 'name']),
+            'shop' => $this->shop ? $this->shop->only(['id', 'name']) + ['subscription' => $this->shop->subscription?->summary()] : null,
             'permissions' => $this->permissionKeys(),
         ];
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useAutoDate } from "@/lib/settings";
+import { useAutoDate, useMemoField } from "@/lib/settings";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -31,17 +31,19 @@ export function CollectPaymentModal({ open, sale, onClose, onDone }: { open: boo
     method: z.enum(["cash", "bank", "mobile"]),
     paid_at: z.string().min(1, "Payment date is required.").refine((v) => v <= todayStr(), "Payment date cannot be in the future."),
     reference: z.string(),
+    memo_no: z.string().max(100, "Memo no. is too long."),
     note: z.string(),
   });
   type Values = z.infer<typeof schema>;
   const autoDate = useAutoDate();
-  const { register, handleSubmit, reset, setError, formState: { errors, isSubmitting } } = useForm<Values>({
+  const showMemo = useMemoField();
+  const { register, handleSubmit, reset, setError, setValue, formState: { errors, isSubmitting } } = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { amount: "", installment_id: "", method: "cash", paid_at: autoDate, reference: "", note: "" },
+    defaultValues: { amount: "", installment_id: "", method: "cash", paid_at: autoDate, reference: "", memo_no: "", note: "" },
   });
 
   useEffect(() => {
-    if (open) reset({ amount: "", installment_id: "", method: "cash", paid_at: autoDate, reference: "", note: "" });
+    if (open) reset({ amount: "", installment_id: "", method: "cash", paid_at: autoDate, reference: "", memo_no: "", note: "" });
   }, [open, reset, autoDate]);
 
   const unpaid = (sale.plan?.installments ?? []).filter((i) => !["paid", "cancelled"].includes(i.status));
@@ -67,9 +69,18 @@ export function CollectPaymentModal({ open, sale, onClose, onDone }: { open: boo
         </div>
         {sale.payment_type === "installment" && (
           <Field label="Apply to installment (optional)" error={errors.installment_id?.message}>
-            <NativeSelect className={inputCls} {...register("installment_id")}>
-              <option value="">Oldest unpaid first</option>
-              {unpaid.map((i) => <option key={i.id} value={i.id}>#{i.seq_no} · {fmtDate(i.due_date)} · remaining {money(i.amount - i.paid_amount)}</option>)}
+            <NativeSelect className={inputCls} {...register("installment_id", {
+              // choosing an installment fills in what is left on it and its due date (today, for one not due yet: a payment cannot be dated ahead)
+              onChange: (e) => {
+                const i = unpaid.find((x) => String(x.id) === e.target.value);
+                if (!i) return;
+                setValue("amount", String(Math.round((i.amount - i.paid_amount) * 100) / 100), { shouldValidate: true });
+                const due = i.due_date.slice(0, 10);
+                setValue("paid_at", due < todayStr() ? due : todayStr(), { shouldValidate: true });
+              },
+            })}>
+              <option value="">Earliest due first</option>
+              {unpaid.map((i) => <option key={i.id} value={i.id}>{i.seq_no === 0 ? "Promise" : `#${i.seq_no}`} · {fmtDate(i.due_date)} · remaining {money(i.amount - i.paid_amount)}</option>)}
             </NativeSelect>
           </Field>
         )}
@@ -79,6 +90,7 @@ export function CollectPaymentModal({ open, sale, onClose, onDone }: { open: boo
           </Field>
           <Field label="Reference" error={errors.reference?.message}><Input className={inputCls} {...register("reference")} /></Field>
         </div>
+        {showMemo && <Field label="Memo no. (optional)" error={errors.memo_no?.message}><Input className={inputCls} {...register("memo_no")} /></Field>}
         <Field label="Note" error={errors.note?.message}><Input className={inputCls} {...register("note")} /></Field>
         <Actions onClose={onClose} busy={isSubmitting} submit="Collect" />
       </form>

@@ -3,15 +3,15 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Resources\InvestorResource;
+use App\Http\Resources\InvestorSaleResource;
 use App\Http\Resources\PurchaseResource;
 use App\Http\Resources\SaleResource;
 use App\Http\Resources\VehicleResource;
 use App\Models\Advance;
-use App\Services\TransactionService;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Investor;
+use App\Models\InvestorSale;
 use App\Models\InvestorSettlement;
 use App\Models\Payment;
 use App\Models\Purchase;
@@ -19,12 +19,13 @@ use App\Models\PurchasePayment;
 use App\Models\Sale;
 use App\Models\Supplier;
 use App\Models\Vehicle;
-use App\Services\InvestorPortfolioService;
+use App\Services\TransactionService;
 use App\Support\Money;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Collection;
 
 class ReportController extends Controller implements HasMiddleware
 {
@@ -59,21 +60,10 @@ class ReportController extends Controller implements HasMiddleware
             'sales' => $sales->map(fn ($s) => [
                 ...SaleResource::make($s)->resolve(),
                 'next_due_date' => $s->payment_type === 'installment'
-                    ? $s->plan?->installments->whereIn('status', ['pending', 'partial', 'overdue'])->sortBy('seq_no')->first()?->due_date?->toDateString()
+                    ? $s->plan?->installments->whereIn('status', ['pending', 'partial', 'overdue'])->sortBy('due_date')->first()?->due_date?->toDateString()
                     : $s->promises->where('status', 'open')->sortBy('promised_date')->first()?->promised_date?->toDateString(),
             ]),
         ]);
-    }
-
-    public function investors(InvestorPortfolioService $portfolio): JsonResponse
-    {
-        $investors = Investor::orderBy('name')->get();
-        $summaries = $portfolio->summaries($investors);
-
-        return $this->success($investors->map(fn ($i) => [
-            'investor' => InvestorResource::make($i)->resolve(),
-            'summary' => $summaries[$i->id],
-        ]));
     }
 
     /** Purchases in a date range: totals, a breakdown by vehicle type and the list itself. */
@@ -117,7 +107,7 @@ class ReportController extends Controller implements HasMiddleware
     {
         $request->validate(['from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from']]);
 
-        $sales = Sale::with(['vehicle', 'customer', 'purchase', 'plan'])
+        $sales = Sale::with(['vehicle', 'customer', 'purchase', 'plan', 'investorSale.investor:id,name'])
             ->when($request->from, fn ($q, $v) => $q->whereDate('sale_date', '>=', $v))
             ->when($request->to, fn ($q, $v) => $q->whereDate('sale_date', '<=', $v))
             ->when($request->vehicle_type, fn ($q, $t) => $q->whereHas('vehicle', fn ($q) => $q->where('vehicle_type', $t)))
@@ -152,6 +142,40 @@ class ReportController extends Controller implements HasMiddleware
                 'profit' => Money::sum($g, $profit),
             ])->values(),
             'sales' => $rows->values(),
+        ]);
+    }
+
+    /** Investor sales in a date range: each with its sale, what the shop pays the investor back and what the investor still owes, plus totals. */
+    public function investorSales(Request $request): JsonResponse
+    {
+        $request->validate([
+            'from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from'],
+            'investor_id' => ['nullable', 'integer'], 'status' => ['nullable', 'in:active,cancelled'],
+        ]);
+
+        // the sale's total needs its plan: loaded with the rest, not once per row
+        $rows = InvestorSale::with(['investor', 'customer', 'settlements', 'sale.vehicle', 'sale.customer', 'sale.plan'])
+            ->when($request->from, fn ($q, $v) => $q->whereDate('date', '>=', $v))
+            ->when($request->to, fn ($q, $v) => $q->whereDate('date', '<=', $v))
+            ->when($request->investor_id, fn ($q, $id) => $q->where('investor_id', $id))
+            ->when($request->status, fn ($q, $st) => $q->where('status', $st))
+            ->orderByDesc('date')->orderByDesc('id')->get()
+            ->map(fn ($x) => InvestorSaleResource::make($x)->resolve())->values();
+        $active = $rows->where('status', 'active');
+
+        return $this->success([
+            'totals' => [
+                'count' => $active->count(),
+                'cancelled' => $rows->where('status', 'cancelled')->count(),
+                'amount' => Money::sum($active, 'principal'),
+                'profit' => Money::sum($active, 'profit_amount'),
+                'payable' => Money::sum($active, 'total_payable'),
+                'paid' => Money::sum($active, fn ($r) => Money::add($r['position']['principal_paid'], $r['position']['profit_paid'])),
+                'due' => Money::sum($active, 'position.total_due'),
+                'investor_gave' => Money::sum($active, 'investor_paid'),
+                'investor_owes' => Money::sum($active, 'investor_owes'),
+            ],
+            'investor_sales' => $rows,
         ]);
     }
 
@@ -215,14 +239,14 @@ class ReportController extends Controller implements HasMiddleware
     /**
      * How one collection was spread: the months it covers (from the installments it paid) and the amount on each part.
      *
-     * @param  \Illuminate\Support\Collection<int,\App\Models\Payment>  $rows
+     * @param  Collection<int,Payment>  $rows
      * @return array<int,array{0:string,1:?string}>
      */
     private function splitOf($rows): array
     {
         $parts = $rows->sortBy('id')->map(function ($p) {
             $label = $p->installment
-                ? '#'.$p->installment->seq_no.' ('.$p->installment->due_date->format('M Y').')'
+                ? ($p->installment->seq_no === 0 ? 'Promise' : '#'.$p->installment->seq_no).' ('.$p->installment->due_date->format('M Y').')'
                 : ($p->charge ? $p->charge->purpose : 'Payment');
 
             return $label.': '.number_format((float) $p->amount, 2);
@@ -236,6 +260,9 @@ class ReportController extends Controller implements HasMiddleware
     {
         $out = [];
         $sales = Sale::with(['vehicle:id,chassis_no,brand,model,engine_no', 'plan', 'charges', 'payments.receiver:id,name', 'payments.installment:id,seq_no,due_date', 'payments.charge:id,purpose'])->when($customerId, fn ($q) => $q->where('customer_id', $customerId))->get();
+
+        // cancelled payments are left out of every total, but the statement still lists them
+        $cancelled = Payment::onlyCancelled()->with('canceller:id,name')->whereIn('sale_id', $sales->pluck('id'))->get()->groupBy('sale_id');
 
         foreach ($sales as $sale) {
             $vehicle = $sale->vehicle->chassis_no;
@@ -255,9 +282,16 @@ class ReportController extends Controller implements HasMiddleware
                 // a refund gives money back, so it adds to what they owe again
                 $out[] = $this->entry($sale->customer_id, $pay->paid_at->toDateString(), 1, $pay->id, 'payment', $label, $vehicle, $total < 0 ? abs($total) : 0, $total > 0 ? $total : 0, $pay->reference, 'CP-'.$pay->id, [
                     ['Vehicle', $name ?: null], ['Chassis', $vehicle], ['Sale', "#{$sale->id}"], ['Method', ucfirst($pay->method)],
-                    ['Installment', $rows->count() === 1 && $pay->installment ? "#{$pay->installment->seq_no}" : null], ...$split,
+                    ['Installment', $rows->count() === 1 && $pay->installment ? ($pay->installment->seq_no === 0 ? 'Promise' : "#{$pay->installment->seq_no}") : null], ...$split,
                     ['Received by', $pay->receiver?->name], ['Memo no.', $pay->memo_no], ['Note', $pay->note],
-                ], TransactionService::tx($pay));
+                ], TransactionService::tx($pay->setRelation('sale', $sale))); // its sale (with plan and payments) is already loaded
+            }
+
+            foreach ($cancelled->get($sale->id, []) as $pay) {
+                $out[] = $this->entry($sale->customer_id, $pay->paid_at->toDateString(), 1, $pay->id, 'cancelled', "Cancelled payment ({$pay->method}): ".number_format($pay->amount, 2), $vehicle, 0, 0, $pay->reference, 'CX-'.$pay->id, [
+                    ['Vehicle', $name ?: null], ['Chassis', $vehicle], ['Sale', "#{$sale->id}"], ['Method', ucfirst($pay->method)], ['Amount', number_format($pay->amount, 2)],
+                    ['Cancelled by', $pay->canceller?->name], ['Reason', $pay->cancel_reason],
+                ]);
             }
 
             foreach ($sale->charges as $charge) {
@@ -279,6 +313,8 @@ class ReportController extends Controller implements HasMiddleware
         $out = [];
         $purchases = Purchase::with(['vehicle:id,chassis_no,brand,model,engine_no', 'payments'])->whereNotNull('supplier_id')->when($supplierId, fn ($q) => $q->where('supplier_id', $supplierId))->get();
 
+        $cancelled = PurchasePayment::onlyCancelled()->with('canceller:id,name')->whereIn('purchase_id', $purchases->pluck('id'))->get()->groupBy('purchase_id');
+
         foreach ($purchases as $p) {
             $vehicle = $p->vehicle->chassis_no;
             $name = trim("{$p->vehicle->brand} {$p->vehicle->model}");
@@ -299,6 +335,12 @@ class ReportController extends Controller implements HasMiddleware
                 // money taken from an advance was counted when the advance was given
                 $fromAdvance = $pay->method === 'advance';
                 $out[] = $this->entry($p->supplier_id, $pay->paid_at->toDateString(), 1, $pay->id, 'payment', $fromAdvance ? 'Paid from advance' : "Payment ({$pay->method})", $vehicle, 0, $fromAdvance ? 0 : (float) $pay->amount, $pay->reference, 'SP-'.$pay->id, [...$car, ['Purchase', "#{$p->id}"], ['Method', ucfirst($pay->method)], ['Note', $pay->note]], TransactionService::tx($pay));
+            }
+
+            foreach ($cancelled->get($p->id, []) as $pay) {
+                $out[] = $this->entry($p->supplier_id, $pay->paid_at->toDateString(), 1, $pay->id, 'cancelled', "Cancelled payment ({$pay->method}): ".number_format($pay->amount, 2), $vehicle, 0, 0, $pay->reference, 'CXS-'.$pay->id, [
+                    ...$car, ['Purchase', "#{$p->id}"], ['Method', ucfirst($pay->method)], ['Amount', number_format($pay->amount, 2)], ['Cancelled by', $pay->canceller?->name], ['Reason', $pay->cancel_reason],
+                ]);
             }
         }
 
@@ -376,10 +418,11 @@ class ReportController extends Controller implements HasMiddleware
             ->orderBy('id')->get()
             // one collection spread over several installments is one line
             ->groupBy(fn (Payment $p) => $p->batch_no ? $p->sale_id.'|'.$p->batch_no : 'row-'.$p->id)
-            ->map(fn ($rows) => $rows->first())
-            ->map(fn (Payment $p) => [
-                'id' => $p->id, 'sale_id' => $p->sale_id, 'name' => $p->sale->customer->name, 'phone' => $p->sale->customer->phone, 'vehicle' => $p->sale->vehicle->chassis_no,
-                'method' => $p->method, 'amount' => $p->batch_no ? Money::sum(Payment::where('sale_id', $p->sale_id)->where('batch_no', $p->batch_no)->whereDate('paid_at', $date)->get(), 'amount') : (float) $p->amount, 'note' => $p->note,
+            // the rows of one collection are all here already (same sale, batch and day): their sum is the line's amount
+            ->map(fn ($rows) => ['p' => $rows->first(), 'amount' => Money::sum($rows, 'amount')])
+            ->map(fn (array $g) => [
+                'id' => $g['p']->id, 'sale_id' => $g['p']->sale_id, 'name' => $g['p']->sale->customer->name, 'phone' => $g['p']->sale->customer->phone, 'vehicle' => $g['p']->sale->vehicle->chassis_no,
+                'method' => $g['p']->method, 'amount' => $g['amount'], 'note' => $g['p']->note,
             ])->values();
 
         $supplierPayments = collect()
@@ -391,7 +434,9 @@ class ReportController extends Controller implements HasMiddleware
 
         // entered by hand (add investment / pay installment); the entries a sale or collection makes by itself are not cash the shop moved
         $investorRows = InvestorSettlement::with('investor:id,name,phone')->whereDate('date', $date)
-            ->where(fn ($q) => $q->whereNull('note')->orWhere('note', 'not like', 'Auto:%'))->orderBy('id')->get()
+            // the investor's down payment given with an investor sale is cash in too
+            ->where(fn ($q) => $q->whereNull('note')->orWhere('note', 'not like', 'Auto:%')->orWhere(fn ($q) => $q->where('type', 'investment')->whereNotNull('investor_sale_id')))
+            ->orderBy('id')->get()
             ->map(fn (InvestorSettlement $i) => [
                 'id' => $i->id, 'investor' => $i->investor->name, 'phone' => $i->investor->phone, 'type' => $i->type, 'amount' => (float) $i->amount,
                 'direction' => $i->type === 'investment' ? 'in' : 'out', 'note' => $i->note,
@@ -466,6 +511,12 @@ class ReportController extends Controller implements HasMiddleware
             ->map(fn (InvestorSettlement $i) => [
                 'id' => $i->id, 'date' => $i->date->toDateString(), 'investor_id' => $i->investor_id, 'investor' => $i->investor->name, 'phone' => $i->investor->phone,
                 'type' => $i->type, 'amount' => (float) $i->amount, 'note' => $i->note, 'auto' => str_starts_with((string) $i->note, 'Auto:'),
+                'investor_sale_id' => $i->investor_sale_id, 'plan_id' => $i->plan_id,
+                // an installment paid to the investor is saved as principal and profit together: the same batch is one payment
+                'batch' => in_array($i->type, ['principal_return', 'profit_share'], true)
+                    // saved within the same minute (the two parts are saved one after the other, maybe a second apart)
+                    ? implode('|', [$i->investor_id, $i->date->toDateString(), $i->investor_sale_id, $i->plan_id, $i->created_at?->format('Y-m-d H:i')])
+                    : null,
             ]);
 
         $sum = fn (string $type) => Money::sum($rows->where('type', $type), 'amount');

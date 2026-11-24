@@ -107,10 +107,10 @@ export const StatusBadge = ({ status }: { status: string }) => (
   <Badge tone={STATUS_TONE[status] ?? "gray"}>{label(status)}</Badge>
 );
 
-export function Card({ title, actions, children, className = "" }: { title?: string; actions?: ReactNode; children: ReactNode; className?: string }) {
+export function Card({ id, title, actions, children, className = "" }: { id?: string; title?: string; actions?: ReactNode; children: ReactNode; className?: string }) {
   const { t } = useT();
   return (
-    <ShadCard className={cn("overflow-visible border-0 bg-white/90 shadow-sm ring-1 ring-emerald-300", className)}>
+    <ShadCard id={id} className={cn("scroll-mt-20 overflow-visible border-0 bg-white/90 shadow-sm ring-1 ring-emerald-300", className)}>
       {(title || actions) && (
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base text-slate-800">{title ? t(title) : title}</CardTitle>

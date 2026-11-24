@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { fmtDate, label, money } from "@/lib/format";
+import { fmtDate, label, money, todayStr } from "@/lib/format";
 import { useFetch } from "@/lib/hooks";
 import type { Installment, Payment, Promise_, RegLog, Sale } from "@/lib/types";
 import { Badge, Button, Card, ErrorText, KV, Loading, PageHeader, StatusBadge } from "@/components/app-ui";
@@ -14,49 +14,10 @@ import { Col, DataTable } from "@/components/DataTable";
 import { CancelSaleModal, CollectPaymentModal, PromiseModal } from "@/components/forms/SaleModals";
 import { SaleEditModal } from "@/components/forms/SaleEditModal";
 import { SaleChargeModal } from "@/components/forms/SaleChargeModal";
-import { Ban, CalendarClock, HandCoins, Pencil, Plus, Printer, Trash2 } from "lucide-react";
-import { openSaleMemo } from "@/components/SaleMemo";
-
-const STEPS = ["pending", "bank_chalan_done", "file_received", "file_processing", "registration_complete", "document_provided"];
-
-function Stepper({ sale, onChanged }: { sale: Sale; onChanged: () => void }) {
-  const { can } = useAuth();
-  const current = STEPS.indexOf(sale.registration_status);
-  const [busy, setBusy] = useState(false);
-
-  const move = async (to: string, back: boolean) => {
-    const note = back ? prompt("Reason for moving back a step (required):") : prompt("Note (optional):");
-    if (note === null || (back && !note.trim())) return;
-    setBusy(true);
-    try {
-      const res = await api(`/sales/${sale.id}/registration`, { method: "PATCH", body: { status: to, note: note || undefined } });
-      toast.success(res.message);
-      onChanged();
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Failed");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <>
-      <ol className="flex flex-wrap gap-2">
-        {STEPS.map((s, i) => (
-          <li key={s} className={`rounded-full border px-3 py-1 text-xs capitalize ${i < current ? "border-green-600 bg-green-50 text-green-800" : i === current ? "border-gray-900 bg-gray-900 text-white" : "border-gray-300 text-gray-500"}`}>
-            {i + 1}. {label(s)}
-          </li>
-        ))}
-      </ol>
-      {sale.status === "active" && can("registration.update") && (
-        <div className="mt-3 flex gap-2">
-          {current > 0 && <Button variant="outline" disabled={busy} onClick={() => move(STEPS[current - 1], true)}>Back one step</Button>}
-          {current < STEPS.length - 1 && <Button disabled={busy} onClick={() => move(STEPS[current + 1], false)}>Mark “{label(STEPS[current + 1])}”</Button>}
-        </div>
-      )}
-    </>
-  );
-}
+import { Ban, CalendarClock, FileText, HandCoins, Landmark, Pencil, Plus, Printer, Trash2 } from "lucide-react";
+import { openSaleMemo, openSaleStatement } from "@/components/SaleMemo";
+import { InvestorSaleCard } from "@/components/InvestorSaleCard";
+import { RegistrationStepper } from "@/components/RegistrationStepper";
 
 export default function SaleDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -70,13 +31,31 @@ export default function SaleDetailPage() {
 
   const active = sale.status === "active";
   const installments = sale.plan?.installments ?? [];
+  // what is payable now (dates reached), as the Accounts page works it out: an installment's or promise's date reached;
+  // a due with no promised date is all payable now
+  const today = todayStr();
+  const dated = sale.payment_type === "installment" && sale.plan
+    ? installments.filter((i) => ["pending", "partial", "overdue"].includes(i.status)).map((i) => [i.due_date, i.amount - i.paid_amount] as const)
+    : (sale.promises ?? []).filter((p) => ["open", "broken"].includes(p.status)).map((p) => [p.promised_date, Math.min(p.promised_amount, sale.due_amount)] as const);
+  const currentDue = dated.length ? Math.min(dated.filter(([d]) => d.slice(0, 10) <= today).reduce((t, [, a]) => t + a, 0), sale.due_amount) : sale.due_amount;
+
+  // when each installment was paid: the date of the latest payment that went to it (fully or in part)
+  const paidOn = new Map<number, string>();
+  for (const pay of sale.payments ?? []) {
+    if (!pay.installment_id) continue;
+    const before = paidOn.get(pay.installment_id);
+    if (!before || pay.paid_at > before) paidOn.set(pay.installment_id, pay.paid_at);
+  }
+  for (const i of sale.plan?.installments ?? []) if (!paidOn.has(i.id) && i.paid_at && i.paid_amount > 0) paidOn.set(i.id, i.paid_at);
 
   const instCols: Col<Installment>[] = [
-    { header: "#", accessorKey: "seq_no" },
+    // number 0 is the promised amount (paid by its date, outside the installments)
+    { header: "#", cell: ({ row }) => (row.original.seq_no === 0 ? "Promise" : row.original.seq_no) },
     { header: "Due date", cell: ({ row }) => fmtDate(row.original.due_date) },
     { header: "Amount", cell: ({ row }) => money(row.original.amount) },
     { header: "Paid", cell: ({ row }) => money(row.original.paid_amount) },
     { header: "Remaining", cell: ({ row }) => money(row.original.amount - row.original.paid_amount) },
+    { header: "Paid on", cell: ({ row }) => (paidOn.get(row.original.id) ? fmtDate(paidOn.get(row.original.id)!) : "-") },
     { header: "Status", cell: ({ row }) => <StatusBadge status={row.original.status} /> },
   ];
   // one collection spread over several installments is one row: the amounts add up and the installments are listed together
@@ -157,9 +136,13 @@ export default function SaleDetailPage() {
         title={`Sale #${sale.id}`}
         actions={<>
           <Button variant="outline" onClick={() => openSaleMemo(sale, user?.shop?.name ?? "Gari Becho", { installments: false })}><Printer className="size-4 text-sky-600" /> Memo</Button>
+          <Button variant="outline" onClick={() => openSaleStatement(sale, user?.shop?.name ?? "Gari Becho")}><FileText className="size-4 text-emerald-600" /> Statement</Button>
           {active && can("payments.collect") && sale.due_amount > 0 && <Button onClick={() => setModal("pay")}><HandCoins className="size-4 " /> Collect payment</Button>}
           {active && can("promises.manage") && sale.due_amount > 0 && sale.payment_type === "due" && <Button variant="outline" onClick={() => setModal("promise")}><CalendarClock className="size-4 text-amber-500" /> Add promise</Button>}
           {active && can("sales.charge") && <Button variant="outline" onClick={() => setChargeFor("new")}><Plus className="size-4 text-amber-600" /> Add charge</Button>}
+          {active && can("sales.create") && sale.payment_type !== "cash" && !sale.investor && !sale.investor_sale && (
+            <Link className="inline-flex items-center gap-1.5 rounded-lg border border-sky-300 bg-white px-3 py-2 text-sm font-medium text-sky-700 hover:bg-sky-50" href={`/sales/new?tab=investor&vehicle=${sale.vehicle_id}`}><Landmark className="size-4" /> Add investor sale</Link>
+          )}
           {active && can("sales.edit") && <Button variant="outline" onClick={() => setModal("edit")}><Pencil className="size-4 text-emerald-600" /> Edit</Button>}
           {active && can("sales.cancel") && <Button variant="danger" onClick={() => setModal("cancel")}><Ban className="size-4 " /> Cancel sale</Button>}
         </>}
@@ -170,14 +153,20 @@ export default function SaleDetailPage() {
         <KV items={[
           ["Vehicle", <Link key="v" className="underline" href={`/vehicles/${sale.vehicle_id}`}>{sale.vehicle?.chassis_no}</Link>],
           ["Buyer", <Link key="b" className="underline" href={`/customers/${sale.customer_id}`}>{sale.customer?.name}</Link>],
+          ...(sale.customer?.father_name ? [["Father's name", sale.customer.father_name] as [string, React.ReactNode]] : []),
+          ...(sale.additional_customer ? [["Additional customer", <Link key="ac" className="underline" href={`/customers/${sale.additional_customer.id}`}>{sale.additional_customer.name}{sale.additional_customer.phone ? ` · ${sale.additional_customer.phone}` : ""}</Link>] as [string, React.ReactNode]] : []),
           ["Sale date", fmtDate(sale.sale_date)], ["Sale price", money(sale.sale_price)], ["Down payment", money(Number(sale.down_payment) - Number(sale.advance?.amount ?? 0))],
           ["Type", <Badge key="t" tone="blue">{sale.payment_type}</Badge>], ["Status", <StatusBadge key="s" status={sale.status} />],
+          ...(active && sale.payment_type !== "cash" ? [
+            ["Total due", <b key="td" className={sale.due_amount > 0 ? "text-amber-700" : "text-emerald-700"}>{money(sale.due_amount)}</b>] as [string, React.ReactNode],
+            ["Current due", <b key="cd" className={currentDue > 0 ? "text-rose-700" : "text-emerald-700"}>{money(Math.round(currentDue * 100) / 100)}</b>] as [string, React.ReactNode],
+          ] : []),
           ...(sale.advance ? [[sale.advance.booking_id ? "Booking advance" : "Advance", `${money(sale.advance.amount)} received on ${fmtDate(sale.advance.date)} (${sale.advance.method})`] as [string, React.ReactNode]] : []),
           ...(sale.memo_no ? [["Memo no.", sale.memo_no] as [string, React.ReactNode]] : []),
           ...(sale.guarantor_name ? [["Guarantor name", sale.guarantor_name] as [string, React.ReactNode]] : []),
           ...(sale.guarantor_phone ? [["Guarantor", <a key="g" className="underline" href={`tel:${sale.guarantor_phone}`}>{sale.guarantor_phone}</a>] as [string, React.ReactNode]] : []),
           ...(sale.investor ? [["Investor", <Link key="i" className="underline" href={`/investors/${sale.investor.id}`}>{sale.investor.name}</Link>] as [string, React.ReactNode]] : []),
-          ...(sale.plan ? [["Plan", `${money(sale.plan.principal)} + ${sale.plan.interest_rate}% = ${money(sale.plan.total_payable)}`] as [string, React.ReactNode]] : []),
+          ...(sale.plan ? [["Plan", `${money(sale.plan.principal)} + ${money(sale.plan.interest_amount)} = ${money(sale.plan.total_payable)}`] as [string, React.ReactNode]] : []),
         ]} />
       </Card>
 
@@ -195,7 +184,10 @@ export default function SaleDetailPage() {
         </Card>
       )}
 
-      <Card title="Registration" className="mb-4"><Stepper sale={sale} onChanged={reload} /></Card>
+      {/* paying the investor, collecting from them and their schedule are on the investor sale's own page */}
+      {sale.investor_sale && <InvestorSaleCard investorSale={sale.investor_sale} onChanged={reload} summary />}
+
+      <Card title="Registration" className="mb-4"><RegistrationStepper sale={sale} onChanged={reload} /></Card>
 
       {sale.plan && (<><h2 className="mb-2 font-semibold">Installments</h2><DataTable columns={instCols} data={installments} /></>)}
       {sale.payment_type === "due" && (<><h2 className="mb-2 mt-6 font-semibold">Promises</h2><DataTable columns={promiseCols} data={sale.promises ?? []} empty="No promises." /></>)}

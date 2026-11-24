@@ -55,7 +55,9 @@ function PurchaseForm() {
   const { user } = useAuth();
   const [created, setCreated] = useState<Purchase | null>(null); // the purchase just saved: the page stays and offers the voucher
   const params = useSearchParams();
-  const [source, setSource] = useState<"supplier" | "customer">("supplier"); // where the vehicle is bought from
+  // where the vehicle is bought from: a Repurchase (opened with a chassis number) is a second-hand buy back from the customer,
+  // so it starts there and the chassis lookup fills in the vehicle and selects its customer
+  const [source, setSource] = useState<"supplier" | "customer">(params.get("chassis") ? "customer" : "supplier");
   const [vehicle, setVehicle] = useState<Vehicle | null>(null); // set when the chassis or registration number matches an existing vehicle
 
   const { register, handleSubmit, reset, setValue, getValues, watch, setError, formState: { errors, isSubmitting } } = useForm<Values>({
@@ -152,6 +154,11 @@ function PurchaseForm() {
     if (String(sale.customer_id) !== getValues("party_id")) setValue("party_id", String(sale.customer_id), { shouldValidate: true });
     setPicked(String(sale.id));
   };
+
+  // buying from customers is turned off in Settings: a Repurchase falls back to the supplier tab
+  useEffect(() => {
+    if (source === "customer" && settings.data?.purchase?.from_customer === false) setSource("supplier");
+  }, [source, settings.data]);
 
   // Start on the shop's primary vehicle type (Settings), once, with that type's presets.
   const primaryApplied = useRef(false);
@@ -351,12 +358,12 @@ function PurchaseForm() {
                 onChange={chooseFound}
                 onQueryChange={setFindText}
                 loading={found.loading}
-                fallbackLabel={pickedSale?.vehicle ? `${pickedSale.vehicle.chassis_no} · ${customer.data?.customer.name ?? ""}` : undefined}
+                fallbackLabel={pickedSale?.vehicle ? `Chassis: ${pickedSale.vehicle.chassis_no}${pickedSale.vehicle.engine_no ? ` · Engine: ${pickedSale.vehicle.engine_no}` : ""}` : undefined}
                 placeholder="Search by customer name, mobile, NID, engine no. or chassis no...."
                 options={(found.data ?? []).map((sale) => ({
                   value: String(sale.id),
-                  label: `${sale.vehicle?.chassis_no} · ${sale.customer?.name}`,
-                  hint: [[sale.customer?.phone, sale.customer?.alt_phone].filter(Boolean).join(" / "), sale.customer?.nid ? `NID ${sale.customer.nid}` : "", `Engine ${sale.vehicle?.engine_no}`, [sale.vehicle?.brand, sale.vehicle?.model].filter(Boolean).join(" "), sale.due_amount > 0 ? `Due ${money(sale.due_amount)}` : "Fully paid"].filter(Boolean).join(" · "),
+                  label: `Chassis: ${sale.vehicle?.chassis_no}${sale.vehicle?.engine_no ? ` · Engine: ${sale.vehicle.engine_no}` : ""}`,
+                  hint: [[sale.customer?.phone, sale.customer?.alt_phone].filter(Boolean).join(" / "), sale.customer?.nid ? `NID ${sale.customer.nid}` : "", [sale.vehicle?.brand, sale.vehicle?.model].filter(Boolean).join(" "), sale.due_amount > 0 ? `Due ${money(sale.due_amount)}` : "Fully paid"].filter(Boolean).join(" · "),
                 }))}
               />
                 <p className="text-xs text-slate-500">Picking a vehicle we sold fills in its customer.</p>
@@ -373,7 +380,7 @@ function PurchaseForm() {
                       onClick={() => pickSale(s)}
                       className={`rounded-xl p-3 text-left ring-1 transition ${picked === String(s.id) ? "bg-emerald-50 ring-2 ring-emerald-600" : "bg-white ring-emerald-300 hover:bg-emerald-50"}`}
                     >
-                      <p className="font-semibold text-slate-900">{s.vehicle?.chassis_no}</p>
+                      <p className="font-semibold text-slate-900">Chassis: {s.vehicle?.chassis_no}{s.vehicle?.engine_no ? ` · Engine: ${s.vehicle.engine_no}` : ""}</p>
                       <p className="text-sm text-slate-600">{[s.vehicle?.brand, s.vehicle?.model, s.vehicle?.year].filter(Boolean).join(" ") || "-"} · Sale #{s.id} · {fmtDate(s.sale_date)}</p>
                       <p className="mt-1 text-sm">Price {money(s.sale_price)} · Paid {money(s.total_paid)}</p>
                       <p className={`text-sm font-semibold ${s.due_amount > 0 ? "text-amber-700" : "text-emerald-700"}`}>{s.due_amount > 0 ? `Due ${money(s.due_amount)}` : "Fully paid"}</p>
@@ -402,7 +409,7 @@ function PurchaseForm() {
             <div className={`mb-4 space-y-1 rounded-lg border p-3 text-sm ${blocked ? "border-red-200 bg-red-50" : "border-emerald-200 bg-emerald-50"}`}>
               <p className="flex flex-wrap items-center gap-2 font-medium">
                 Existing vehicle: {[vehicle.brand, vehicle.model, vehicle.year].filter(Boolean).join(" ") || vehicle.chassis_no} <StatusBadge status={vehicle.status} />
-                <Link className="text-xs font-normal underline" href={`/vehicles/${vehicle.id}`} target="_blank">View history</Link>
+                <Link className="text-xs font-normal underline" href={`/vehicles/${vehicle.id}?tab=history`} target="_blank">View history</Link>
               </p>
               {blocked
                 ? <p className="text-red-700">Currently {vehicle.status.replace("_", " ")}. It can be bought again only after it is sold.</p>
@@ -434,7 +441,7 @@ function PurchaseForm() {
               ]} />
             </div>
           ) : (
-            <div className="space-y-3"><VehicleFields register={register} errors={errors} lockIds={!!vehicle} setValue={setValue} getValues={getValues} watch={watch} onTypeAdded={(c) => { settings.reload(); if (c.purchase_price && !getValues("price")) setValue("price", String(c.purchase_price)); }} /></div>
+            <div className="space-y-3"><VehicleFields register={register} errors={errors} lockIds={!!vehicle} setValue={setValue} watch={watch} /></div>
           )}
         </Card>
 

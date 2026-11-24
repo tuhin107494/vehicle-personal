@@ -7,6 +7,7 @@ use App\Models\Booking;
 use App\Models\Draft;
 use App\Models\DuePromise;
 use App\Models\InstallmentPlan;
+use App\Models\InvestorSale;
 use App\Models\InvestorSettlement;
 use App\Models\Payment;
 use App\Models\Sale;
@@ -64,6 +65,7 @@ class SaleService
                 'vehicle_id' => $vehicle->id,
                 'purchase_id' => $vehicle->current_purchase_id,
                 'customer_id' => $data['customer_id'],
+                'additional_customer_id' => $data['additional_customer_id'] ?? null,
                 'sale_date' => $data['sale_date'],
                 'sale_price' => Money::taka($price),
                 'down_payment' => Money::taka($down),
@@ -165,6 +167,7 @@ class SaleService
 
             $sale->update([
                 'customer_id' => $data['customer_id'],
+                'additional_customer_id' => $data['additional_customer_id'] ?? null,
                 'sale_date' => $data['sale_date'],
                 'guarantor_phone' => $data['guarantor_phone'] ?? null,
                 'guarantor_name' => $data['guarantor_name'] ?? null,
@@ -173,18 +176,26 @@ class SaleService
 
             if ($this->moneyTermsChanged($sale, $data, $price, $down, $type)) {
                 $this->rebuildMoneyTerms($sale, $data, $user, $booking, $price, $down, $type);
-            } elseif ($dateChanged) {
-                // the payments taken at the sale follow its date
-                foreach ($sale->payments->whereIn('note', ['Full payment at sale', 'Down payment']) as $payment) {
-                    $payment->update(['paid_at' => Carbon::parse($data['sale_date'])->setTimeFrom($payment->paid_at)]);
+            } else {
+                if ($dateChanged) {
+                    // the payments taken at the sale follow its date
+                    foreach ($sale->payments->whereIn('note', ['Full payment at sale', 'Down payment']) as $payment) {
+                        $payment->update(['paid_at' => Carbon::parse($data['sale_date'])->setTimeFrom($payment->paid_at)]);
+                    }
+
+                    if ($sale->plan) {
+                        InvestorSettlement::where('plan_id', $sale->plan->id)->where('type', 'investment')->where('note', 'like', 'Auto:%')->update(['date' => $sale->sale_date]);
+                    }
                 }
 
-                if ($sale->plan) {
-                    InvestorSettlement::where('plan_id', $sale->plan->id)->where('type', 'investment')->where('note', 'like', 'Auto:%')->update(['date' => $sale->sale_date]);
+                // a new first installment date moves the schedule, even after payments: the amounts stay, only the dates change
+                if ($type === 'installment' && $sale->plan && ! empty($data['first_due_date'])
+                    && $sale->plan->start_date->toDateString() !== Carbon::parse($data['first_due_date'])->toDateString()) {
+                    $this->moveSchedule($sale->plan, Carbon::parse($data['first_due_date']));
                 }
             }
 
-            $sale = Sale::with(['plan.installments', 'payments', 'promises', 'customer', 'investor'])->findOrFail($sale->id);
+            $sale = Sale::with(['plan.installments', 'payments', 'promises', 'customer', 'additionalCustomer', 'investor'])->findOrFail($sale->id);
             $changes = $this->diff($before, $this->snapshot($sale));
 
             if ($changes) {
@@ -195,7 +206,23 @@ class SaleService
         });
     }
 
-    /** Whether the price, down payment, type, installment plan or promise differ from what the sale holds now. */
+    /** Moves a plan's installments to a new first date (number 1 on it, the rest following monthly or weekly). What is paid stays; a promised amount keeps its own date. */
+    private function moveSchedule(InstallmentPlan $plan, Carbon $start): void
+    {
+        $plan->update(['start_date' => $start->toDateString()]);
+
+        foreach ($plan->installments->where('seq_no', '>', 0) as $installment) {
+            $installment->due_date = $plan->frequency === 'weekly' ? $start->copy()->addWeeks($installment->seq_no - 1) : $start->copy()->addMonthsNoOverflow($installment->seq_no - 1);
+
+            if (! in_array($installment->status, ['paid', 'cancelled'], true)) {
+                $installment->status = $installment->due_date->lt(today()) ? 'overdue' : ($installment->paid_amount > 0 ? 'partial' : 'pending');
+            }
+
+            $installment->save();
+        }
+    }
+
+    /** Whether the price, down payment, type, installment plan or promise differ from what the sale holds now (the first installment date only moves the schedule). */
     private function moneyTermsChanged(Sale $sale, array $data, int $price, int $down, string $type): bool
     {
         if (Money::paisa($sale->sale_price) !== $price || Money::paisa($sale->down_payment) !== $down || $sale->payment_type !== $type) {
@@ -204,12 +231,14 @@ class SaleService
 
         if ($type === 'installment') {
             $plan = $sale->plan;
-            [, $interest] = $this->interestOf($data, $price - $down);
+            $promise = Money::paisa($data['promise_amount'] ?? 0);
+            [, $interest] = $this->interestOf($data, $price - $down - $promise);
 
             return ! $plan
+                || Money::paisa($plan->promise_amount ?? 0) !== $promise
+                || ($promise > 0 && $plan->promise_date?->toDateString() !== Carbon::parse($data['promised_date'] ?? 'today')->toDateString())
                 || $plan->number_of_installments !== (int) $data['installment_count']
                 || $plan->frequency !== ($data['frequency'] ?? 'monthly')
-                || $plan->start_date->toDateString() !== Carbon::parse($data['first_due_date'])->toDateString()
                 || Money::paisa($plan->interest_amount) !== $interest
                 || $plan->investor_id !== (empty($data['investor_id']) ? null : (int) $data['investor_id'])
                 || (! empty($data['investor_id']) && round((float) $plan->investor_share_percent, 2) !== round((float) ($data['investor_share_percent'] ?? 0), 2));
@@ -218,7 +247,7 @@ class SaleService
         if ($type === 'due') {
             $promise = $sale->promises->sortBy('id')->first();
 
-            return ($promise?->promised_date?->toDateString()) !== (empty($data['promised_date']) ? null : Carbon::parse($data['promised_date'])->toDateString())
+            return $promise?->promised_date?->toDateString() !== (empty($data['promised_date']) ? null : Carbon::parse($data['promised_date'])->toDateString())
                 || ($promise?->note) !== ($data['promise_note'] ?? null);
         }
 
@@ -231,6 +260,12 @@ class SaleService
 
         if ($collected) {
             throw new BusinessRuleException('Payments have been collected on this sale, so its price, payment type and installments cannot be changed. Cancel the sale and enter it again.');
+        }
+
+        $investorSale = InvestorSale::where('sale_id', $sale->id)->where('status', 'active')->lockForUpdate()->first();
+
+        if ($investorSale && ($type === 'cash' || $price - $down < Money::paisa($investorSale->principal))) {
+            throw new BusinessRuleException('An investor sale funds this sale, so it must keep at least '.Money::format(Money::paisa($investorSale->principal)).' to be paid later. Cancel the investor sale first.');
         }
 
         $plan = $sale->plan;
@@ -269,7 +304,7 @@ class SaleService
     /** @return array<string,string> what a person would want to see changed, by label */
     private function snapshot(Sale $sale): array
     {
-        $sale->loadMissing(['customer', 'investor', 'plan', 'promises']);
+        $sale->loadMissing(['customer', 'additionalCustomer', 'investor', 'plan', 'promises']);
         $plan = $sale->plan;
         $promise = $sale->promises->sortBy('id')->first();
         $money = fn ($v) => number_format((float) $v, 2, '.', '');
@@ -277,6 +312,7 @@ class SaleService
         return array_filter([
             'Sale date' => $sale->sale_date->toDateString(),
             'Buyer' => $sale->customer?->name,
+            'Additional customer' => $sale->additionalCustomer?->name,
             'Sale price' => $money($sale->sale_price),
             'Down payment' => $money($sale->down_payment),
             'Payment type' => $sale->payment_type,
@@ -335,7 +371,7 @@ class SaleService
             $this->payments->recalculate($sale);
             $sale->update(['due_amount' => 0]);
 
-            $sale->vehicle->update(['status' => 'in_stock', 'current_sale_id' => null]);
+            Vehicle::lockForUpdate()->findOrFail($sale->vehicle_id)->update(['status' => 'in_stock', 'current_sale_id' => null]);
 
             if ($sale->plan) {
                 $sale->plan->installments()->whereIn('status', ['pending', 'partial', 'overdue'])->update(['status' => 'cancelled']);
@@ -375,26 +411,42 @@ class SaleService
         ]);
     }
 
-    /** @return array{0: float|int, 1: int} the interest rate (percent) and the interest in paisa, from either the rate or the amount given */
+    /** @return array{0: float|int, 1: int} the yearly interest rate (percent) and the interest in paisa, from either the rate or the amount given */
     private function interestOf(array $data, int $principal): array
     {
+        // the rate is a flat yearly rate: 100% over 12 months is the principal once, over 24 months twice
+        $years = max((int) ($data['installment_count'] ?? 0), 1) / (($data['frequency'] ?? 'monthly') === 'weekly' ? 52 : 12);
+
         if (isset($data['interest_amount']) && $data['interest_amount'] !== '') {
             $interest = Money::paisa($data['interest_amount']);
 
-            return [$principal > 0 ? round($interest / $principal * 100, 2) : 0, $interest];
+            return [$principal > 0 ? round($interest / $principal * 100 / $years, 2) : 0, $interest];
         }
 
         $rate = round((float) ($data['interest_rate'] ?? 0), 2);
 
-        return [$rate, Money::percent($principal, $rate)];
+        return [$rate, Money::percent($principal, $rate * $years)];
     }
 
-    /** @param  int  $principal  what is financed (sale price less down payment), in paisa */
+    /**
+     * @param  int  $principal  what is financed (sale price less down payment), in paisa. A promised amount (paid by its date,
+     *                          without interest) is part of it: the interest is on the rest, which is split into the installments.
+     */
     private function createPlan(Sale $sale, array $data, int $principal, User $user): void
     {
         $count = (int) $data['installment_count'];
         $frequency = $data['frequency'] ?? 'monthly';
-        [$rate, $interest] = $this->interestOf($data, $principal);
+        $promise = Money::paisa($data['promise_amount'] ?? 0);
+
+        if ($promise > 0 && $promise >= $principal) {
+            throw new BusinessRuleException('The promised amount must be less than the '.Money::format($principal).' left after the down payment.');
+        }
+
+        if ($promise > 0 && empty($data['promised_date'])) {
+            throw new BusinessRuleException('Enter the date the promised amount will be paid by.');
+        }
+
+        [$rate, $interest] = $this->interestOf($data, $principal - $promise);
         $total = $principal + $interest;
         $start = Carbon::parse($data['first_due_date']);
 
@@ -402,6 +454,8 @@ class SaleService
             'sale_id' => $sale->id,
             'investor_id' => $data['investor_id'] ?? null,
             'principal' => Money::taka($principal),
+            'promise_amount' => Money::taka($promise),
+            'promise_date' => $promise > 0 ? $data['promised_date'] : null,
             'interest_rate' => $rate,
             'interest_amount' => Money::taka($interest),
             'total_payable' => Money::taka($total),
@@ -411,7 +465,12 @@ class SaleService
             'investor_share_percent' => ($data['investor_id'] ?? null) ? ($data['investor_share_percent'] ?? 0) : 0,
         ]);
 
-        foreach (Money::split($total, $count) as $i => $amount) {
+        // the promised amount: its own installment (number 0), due on the promise date
+        if ($promise > 0) {
+            $plan->installments()->create(['seq_no' => 0, 'due_date' => $data['promised_date'], 'amount' => Money::taka($promise)]);
+        }
+
+        foreach (Money::split($total - $promise, $count) as $i => $amount) {
             $due = $frequency === 'weekly' ? $start->copy()->addWeeks($i) : $start->copy()->addMonthsNoOverflow($i);
 
             $plan->installments()->create([

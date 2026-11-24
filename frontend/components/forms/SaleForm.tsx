@@ -1,6 +1,6 @@
 "use client";
 
-import { Calculator, Plus, Printer, RotateCcw } from "lucide-react";
+import { Plus, Printer, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -9,17 +9,17 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { api, ApiError, applyServerErrors } from "@/lib/api";
-import { addDays, fmtDate, money, todayStr, toPayload, savedMsg } from "@/lib/format";
-import { useFetch } from "@/lib/hooks";
-import type { Booking, DraftT, Customer, Investor, Sale, Vehicle } from "@/lib/types";
-import { ProfitCalculator } from "@/components/forms/ProfitCalculator";
+import { fmtDate, money, nextMonth, todayStr, toPayload, savedMsg } from "@/lib/format";
+import { useDebounced, useFetch, useLoadMore } from "@/lib/hooks";
+import type { Booking, DraftT, Customer, Sale, Vehicle } from "@/lib/types";
 import { draftValues } from "@/components/DraftsBar";
 import { Button, Card, Field, inputCls, Modal, PageHeader } from "@/components/app-ui";
 import { openSaleMemo } from "@/components/SaleMemo";
 import { useAuth } from "@/lib/auth";
-import { CustomerSelect, InvestorSelect } from "@/components/Selects";
+import { useT } from "@/lib/i18n";
+import { CustomerSelect } from "@/components/Selects";
 import { SearchSelect } from "@/components/SearchSelect";
-import { useAutoDate, useFillDate, useMemoField, useSettings } from "@/lib/settings";
+import { useAdditionalCustomer, useAutoDate, useFillDate, useMemoField, usePromiseField, useSettings } from "@/lib/settings";
 import { useCategories } from "@/lib/categories";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -29,6 +29,7 @@ const num = (v: string) => v !== "" && !isNaN(Number(v));
 const schema = z.object({
   vehicle_id: z.string().min(1, "Select a vehicle."),
   party_id: z.string().min(1, "Select the buyer."),
+  additional_customer_id: z.string(), // one more customer besides the buyer (optional)
   sale_date: z.string().min(1, "Sale date is required.").refine((v) => v <= todayStr(), "Sale date cannot be in the future."),
   sale_price: z.string().min(1, "Sale price is required.").refine((v) => Number(v) >= 1, "Sale price must be at least 1."),
   payment_type: z.enum(["cash", "due", "installment"]),
@@ -37,6 +38,7 @@ const schema = z.object({
   down_payment: z.string(),
   method: z.enum(["cash", "bank", "mobile"]),
   promised_date: z.string(),
+  promise_amount: z.string(), // installment: part of the price promised by promised_date, outside the installments and without interest
   promise_note: z.string(),
   investor_id: z.string(),
   guarantor_phone: z.string(),
@@ -51,10 +53,10 @@ const schema = z.object({
   investor_share_percent: z.string(),
   investor_share_mode: z.enum(["percent", "amount"]),
   investor_share_amount: z.string(),
-  investor_rate: z.string(),
 }).superRefine((v, ctx) => {
   const add = (path: string, message: string) => ctx.addIssue({ code: "custom", path: [path], message });
   const price = Number(v.sale_price);
+  if (v.additional_customer_id && v.additional_customer_id === v.party_id) add("additional_customer_id", "The additional customer must be someone other than the buyer.");
   if (v.guarantor_phone.trim() && !/^\+?[0-9\s-]{7,20}$/.test(v.guarantor_phone.trim())) add("guarantor_phone", "Enter a valid mobile number (7 to 20 digits).");
   const down = v.down_payment === "" ? 0 : Number(v.down_payment);
 
@@ -74,16 +76,22 @@ const schema = z.object({
   }
   if (v.payment_type === "installment") {
     if (!num(v.installment_count) || Number(v.installment_count) < 1 || Number(v.installment_count) > 120) add("installment_count", "Enter 1 to 120 installments.");
+    const promise = Number(v.promise_amount || 0);
+    if (v.promise_amount !== "" && !(num(v.promise_amount) && promise >= 0)) add("promise_amount", "Enter the promised amount (0 if none).");
+    else if (promise > 0 && promise >= price - down) add("promise_amount", "The promised amount must be less than the price less the down payment.");
+    else if (promise > 0 && !v.promised_date) add("promised_date", "Enter the date it will be paid by.");
+    else if (promise > 0 && v.promised_date <= v.sale_date) add("promised_date", "Promise date must be after the sale date.");
     if (!v.first_due_date) add("first_due_date", "First installment date is required.");
     else if (v.first_due_date <= v.sale_date) add("first_due_date", "First installment date must be after the sale date.");
     if (v.interest_mode === "percent" && v.interest_rate !== "" && Number(v.interest_rate) < 0) add("interest_rate", "Interest cannot be negative.");
+    else if (v.interest_mode === "percent" && Number(v.interest_rate) > 100) add("interest_rate", "Interest can be at most 100% a year.");
     if (v.interest_mode === "amount" && v.interest_amount !== "" && Number(v.interest_amount) < 0) add("interest_amount", "Interest cannot be negative.");
     if (!v.investor_id) {
       // no investor: the shop finances the plan, so there is no share to check
     } else if (v.investor_share_mode === "percent") {
       if (v.investor_share_percent !== "" && (Number(v.investor_share_percent) < 0 || Number(v.investor_share_percent) > 100)) add("investor_share_percent", "Enter 0 to 100.");
     } else if (v.investor_share_amount !== "") {
-      const interest = v.interest_mode === "amount" ? Number(v.interest_amount || 0) : ((price - Number(v.down_payment || 0)) * Number(v.interest_rate || 0)) / 100;
+      const interest = v.interest_mode === "amount" ? Number(v.interest_amount || 0) : ((price - Number(v.down_payment || 0) - Number(v.promise_amount || 0)) * Number(v.interest_rate || 0) * planYears(v.installment_count, v.frequency)) / 100;
       if (Number(v.investor_share_amount) < 0) add("investor_share_amount", "Amount cannot be negative.");
       else if (Number(v.investor_share_amount) > interest + 0.005) add("investor_share_amount", "Cannot be more than the total interest.");
     }
@@ -101,6 +109,9 @@ const PROMISE_OPTIONS = [
   ...[1, 2, 3, 4].map((m) => ({ value: `m${m}`, label: `${m} month${m > 1 ? "s" : ""}` })),
   { value: "other", label: "Other (pick a date)" },
 ];
+
+// The interest rate is a flat yearly rate: the plan's length in years (100% over 12 months is the principal once).
+const planYears = (count: string, frequency: string) => Math.max(Number(count) || 0, 1) / (frequency === "weekly" ? 52 : 12);
 
 // The promise date a quick choice means, counted from the sale date.
 function promiseDate(choice: string, from: string) {
@@ -121,17 +132,18 @@ const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
  * The sale form. With a `booking`, the sale is made from it: the vehicle and buyer are the booking's, the price starts at the agreed price,
  * and the advance already paid is counted in the down payment, so staff only choose how the rest is paid (cash, due or installment).
  */
-export function SaleForm({ investorMode = false, booking = null, onSold }: { investorMode?: boolean; booking?: Booking | null; onSold?: (sale: Sale) => void }) {
+export function SaleForm({ booking = null, onSold }: { booking?: Booking | null; onSold?: (sale: Sale) => void }) {
   const { user } = useAuth();
+  const { lang } = useT();
   const [created, setCreated] = useState<Sale | null>(null); // the sale just saved: the form stays and offers the memo
   const params = useSearchParams();
   const [vehicleListOpened, setVehicleListOpened] = useState(false); // the vehicle list loads when the field is first used, or when a vehicle is already chosen
   const { categories, nameOf } = useCategories();
 
   const blank = (vehicleId: string): Values => ({
-      vehicle_id: booking?.vehicle_id ? String(booking.vehicle_id) : vehicleId, party_id: booking ? String(booking.customer_id) : "", sale_date: "", sale_price: booking?.agreed_price ? String(Number(booking.agreed_price)) : "", payment_type: investorMode ? "installment" : "cash", down_payment: booking ? String(Number(booking.advance_amount)) : "", // from a booking this is the total received at the sale: the advance, plus what is paid now (typed apart from it)
-      method: "cash", advance_amount: "", advance_date: "", promised_date: "", promise_note: "", investor_id: "", guarantor_phone: "", guarantor_name: "", memo_no: "", installment_count: "24", first_due_date: addDays(30),
-      frequency: "monthly", interest_rate: "0", interest_mode: "percent", interest_amount: "", investor_share_percent: "0", investor_share_mode: "percent", investor_share_amount: "", investor_rate: "",
+      vehicle_id: booking?.vehicle_id ? String(booking.vehicle_id) : vehicleId, party_id: booking ? String(booking.customer_id) : "", additional_customer_id: "", sale_date: "", sale_price: booking?.agreed_price ? String(Number(booking.agreed_price)) : "", payment_type: "cash", down_payment: booking ? String(Number(booking.advance_amount)) : "", // from a booking this is the total received at the sale: the advance, plus what is paid now (typed apart from it)
+      method: "cash", advance_amount: "", advance_date: "", promised_date: "", promise_amount: "", promise_note: "", investor_id: "", guarantor_phone: "", guarantor_name: "", memo_no: "", installment_count: "24", first_due_date: nextMonth(),
+      frequency: "monthly", interest_rate: "0", interest_mode: "percent", interest_amount: "", investor_share_percent: "0", investor_share_mode: "percent", investor_share_amount: "",
   });
 
   const { register, handleSubmit, reset, setValue, getValues, watch, setError, formState: { errors, isSubmitting } } = useForm<Values>({
@@ -142,6 +154,8 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
   const settings = useSettings();
   const autoDate = useAutoDate();
   const showMemo = useMemoField();
+  const showPromise = usePromiseField();
+  const showExtra = useAdditionalCustomer(); // the shop can turn the additional customer option off in Settings
   useFillDate(autoDate, () => !getValues("sale_date"), (d) => setValue("sale_date", d));
 
   // The vehicle list starts on the shop's primary type for sales (Settings); "All types" shows everything.
@@ -156,6 +170,9 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
   const w = watch();
   // money received before the sale: the booking's advance, or an advance typed here (its button opens the amount and date)
   const [advanceOpen, setAdvanceOpen] = useState(false);
+  const [extraOpen, setExtraOpen] = useState(false); // the additional customer field, shown only when asked for
+  // a problem with the additional customer opens its field, so the message is seen
+  useEffect(() => { if (errors.additional_customer_id) setExtraOpen(true); }, [errors.additional_customer_id]);
   const advance = booking ? Number(booking.advance_amount) : Number(w.advance_amount || 0);
   const advanceDate = booking ? booking.booked_on : w.advance_date || todayStr();
   // the down payment kept in the form is everything received at the sale, the advance included; changing the advance keeps what is paid on top
@@ -164,6 +181,12 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
     setValue("advance_amount", value, { shouldValidate: true });
     setValue("down_payment", Number(value || 0) > 0 ? String(Number(value) + extra) : extra ? String(extra) : "", { shouldValidate: true });
   };
+  // the first installment is a month after the sale: changing the sale date moves it (it can still be changed by hand after)
+  useEffect(() => {
+    if (!w.sale_date) return;
+    setValue("first_due_date", nextMonth(w.sale_date), { shouldValidate: !!errors.first_due_date });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [w.sale_date]);
   // the advance cannot be dated after the sale: moving the sale date back pulls the advance date with it
   useEffect(() => {
     if (w.advance_date && w.sale_date && w.advance_date > w.sale_date) setValue("advance_date", w.sale_date, { shouldValidate: true });
@@ -174,10 +197,21 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
     setAdvanceOpen(false);
   };
   const [draftId, setDraftId] = useState<number | null>(null); // the draft being edited: it holds the vehicle chosen in it
-  const vehicles = useFetch<Vehicle[]>(booking ? "/vehicles?status=booked&per_page=100" : vehicleListOpened || w.vehicle_id ? (investorMode ? "/vehicles?per_page=100" : `/vehicles?status=in_stock&per_page=100${draftId ? `&draft_id=${draftId}` : ""}`) : null);
+  // The list is searched on the server (a shop can have far more than 100 vehicles in stock), so what is typed goes with the request.
+  const [vehicleSearch, setVehicleSearch] = useState("");
+  const searched = useDebounced(vehicleSearch.trim());
+  const [chosenVehicle, setChosenVehicle] = useState<Vehicle | null>(null); // kept after choosing: a later search may not list it any more
+  const filters = [searched && `search=${encodeURIComponent(searched)}`, typeFilter && `vehicle_type=${encodeURIComponent(typeFilter)}`].filter(Boolean);
+  const vehiclesUrl = (query: string) => `/vehicles${[query, ...filters].filter(Boolean).length ? `?${[query, ...filters].filter(Boolean).join("&")}` : ""}`;
+  const vehicles = useLoadMore<Vehicle>(booking ? vehiclesUrl("status=booked") : vehicleListOpened || w.vehicle_id ? vehiclesUrl(`status=in_stock${draftId ? `&draft_id=${draftId}` : ""}`) : null);
   // from a booking: the booked vehicle is already chosen, and the buyer may take another one that is in stock (fetched when the field is first used)
-  const moreVehicles = useFetch<Vehicle[]>(booking && (vehicleListOpened || !booking.vehicle_id) ? "/vehicles?status=in_stock&per_page=100" : null);
-  const allVehicles = booking ? [...(vehicles.data ?? []), ...(moreVehicles.data ?? [])] : vehicles.data ?? [];
+  const moreVehicles = useLoadMore<Vehicle>(booking && (vehicleListOpened || !booking.vehicle_id) ? vehiclesUrl("status=in_stock") : null);
+  const listedVehicles = booking ? [...(vehicles.data ?? []), ...(moreVehicles.data ?? [])] : vehicles.data ?? [];
+  // a vehicle that is chosen (or came with a draft) but is not in the current list, such as an older one: fetched on its own
+  const unlisted = w.vehicle_id && !vehicles.loading && !listedVehicles.some((v) => String(v.id) === w.vehicle_id) && String(chosenVehicle?.id) !== w.vehicle_id;
+  const oneVehicle = useFetch<Vehicle>(unlisted ? `/vehicles/${w.vehicle_id}` : null);
+  const known = [chosenVehicle, oneVehicle.data].filter((v): v is Vehicle => !!v && !listedVehicles.some((l) => l.id === v.id));
+  const allVehicles = [...listedVehicles, ...known];
   const [promiseChoice, setPromiseChoice] = useState("");
   // A resumed draft keeps the date it has; a quick choice follows the sale date.
   const choice = promiseChoice || (w.promised_date ? "other" : "");
@@ -188,21 +222,8 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
   const salePrice = Number(w.sale_price || 0);
   const paidNow = type === "cash" ? salePrice : Number(w.down_payment || 0);
   const dueNow = Math.max(salePrice - paidNow, 0);
-  // the investor's saved formula fills the percentage; with none saved, the calculator opens to work one out
-  const [calcOpen, setCalcOpen] = useState(false);
-  const chosenInvestor = useFetch<Investor>(investorMode && w.investor_id ? `/investors/${w.investor_id}` : null);
-  useEffect(() => {
-    const inv = chosenInvestor.data;
-    if (!inv || String(inv.id) !== w.investor_id) return;
-    if (inv.formula_rate_year != null) {
-      setValue("investor_share_mode", "percent");
-      setValue("investor_rate", String(inv.formula_rate_year));
-    }
-    else setCalcOpen(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chosenInvestor.data]);
-
   const buyer = useFetch<Customer>(w.party_id ? `/customers/${w.party_id}` : null);
+  const extra = useFetch<Customer>(w.additional_customer_id ? `/customers/${w.additional_customer_id}` : null);
   const picked = allVehicles.find((v) => String(v.id) === w.vehicle_id);
 
   // Choosing a vehicle brings its type's default sale price (Settings), unless a different price was already typed.
@@ -222,7 +243,9 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
     if (type !== "installment") return null;
     const price = Number(w.sale_price), down = Number(w.down_payment || 0), n = Number(w.installment_count);
     if (!(price > down) || !(n >= 1) || n > 120 || !w.first_due_date) return null;
-    const principal = r2(price - down), interest = investorMode ? (w.investor_share_mode === "amount" ? r2(Number(w.investor_share_amount || 0)) : r2((principal * Number(w.investor_rate || 0)) / 100)) : w.interest_mode === "amount" ? r2(Number(w.interest_amount || 0)) : r2((principal * Number(w.interest_rate || 0)) / 100), total = r2(principal + interest);
+    // a promised amount is paid by its date without interest: the interest is on the rest, which the installments carry
+    const promise = Math.min(Number(w.promise_amount || 0), Math.max(price - down, 0));
+    const principal = r2(price - down - promise), interest = w.interest_mode === "amount" ? r2(Number(w.interest_amount || 0)) : r2((principal * Number(w.interest_rate || 0) * planYears(w.installment_count, w.frequency)) / 100), total = r2(principal + interest);
     const each = r2(total / n);
     const rows = Array.from({ length: n }, (_, i) => {
       const d = new Date(w.first_due_date + "T00:00:00");
@@ -235,19 +258,19 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
       }
       return { n: i + 1, date: d.toLocaleDateString("en-CA"), amount: i === n - 1 ? r2(total - each * (n - 1)) : each };
     });
-    return { principal, interest, total, rows, profit: investorMode ? interest : w.investor_share_mode === "amount" ? r2(Number(w.investor_share_amount || 0)) : r2((interest * Number(w.investor_share_percent || 0)) / 100) };
-  }, [type, w.sale_price, w.down_payment, w.installment_count, w.first_due_date, w.frequency, w.interest_rate, w.interest_mode, w.interest_amount, w.investor_share_percent, w.investor_share_mode, w.investor_share_amount, w.investor_rate, investorMode]);
+    return { principal, promise, interest, total, rows, profit: w.investor_share_mode === "amount" ? r2(Number(w.investor_share_amount || 0)) : r2((interest * Number(w.investor_share_percent || 0)) / 100) };
+  }, [type, w.sale_price, w.down_payment, w.promise_amount, w.installment_count, w.first_due_date, w.frequency, w.interest_rate, w.interest_mode, w.interest_amount, w.investor_share_percent, w.investor_share_mode, w.investor_share_amount]);
 
-  // the owner's profit is the interest less the investor's part; the investor's part shows under it
-  const investorProfit = investorMode ? (plan?.profit ?? 0) : 0;
-  const ownerProfit = investorMode ? Math.max(r2((plan?.interest ?? 0) - investorProfit), 0) : plan?.interest ?? 0;
-  const showProfit = investorMode ? (w.investor_share_mode === "amount" ? w.investor_share_amount !== "" : w.investor_rate !== "") : ownerProfit > 0;
+  // the shop's profit on the plan is its interest (an investor is paid on their own investor sale)
+  const ownerProfit = plan?.interest ?? 0;
+  const showProfit = ownerProfit > 0;
 
   // Drafts: the form as typed, kept for later. Saving one creates no sale and takes nothing out of stock.
   // back to an empty form (a booking's own details stay); a draft that was open is left saved but no longer the one being updated
   const resetForm = () => {
     reset({ ...blank(""), sale_date: autoDate });
     setAdvanceOpen(false);
+    setExtraOpen(false);
     setPromiseChoice("");
     setDraftId(null);
   };
@@ -259,7 +282,7 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
     const label = `${chassis ?? "New sale"}${values.sale_price ? ` · ${money(Number(values.sale_price))}` : ""} · ${values.payment_type}`;
     setSavingDraft(true);
     try {
-      const body = { label, data: { values, typeFilter, investor: investorMode } };
+      const body = { label, data: { values, typeFilter } };
       const res = draftId ? await api<DraftT>(`/drafts/${draftId}`, { method: "PUT", body }) : await api<DraftT>("/drafts", { method: "POST", body: { type: "sale", ...body } });
       setDraftId(res.data.id);
       toast.success(res.message);
@@ -278,7 +301,7 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
     if (!d || resumed.current) return;
     resumed.current = true;
     resumeDraft(d);
-    window.history.replaceState(null, "", investorMode ? "/sales/new?tab=investor" : "/sales/new"); // the draft is open now
+    window.history.replaceState(null, "", "/sales/new"); // the draft is open now
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumeList.data]);
 
@@ -291,22 +314,6 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
   };
 
   const onSubmit = async (v: Values) => {
-    if (investorMode && picked && picked.status !== "in_stock") {
-      setError("vehicle_id", { message: "This vehicle is already sold, so it cannot be sold again. Cancel its sale first." });
-      return;
-    }
-    if (investorMode && !v.investor_id) {
-      setError("investor_id", { message: "Select the investor." });
-      return;
-    }
-    if (investorMode && v.investor_share_mode === "amount" && !(Number(v.investor_share_amount) > 0)) {
-      setError("investor_share_amount", { message: "Enter the investor profit amount." });
-      return;
-    }
-    if (investorMode && v.investor_share_mode !== "amount" && (v.investor_rate.trim() === "" || Number(v.investor_rate) < 0)) {
-      setError("investor_rate", { message: "Enter the investor profit percentage." });
-      return;
-    }
     if (booking && v.sale_date < booking.booked_on) {
       setError("sale_date", { message: `The sale date cannot be before the booking date (${fmtDate(booking.booked_on)}).` });
       return;
@@ -318,7 +325,7 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
     try {
       const body = toPayload({
         ...(booking && { booking_id: booking.id }),
-        vehicle_id: v.vehicle_id, customer_id: v.party_id, sale_date: v.sale_date, sale_price: v.sale_price, payment_type: v.payment_type, method: v.method,
+        vehicle_id: v.vehicle_id, customer_id: v.party_id, additional_customer_id: v.additional_customer_id, sale_date: v.sale_date, sale_price: v.sale_price, payment_type: v.payment_type, method: v.method,
         down_payment: v.payment_type === "cash" ? v.sale_price : v.down_payment,
         ...(!booking && Number(v.advance_amount) > 0 && { advance_amount: v.advance_amount, advance_date: v.advance_date }),
         ...(showMemo && { memo_no: v.memo_no }),
@@ -326,15 +333,15 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
         ...(v.payment_type === "due" && { promised_date: v.promised_date, promise_note: v.promise_note }),
         ...(v.payment_type === "installment" && {
           investor_id: v.investor_id, installment_count: v.installment_count, first_due_date: v.first_due_date, frequency: v.frequency,
-          ...(investorMode ? (v.investor_share_mode === "amount" ? { interest_amount: v.investor_share_amount } : { interest_rate: v.investor_rate }) : v.interest_mode === "amount" ? { interest_amount: v.interest_amount || "0" } : { interest_rate: v.interest_rate }),
+          ...(Number(v.promise_amount || 0) > 0 && { promise_amount: v.promise_amount, promised_date: v.promised_date }),
+          ...(v.interest_mode === "amount" ? { interest_amount: v.interest_amount || "0" } : { interest_rate: v.interest_rate }),
           // An amount given directly is turned into the percentage of the plan's interest that the server keeps.
-          investor_share_percent: !v.investor_id ? "0" : investorMode
-            ? "100" // the one percentage is the whole plan profit, all of it the investor's
+          investor_share_percent: !v.investor_id ? "0"
             : v.investor_share_mode === "amount"
             ? (plan && plan.interest > 0 ? String(Math.round((Number(v.investor_share_amount || 0) / plan.interest) * 1000000) / 10000) : "0")
             : v.investor_share_percent,
         }),
-      }, ["booking_id", "vehicle_id", "customer_id", "sale_price", "down_payment", "advance_amount", "investor_id", "installment_count", "interest_rate", "interest_amount", "investor_share_percent"]);
+      }, ["booking_id", "vehicle_id", "customer_id", "additional_customer_id", "sale_price", "down_payment", "advance_amount", "investor_id", "installment_count", "interest_rate", "interest_amount", "investor_share_percent"]);
       const res = await api<Sale>("/sales", { method: "POST", body: draftId ? { ...body, draft_id: draftId } : body });
       toast.success(savedMsg("Sale", false));
       // stay on this page: clear the form, refresh the stock list and offer the memo
@@ -352,7 +359,7 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
 
   return (
     <>
-      <PageHeader titleClass={investorMode ? "text-blue-700" : undefined} title={investorMode ? "New investor sale" : "New sale"} actions={investorMode && <Button variant="outline" onClick={() => setCalcOpen(true)}><Calculator className="size-4 text-sky-600" /> <span className="sm:hidden">Calculate</span><span className="hidden sm:inline">Profit calculation</span></Button>} />
+      <PageHeader title="New sale" />
       {booking && (
         <div className="mb-4 rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm text-violet-900">
           From <b>booking #{booking.id}</b> · {Number(booking.advance_amount) > 0 ? <>advance <b>{money(booking.advance_amount)}</b> ({fmtDate(booking.booked_on)})</> : "no advance"}
@@ -373,6 +380,25 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
               <Info k="Address" v={buyer.data.address} />
             </dl>
           )}
+          {/* hidden until needed: the button opens it, removing the customer closes it */}
+          {(showExtra || w.additional_customer_id) && <div className="mt-3">
+            {extraOpen || w.additional_customer_id ? (
+              <>
+                <CustomerSelect optional label="Additional customer (optional)" value={w.additional_customer_id} onChange={(id) => setValue("additional_customer_id", id, { shouldValidate: true })} error={errors.additional_customer_id?.message} />
+                {w.additional_customer_id && extra.data && String(extra.data.id) === w.additional_customer_id && (
+              <dl className="mt-2 grid gap-x-4 gap-y-1 rounded-md border border-emerald-100 bg-emerald-50/50 p-3 text-sm sm:grid-cols-2">
+                <Info k="Name" v={extra.data.name} />
+                <Info k="Father's name" v={extra.data.father_name} />
+                <Info k="Mobile" v={extra.data.phone} />
+                <Info k="Alt. mobile" v={extra.data.alt_phone} />
+                <Info k="NID" v={extra.data.nid} />
+                <Info k="Address" v={extra.data.address} />
+              </dl>
+                )}
+                <button type="button" className="mt-1 text-xs font-medium text-emerald-700 hover:underline" onClick={() => { setValue("additional_customer_id", ""); setExtraOpen(false); }}>Remove customer</button>
+              </>
+            ) : <Button variant="outline" onClick={() => setExtraOpen(true)}><Plus className="size-4 text-emerald-600" /> Additional customer</Button>}
+          </div>}
         </Card>
 
         <Card title={booking ? "2. Vehicle" : "2. Vehicle from stock"}>
@@ -385,14 +411,18 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
                 {categories.map((c) => <option key={c.key} value={c.key}>{c.name}</option>)}
               </NativeSelect>
             </Field>
-            <Field required label={investorMode ? "Vehicle (in stock or sold)" : "Vehicle (in stock)"} error={errors.vehicle_id?.message}>
+            <Field required label="Vehicle (in stock)" error={errors.vehicle_id?.message}>
               <SearchSelect
                 value={w.vehicle_id}
-                onChange={(id) => setValue("vehicle_id", id, { shouldValidate: true })}
+                onChange={(id) => { setValue("vehicle_id", id, { shouldValidate: true }); setChosenVehicle(allVehicles.find((v) => String(v.id) === id) ?? null); }}
+                onQueryChange={setVehicleSearch}
                 onOpen={() => setVehicleListOpened(true)}
-                loading={vehicles.loading}
+                loading={vehicles.loading || moreVehicles.loading || vehicleSearch.trim() !== searched}
+                hasMore={vehicles.hasMore || moreVehicles.hasMore}
+                emptyText={typeFilter ? "No match in this vehicle type. Choose All types above to search every type." : undefined}
+                onLoadMore={() => { if (vehicles.hasMore) vehicles.loadMore(); if (moreVehicles.hasMore) moreVehicles.loadMore(); }}
                 placeholder="Search by chassis, model or brand..."
-                options={allVehicles.filter((v) => !typeFilter || v.vehicle_type === typeFilter).map((v) => ({ value: String(v.id), label: `${v.chassis_no} - ${[v.brand, v.model, v.year].filter(Boolean).join(" ")}${investorMode ? (v.status === "in_stock" ? " · In stock" : " · Sold") : ""}`, hint: [nameOf(v.vehicle_type), v.engine_no].join(" · ") }))}
+                options={listedVehicles.map((v) => ({ value: String(v.id), label: `${v.chassis_no} - ${[v.brand, v.model, v.year].filter(Boolean).join(" ")}`, hint: [nameOf(v.vehicle_type), v.engine_no].join(" · ") }))}
               />
             </Field>
           </div>
@@ -429,13 +459,13 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
                 <Field label="Advance date" error={errors.advance_date?.message}><Input type="date" max={w.sale_date || todayStr()} className={inputCls} {...register("advance_date")} /></Field>
               </>
             )}
-            {!investorMode && <Field required label="Payment type" error={errors.payment_type?.message}>
+            <Field required label="Payment type" error={errors.payment_type?.message}>
               <NativeSelect className={inputCls} {...register("payment_type")}>
                 <option value="cash">Cash (paid in full)</option>
                 <option value="due">Due (pay the rest later)</option>
                 <option value="installment">Installment</option>
               </NativeSelect>
-            </Field>}
+            </Field>
             <Field label="Payment method" error={errors.method?.message}>
               <NativeSelect className={inputCls} {...register("method")}>
                 <option value="cash">Cash</option><option value="bank">Bank</option><option value="mobile">Mobile</option>
@@ -455,6 +485,13 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
               ) : (
                 <Field required label="Down payment" error={errors.down_payment?.message}><Input type="number" step="0.01" className={inputCls} {...register("down_payment")} /></Field>
               )
+            )}
+            {/* installment: part of the price the customer promises to pay by a date, outside the installments */}
+            {type === "installment" && showPromise && (
+              <Field label="Promise amount (optional)" error={errors.promise_amount?.message}><Input type="number" step="0.01" placeholder="0" className={inputCls} {...register("promise_amount")} /></Field>
+            )}
+            {type === "installment" && showPromise && Number(w.promise_amount || 0) > 0 && (
+              <Field required label="Promise date" error={errors.promised_date?.message}><Input type="date" min={w.sale_date || undefined} className={inputCls} {...register("promised_date")} /></Field>
             )}
             {type !== "cash" && (
               <Field label="Guarantor name (optional)" error={errors.guarantor_name?.message}><Input className={inputCls} {...register("guarantor_name")} /></Field>
@@ -509,36 +546,34 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
         {type === "installment" && (
           <Card title="Installment plan">
             <div className="grid gap-3 md:grid-cols-3">
-              {investorMode && <InvestorSelect value={w.investor_id} onChange={(id) => setValue("investor_id", id, { shouldValidate: true })} error={errors.investor_id?.message} />}
               <Field required label="Number of installments" error={errors.installment_count?.message}><Input type="number" className={inputCls} {...register("installment_count")} /></Field>
               <Field label="Frequency" error={errors.frequency?.message}>
                 <NativeSelect className={inputCls} {...register("frequency")}><option value="monthly">Monthly</option><option value="weekly">Weekly</option></NativeSelect>
               </Field>
               <Field required label="First installment date" error={errors.first_due_date?.message}><Input type="date" className={inputCls} {...register("first_due_date")} /></Field>
-              {!investorMode && <Field label="Interest (flat, whole plan)" error={errors.interest_rate?.message ?? errors.interest_amount?.message}>
+              <Field label="Interest (flat, per year)" error={errors.interest_rate?.message ?? errors.interest_amount?.message}>
                 <div className="flex gap-2">
                   <NativeSelect className={`${inputCls} w-28 shrink-0`} {...register("interest_mode")}>
                     <option value="percent">Percent %</option><option value="amount">Amount (Tk)</option>
                   </NativeSelect>
                   {w.interest_mode === "amount"
-                    ? <Input type="number" step="0.01" placeholder="Amount" className={inputCls} {...register("interest_amount")} />
-                    : <Input type="number" step="0.01" placeholder="Percent" className={inputCls} {...register("interest_rate")} />}
+                    ? <Input key="interest-amount" type="number" step="0.01" placeholder="Amount" className={inputCls} {...register("interest_amount")} />
+                    : <Input
+                        key="interest-rate" type="number" step="0.01" min="0" max="100" placeholder="Percent" className={inputCls} value={w.interest_rate ?? ""}
+                        // at most 100% a year: a key that would go past 100 is not taken
+                        onChange={(e) => { if (!(Number(e.target.value) > 100)) setValue("interest_rate", e.target.value, { shouldValidate: true }); }}
+                      />}
                 </div>
-                {plan && w.interest_mode === "amount" && plan.principal > 0 && <p className="mt-1 text-xs text-slate-500">That is {r2((plan.interest / plan.principal) * 100)}% of {money(plan.principal)}</p>}
-              </Field>}
-              {investorMode && (
-                <Field required label="Investor profit" error={errors.investor_rate?.message ?? errors.investor_share_amount?.message}>
-                  <div className="flex gap-2">
-                    <NativeSelect className={`${inputCls} w-28 shrink-0`} {...register("investor_share_mode")}>
-                      <option value="percent">Percent %</option><option value="amount">Amount (Tk)</option>
-                    </NativeSelect>
-                    {w.investor_share_mode === "amount"
-                      ? <Input key="amount" type="number" step="0.01" placeholder="Amount" className={inputCls} {...register("investor_share_amount")} />
-                      : <Input key="percent" type="number" step="0.01" placeholder="Percent" className={inputCls} {...register("investor_rate")} />}
-                  </div>
-                </Field>
-              )}
+                {plan && w.interest_mode === "amount" && plan.principal > 0 && <p className="mt-1 text-xs text-slate-500">That is {r2((plan.interest / plan.principal) * 100 / planYears(w.installment_count, w.frequency))}% a year of {money(plan.principal)}</p>}
+              </Field>
             </div>
+            {plan && plan.promise > 0 && (
+              <p className="mt-3 rounded-md border border-sky-200 bg-sky-50 p-2 text-sm text-sky-900">
+                {lang === "bn"
+                  ? `প্রতিশ্রুত ${money(plan.promise)} ${w.promised_date ? fmtDate(w.promised_date) : "নির্ধারিত তারিখ"}-এর মধ্যে (লাভ ছাড়া); কিস্তিতে ${money(plan.principal)} + লাভ।`
+                  : `Promised ${money(plan.promise)} by ${w.promised_date ? fmtDate(w.promised_date) : "its date"} (no interest); in installments ${money(plan.principal)} + interest.`}
+              </p>
+            )}
             {plan && (
               <div className={`mt-3 grid rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-900 ${showProfit ? "grid-cols-3" : "grid-cols-2"}`}>
                 <div>
@@ -549,7 +584,6 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
                   <div>
                     <p className="text-xs text-emerald-700">Profit</p>
                     <p className="text-lg font-bold text-emerald-700">{money(ownerProfit)}</p>
-                    {investorProfit > 0 && <p className="text-xs text-slate-600">Investor profit {money(investorProfit)}</p>}
                   </div>
                 )}
                 <div>
@@ -561,7 +595,6 @@ export function SaleForm({ investorMode = false, booking = null, onSold }: { inv
           </Card>
         )}
 
-        {investorMode && calcOpen && <ProfitCalculator key={w.investor_id} open name={chosenInvestor.data?.name} investorId={chosenInvestor.data?.id} canSave saved={chosenInvestor.data} onSaved={(rate) => { chosenInvestor.reload(); setValue("investor_share_mode", "percent"); setValue("investor_rate", String(rate), { shouldValidate: true }); setCalcOpen(false); }} onApply={(rate) => { setValue("investor_share_mode", "percent"); setValue("investor_rate", String(rate), { shouldValidate: true }); }} onClose={() => setCalcOpen(false)} />}
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={resetForm} disabled={isSubmitting}><RotateCcw className="size-4" /> Reset</Button>
           {!booking && <Button variant="outline" onClick={saveDraft} disabled={savingDraft || isSubmitting}>{savingDraft ? "Saving..." : draftId ? "Update draft" : "Save as draft"}</Button>}

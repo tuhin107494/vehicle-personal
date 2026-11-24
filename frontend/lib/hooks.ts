@@ -44,6 +44,38 @@ export function useFetch<T>(path: string | null) {
   return { data: result.data, meta: result.meta, loading, error: result.error, reload, mutate };
 }
 
+/**
+ * A paginated list that grows: page 1 first, then each "load more" adds the next page under it. A new `base` (a new search) starts again from page 1.
+ * `base` is the path with its filters and search; paging is added here. Null fetches nothing.
+ */
+export function useLoadMore<T>(base: string | null, perPage = 20) {
+  const [page, setPage] = useState(1);
+  const [pagedFor, setPagedFor] = useState(base);
+  if (pagedFor !== base) {
+    setPagedFor(base);
+    setPage(1);
+  }
+
+  const result = useFetch<T[]>(base ? `${base}${base.includes("?") ? "&" : "?"}per_page=${perPage}&page=${page}` : null);
+
+  // the pages that have arrived, kept together; set while rendering, only when a page just arrived (it has no effect to wait for)
+  const [kept, setKept] = useState<{ base: string | null; pages: T[][] }>({ base: null, pages: [] });
+  const arrived = base && !result.loading ? result.data : null;
+  if (arrived && (kept.base !== base || kept.pages[page - 1] !== arrived)) {
+    setKept({ base, pages: kept.base === base ? [...kept.pages.slice(0, page - 1), arrived] : [arrived] });
+  }
+
+  const rows = kept.base === base ? kept.pages.flat() : [];
+  const hasMore = !!arrived && !!result.meta && result.meta.current_page < result.meta.last_page;
+  const loadMore = () => setPage((p) => p + 1);
+  const reload = () => {
+    setPage(1);
+    result.reload();
+  };
+
+  return { data: base ? rows : null, loading: result.loading, hasMore, loadMore, reload };
+}
+
 const noSubscribe = () => () => {};
 
 /** An element some other part of the page renders (a slot to portal into), or null when it is not there. */

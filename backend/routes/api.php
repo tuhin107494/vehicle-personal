@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\Billing\SubscriptionController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\CollectionController;
 use App\Http\Controllers\Api\CustomerController;
@@ -9,6 +10,7 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DraftController;
 use App\Http\Controllers\Api\InstallmentController;
 use App\Http\Controllers\Api\InvestorController;
+use App\Http\Controllers\Api\InvestorSaleController;
 use App\Http\Controllers\Api\InvestorSettlementController;
 use App\Http\Controllers\Api\LandingController;
 use App\Http\Controllers\Api\PayableController;
@@ -58,6 +60,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Platform: super admin only.
     Route::middleware('role:super_admin')->group(function () {
         Route::apiResource('shops', ShopController::class)->except('destroy');
+        Route::post('shops/{shop}/subscription/extend', [SubscriptionController::class, 'extend']);
         Route::post('permissions', [PermissionController::class, 'store']);
         Route::put('permissions/{permission}', [PermissionController::class, 'update']);
         Route::delete('permissions/{permission}', [PermissionController::class, 'destroy']);
@@ -66,14 +69,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('platform-settings/test-mail', [PlatformSettingsController::class, 'testMail'])->middleware('throttle:5,1');
     });
 
-    Route::get('vehicle-categories', [VehicleCategoryController::class, 'index']);
-    Route::post('vehicle-categories', [VehicleCategoryController::class, 'store']);
-    Route::put('vehicle-categories/{category}', [VehicleCategoryController::class, 'update']);
-    Route::delete('vehicle-categories/{category}', [VehicleCategoryController::class, 'destroy']);
+    // not in the shop group, because the super admin manages the platform's categories too; the subscription lock still applies to a shop
+    Route::middleware('subscription')->group(function () {
+        Route::get('vehicle-categories', [VehicleCategoryController::class, 'index']);
+        Route::post('vehicle-categories', [VehicleCategoryController::class, 'store']);
+        Route::put('vehicle-categories/{category}', [VehicleCategoryController::class, 'update']);
+        Route::delete('vehicle-categories/{category}', [VehicleCategoryController::class, 'destroy']);
+    });
     Route::get('permissions', [PermissionController::class, 'index'])->middleware('role:super_admin,shop_owner');
 
     // Shop owner: manage the shop's users and what each role may do.
-    Route::middleware(['shop', 'role:shop_owner'])->group(function () {
+    Route::middleware(['shop', 'subscription', 'role:shop_owner'])->group(function () {
         Route::get('roles', [RoleController::class, 'index']);
         Route::put('roles/{role}/permissions', [RoleController::class, 'update']);
         Route::get('users', [UserController::class, 'index']);
@@ -84,7 +90,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // Shop data: requires a shop user holding the matching permission (see each controller).
-    Route::middleware('shop')->group(function () {
+    Route::middleware(['shop', 'subscription'])->group(function () {
         Route::get('dashboard', DashboardController::class);
 
         // photos of customers, suppliers and investors: whoever may edit them may change the photo
@@ -103,7 +109,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('transactions', 'transactions');
             Route::get('person-summary', 'personSummary');
             Route::get('person-transactions', 'personTransactions');
-            Route::get('investors', 'investors');
+            Route::get('investor-sales', 'investorSales');
         });
 
         Route::post('customers/import', [CustomerController::class, 'import'])->middleware('throttle:10,1');
@@ -139,6 +145,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('promises', [PromiseController::class, 'index']);
         Route::post('sales/{sale}/promises', [PromiseController::class, 'store']);
         Route::patch('sales/{sale}/registration', [RegistrationController::class, 'update']);
+        Route::post('sales/{sale}/investor-sale', [InvestorSaleController::class, 'store']);
+        Route::get('investor-sales/dues', [InvestorSaleController::class, 'dues']);
+        Route::get('investor-sales/{investorSale}', [InvestorSaleController::class, 'show']);
+        Route::put('investor-sales/{investorSale}', [InvestorSaleController::class, 'update']);
 
         Route::get('installments', [InstallmentController::class, 'index']);
 
@@ -161,17 +171,21 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('collections/call', [CollectionController::class, 'markCalled']);
         Route::delete('collections/call', [CollectionController::class, 'unmarkCalled']);
         Route::delete('customers/{customer}', [CustomerController::class, 'destroy']);
+        Route::post('customers/{customer}/merge', [CustomerController::class, 'merge']);
         Route::delete('suppliers/{supplier}', [SupplierController::class, 'destroy']);
         Route::delete('investors/{investor}', [InvestorController::class, 'destroy']);
+        Route::get('vehicle-deletions', [VehicleController::class, 'deletions']);
         Route::delete('vehicles/{vehicle}', [VehicleController::class, 'destroy']);
         Route::delete('purchases/{purchase}', [PurchaseController::class, 'destroy']);
         Route::post('sales/{sale}/cancel', [SaleController::class, 'cancel']);
+        Route::post('investor-sales/{investorSale}/cancel', [InvestorSaleController::class, 'cancel']);
         Route::post('sales/{sale}/charges', [SaleChargeController::class, 'store']);
         Route::get('charges/{charge}', [SaleChargeController::class, 'show']);
         Route::put('charges/{charge}', [SaleChargeController::class, 'update']);
         Route::delete('charges/{charge}', [SaleChargeController::class, 'destroy']);
-        Route::get('transactions/{type}/{id}', [TransactionController::class, 'show']);
-        Route::put('transactions/{type}/{id}', [TransactionController::class, 'update']);
-        Route::delete('transactions/{type}/{id}', [TransactionController::class, 'destroy']);
+        Route::get('transactions/{type}/{id}', [TransactionController::class, 'show'])->middleware('permission:transactions.edit');
+        Route::put('transactions/{type}/{id}', [TransactionController::class, 'update'])->middleware('permission:transactions.edit');
+        Route::delete('transactions/{type}/{id}', [TransactionController::class, 'destroy'])->middleware('permission:transactions.delete');
+        Route::post('transactions/{type}/{id}/cancel', [TransactionController::class, 'cancel'])->middleware('permission:transactions.cancel');
     });
 });

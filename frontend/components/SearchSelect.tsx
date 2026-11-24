@@ -22,6 +22,9 @@ export function SearchSelect({
   createLabel = "Add new",
   onOpen,
   minChars = 0,
+  hasMore,
+  onLoadMore,
+  emptyText = "No matches",
 }: {
   options: Option[];
   value: string;
@@ -38,6 +41,11 @@ export function SearchSelect({
   onOpen?: () => void;
   /** The dropdown stays closed until this many characters are typed. */
   minChars?: number;
+  /** More results exist than are listed: a "Load more" row at the end of the list asks for the next page. */
+  hasMore?: boolean;
+  onLoadMore?: () => void;
+  /** What the list says when nothing matches (a hint about a filter, for example). */
+  emptyText?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -116,7 +124,14 @@ export function SearchSelect({
               </button>
             </li>
           ))}
-          {!shown.length && <li className="px-3 py-2 text-slate-500">{loading ? "Searching..." : "No matches"}</li>}
+          {!shown.length && <li className="px-3 py-2 text-slate-500">{loading ? "Searching..." : emptyText}</li>}
+          {hasMore && onLoadMore && (
+            <li className="border-t border-emerald-100">
+              <button type="button" disabled={loading} onMouseDown={(e) => e.preventDefault()} onClick={onLoadMore} className="w-full px-3 py-2 text-center text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">
+                {loading ? "Loading..." : "Load more"}
+              </button>
+            </li>
+          )}
           {onCreate && (
             <li className="border-t border-emerald-100">
               <button

@@ -2,21 +2,24 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\VehicleRequest;
 use App\Http\Resources\BookingResource;
+use App\Http\Resources\InvestorSaleResource;
 use App\Http\Resources\PurchaseResource;
 use App\Http\Resources\SaleResource;
 use App\Http\Resources\VehicleResource;
 use App\Models\Booking;
 use App\Models\Draft;
+use App\Models\InvestorSale;
 use App\Models\Payment;
 use App\Models\RegistrationLog;
 use App\Models\Sale;
 use App\Models\Vehicle;
 use App\Models\VehicleCategory;
+use App\Models\VehicleDeletion;
 use App\Services\BookingService;
+use App\Services\VehicleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -29,7 +32,7 @@ class VehicleController extends Controller implements HasMiddleware
         return [
             new Middleware('permission:vehicles.view', only: ['index', 'show', 'lookup', 'history', 'owned']),
             new Middleware('permission:vehicles.edit', only: ['update']),
-            new Middleware('permission:vehicles.delete', only: ['destroy']),
+            new Middleware('permission:vehicles.delete', only: ['destroy', 'deletions']),
         ];
     }
 
@@ -42,6 +45,11 @@ class VehicleController extends Controller implements HasMiddleware
             ->when($request->status, fn ($q, $s) => $s === 'stock' ? $q->whereIn('status', ['in_stock', 'booked']) : $q->where(fn ($q) => $q->where('status', $s)
                 // the vehicle a sale draft holds still shows in that draft's own vehicle list
                 ->when($s === 'in_stock' && $request->draft_id, fn ($q) => $q->orWhereIn('id', Draft::whereKey($request->draft_id)->whereNotNull('vehicle_id')->select('vehicle_id')))))
+            // for a new investor sale: the current sale is an active due or installment sale (never cash) with no investor yet
+            ->when($request->boolean('fundable'), fn ($q) => $q->whereIn('current_sale_id', Sale::where('status', 'active')
+                ->whereIn('payment_type', ['due', 'installment'])->whereNull('investor_id')
+                ->whereDoesntHave('plan', fn ($q) => $q->whereNotNull('investor_id'))
+                ->whereDoesntHave('investorSale')->select('id')))
             // where the registration of the vehicle's current sale stands
             ->when($request->registration_status, fn ($q, $s) => $q->whereIn('current_sale_id', Sale::where('registration_status', $s)->select('id')))
             ->when($request->search, fn ($q, $s) => $q->where(fn ($q) => $q
@@ -89,15 +97,18 @@ class VehicleController extends Controller implements HasMiddleware
         return $this->success(VehicleResource::make($vehicle), 'Vehicle updated');
     }
 
-    public function destroy(Vehicle $vehicle): JsonResponse
+    /** Deletes the vehicle with all its purchases, sales and payments (for a vehicle entered twice by mistake). */
+    public function destroy(Request $request, Vehicle $vehicle): JsonResponse
     {
-        if ($vehicle->purchases()->exists()) {
-            throw new BusinessRuleException('This vehicle has purchase history and cannot be deleted.');
-        }
+        app(VehicleService::class)->delete($vehicle, $request->user());
 
-        $vehicle->delete();
+        return $this->success(null, 'Vehicle and all its records deleted');
+    }
 
-        return $this->success(null, 'Vehicle deleted');
+    /** The vehicles deleted with everything on them, newest first: who, when, and what was removed. */
+    public function deletions(): JsonResponse
+    {
+        return $this->success(VehicleDeletion::with('user:id,name')->latest('id')->limit(500)->get());
     }
 
     /** Find a vehicle by chassis number or by registration number (used to repurchase a vehicle we already know). */
@@ -189,6 +200,8 @@ class VehicleController extends Controller implements HasMiddleware
             'sales' => SaleResource::collection($sales),
             'purchases' => PurchaseResource::collection($purchases),
             // every booking this vehicle was held for, whatever became of it
+            // the investor sales on this vehicle's sales, cancelled ones too
+            'investor_sales' => InvestorSaleResource::collection(InvestorSale::whereIn('sale_id', $saleIds)->with(['investor', 'settlements'])->orderBy('date')->orderBy('id')->get()),
             'bookings' => BookingResource::collection(Booking::where('vehicle_id', $vehicle->id)->with(['customer:id,name,phone,alt_phone', 'creator:id,name'])->orderByDesc('id')->get()),
             'timeline' => $events->sortBy('sort')->values()->map(fn ($e) => collect($e)->except('sort')->all()),
         ]);

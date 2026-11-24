@@ -1,3 +1,5 @@
+import type { SubscriptionSummary } from "@/lib/subscription";
+
 /** GET /landing: what the public landing page shows. A detail left blank in System settings stays off the page. */
 export type LandingInfo = {
   signup_enabled: boolean; contact_form: boolean; support_email: string | null; support_phone: string | null; whatsapp: string | null; address: string | null; support_hours: string | null;
@@ -7,13 +9,14 @@ export type Customer = {
   address: string | null; notes: string | null; receivable_due?: number; photo_url?: string | null;
 };
 export type Supplier = {
-  id: number; name: string; phone: string; alt_phone: string | null; nid: string | null; address: string | null; notes: string | null; photo_url?: string | null;
+  id: number; name: string; father_name?: string | null; phone: string; alt_phone: string | null; nid: string | null; address: string | null; notes: string | null; photo_url?: string | null;
   bank_name?: string | null; bank_branch?: string | null; bank_account_name?: string | null; bank_account_no?: string | null; bank_info?: string | null; payable_due?: number;
 };
 /** Whoever sold a purchase to us: the supplier, or the customer for a second-hand buy-back. */
 export type Seller = { id: number; name: string; phone: string; alt_phone: string | null; nid?: string | null; photo_url?: string | null };
 export type Investor = {
-  id: number; name: string; phone: string | null; alt_phone: string | null; nid: string | null; address: string | null;
+  investor_owes?: number; // what the investor still has to give the shop on their investor sales (the list sends it)
+  id: number; name: string; father_name?: string | null; phone: string | null; alt_phone: string | null; nid: string | null; address: string | null;
   bank_name?: string | null; bank_branch?: string | null; bank_account_name?: string | null; bank_account_no?: string | null; bank_info: string | null; opening_balance: number;
   current_due?: number; installments_due?: number; photo_url?: string | null;
   formula_invested?: number | null; formula_profit?: number | null; formula_months?: number | null; formula_rate_month?: number | null; formula_rate_year?: number | null; notes: string | null; is_active: boolean;
@@ -37,8 +40,24 @@ export type Installment = {
 };
 export type Plan = {
   id: number; sale_id: number; principal: number; interest_rate: number; interest_amount: number;
+  promise_amount?: number; promise_date?: string | null; // part of the price promised by a date, outside the installments
   total_payable: number; number_of_installments: number; frequency: string; start_date: string;
   investor_share_percent: number; installments?: Installment[]; sale?: Sale;
+};
+/** An investor sale: the investor funds a customer sale on their own terms, and the shop pays them back on its own schedule. */
+export type InvestorSale = {
+  id: number; sale_id: number; investor_id: number; date: string; principal: number;
+  // the investor's amount (principal): what they gave the shop of it, and still owe it
+  investor_down_payment?: number | null; investor_paid?: number; investor_owes?: number;
+  sale_price: number | null; down_payment: number | null; method: string | null; memo_no: string | null; guarantor_name: string | null; guarantor_phone: string | null; profit_rate: number; profit_amount: number;
+  total_payable: number; number_of_installments: number; frequency: "monthly" | "weekly"; start_date: string; status: "active" | "cancelled";
+  customer_id?: number | null; customer?: Customer | null; // an additional customer besides the sale's buyer
+  investor?: Investor; sale?: Sale; schedule: { seq_no: number; due_date: string; amount: number }[];
+  settlements?: Settlement[]; // its payments, when loaded
+  position?: {
+    principal: number; profit: number; principal_paid: number; profit_paid: number; monthly: number; current_due: number; total_due: number;
+    installments: number; installments_due: number; installments_left: number; next_date: string | null;
+  };
 };
 export type Payment = {
   id: number; sale_id: number; installment_id: number | null; batch_no?: string | null; amount: number; method: string;
@@ -53,25 +72,28 @@ export type RegLog = {
   user?: { id: number; name: string };
 };
 export type Sale = {
-  id: number; vehicle_id: number; customer_id: number; sale_date: string; sale_price: number; down_payment: number;
+  id: number; vehicle_id: number; customer_id: number; additional_customer_id?: number | null; additional_customer?: Customer | null; sale_date: string; sale_price: number; down_payment: number;
   payment_type: "cash" | "due" | "installment"; guarantor_phone: string | null; guarantor_name?: string | null; memo_no?: string | null; total_paid: number; due_amount: number; grand_total: number;
   payment_status: "paid" | "partial" | "unpaid"; status: "active" | "cancelled"; cancel_reason: string | null;
   registration_status: string; vehicle?: Vehicle; customer?: Customer; investor?: Investor; plan?: Plan;
+  investor_sale?: InvestorSale | null; // the active investor sale funding this sale
   payments?: Payment[]; promises?: Promise_[]; registration_logs?: RegLog[]; charges?: { id: number; purpose: string; amount: number; charged_on: string; note: string | null; paid: number | null }[]; edits?: { id: number; by: string | null; at: string; changes: { field: string; from: string | null; to: string | null }[] }[];
   booking?: { id: number; advance_amount: number; advance_method: string; booked_on: string; expires_on: string | null; agreed_price: number | null; note: string | null; booked_by: string | null } | null; // the booking this sale completed
   advance?: { amount: number; date: string; method: string; booking_id: number | null } | null; // received before the sale: a booking's advance or an advance payment
 };
 export type Settlement = {
-  id: number; investor_id: number; type: string; amount: number; date: string; note: string | null;
+  id: number; investor_id: number; investor_sale_id?: number | null; type: string; amount: number; date: string; note: string | null;
   investor?: Investor;
 };
 export type Summary = {
   opening_balance: number; invested: number; returned: number; profit_earned: number; withdrawn: number;
   outstanding: number; sales_count: number; collected: number; sales_due: number;
+  investor_owes?: number; // what the investor still has to give the shop of their amounts on investor sales
 };
 export type Shop = {
   id: number; name: string; phone: string | null; address: string | null; is_active: boolean;
   approved_at: string | null; // empty: signed itself up and waits for the super admin to switch it on
+  subscription?: SubscriptionSummary | null; // empty: no subscription, so no time limit
   owner?: { id: number; name: string; email: string; is_active: boolean } | null; users_count?: number;
 };
 export type PermissionT = { id: number; key: string; name: string; group: string; description: string | null };
@@ -80,7 +102,7 @@ export type CallRow = {
   type: "installment" | "promise"; id: number; label: string; sale_id: number; due_date: string; days_left: number;
   amount: number; sale_due: number; customer_total_due: number; guarantor_phone: string | null;
   overdue_by: { months: number; days: number; total_days: number } | null;
-  customer: { id: number; name: string; phone: string; alt_phone: string | null; address: string | null };
+  customer: { id: number; name: string; father_name?: string | null; phone: string; alt_phone: string | null; address: string | null };
   vehicle: { id: number; chassis_no: string; engine_no: string | null; brand: string | null; model: string | null };
   /** set when the row was marked "call done": the day it comes back to the list */
   called_until: string | null;

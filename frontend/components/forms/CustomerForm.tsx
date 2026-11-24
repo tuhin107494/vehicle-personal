@@ -68,6 +68,8 @@ export function CustomerForm({ open, customer, onClose, onSaved, initialText = "
 
   return (
     <Modal open={open} onClose={onClose} title={`${customer ? "Edit" : "New"} customer`}>
+      {/* opened from inside another form (the "+ New" of a picker): its submit stops here, so it does not also submit that form */}
+      <div onSubmit={(e) => e.stopPropagation()}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-3" noValidate>
         <p className="text-xs text-slate-500"><span className="text-red-600">*</span> Required</p>
         <PhotoField name={watch("name")} url={customer?.photo_url} change={photo} onChange={setPhoto} />
@@ -85,6 +87,7 @@ export function CustomerForm({ open, customer, onClose, onSaved, initialText = "
           <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Saving..." : "Save"}</Button>
         </div>
       </form>
+      </div>
     </Modal>
   );
 }

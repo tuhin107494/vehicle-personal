@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Edits the details of a recorded payment (date, method, reference, memo number, note) and keeps a history.
@@ -51,7 +52,14 @@ class TransactionService
     /** @return array{type:string,id:int}|null what the statement needs to offer an Edit button */
     public static function tx(Model $m): ?array
     {
-        return self::editable($m) ? ['type' => self::typeOf($m), 'id' => $m->id, 'deletable' => app(self::class)->deleteLock($m) === null] : null;
+        if (! self::editable($m)) {
+            return null;
+        }
+
+        // it reads the sale (and the payment's collection): a statement passes payments with their sale loaded, so no query per row
+        $free = app(self::class)->deleteLock($m) === null;
+
+        return ['type' => self::typeOf($m), 'id' => $m->id, 'deletable' => $free, 'cancellable' => $free && ! $m instanceof Advance];
     }
 
     public function find(string $type, int $id): Model
@@ -65,7 +73,7 @@ class TransactionService
     public function values(Model $m): array
     {
         return [
-            'amount' => $this->plain($m->amount),
+            'amount' => Money::plain($m->amount),
             'amount_lock' => $this->amountLock($m),
             'note_locked' => $this->noteLocked($m) ? '1' : null,
             'paid_at' => $m->paid_at->toDateString(),
@@ -76,18 +84,19 @@ class TransactionService
         ];
     }
 
-    /** An amount as plain text: 15000 when there are no decimals, 15000.5 or 15000.75 when there are. */
-    private function plain(float|int|string $amount): string
-    {
-        $text = number_format((float) $amount, 2, '.', '');
-
-        return rtrim(rtrim($text, '0'), '.');
-    }
-
     /** The rows of the collection a payment belongs to (just itself when it was not spread). */
     private function batch(Model $m): Collection
     {
-        return $m instanceof Payment && $m->batch_no ? Payment::where('sale_id', $m->sale_id)->where('batch_no', $m->batch_no)->get() : collect([$m]);
+        if (! $m instanceof Payment || ! $m->batch_no) {
+            return collect([$m]);
+        }
+
+        // a statement hands over the sale with its payments already loaded: no query per row then
+        if ($m->relationLoaded('sale') && $m->sale->relationLoaded('payments')) {
+            return $m->sale->payments->where('batch_no', $m->batch_no)->values();
+        }
+
+        return Payment::where('sale_id', $m->sale_id)->where('batch_no', $m->batch_no)->get();
     }
 
     /** A payment taken at the sale is recognised by its note ("Down payment"...), so the note stays as it is. */
@@ -100,7 +109,7 @@ class TransactionService
     public function amountLock(Model $m): ?string
     {
         if ($m instanceof Payment) {
-            $sale = $m->sale()->with('plan')->first();
+            $sale = $m->relationLoaded('sale') ? $m->sale : $m->sale()->with('plan')->first();
 
             return match (true) {
                 $sale->status !== 'active' => 'The sale was cancelled, so its payments are fixed.',
@@ -114,8 +123,21 @@ class TransactionService
         return null;
     }
 
+    /**
+     * Locks the sale or purchase a payment is on, before the payment itself: the order a new payment takes them in, so an
+     * edit and a collection on the same sale cannot deadlock, and a cancel of the sale cannot slip between the check and the change.
+     */
+    private function lockParent(Model $m): void
+    {
+        match (true) {
+            $m instanceof Payment => Sale::lockForUpdate()->whereKey($m->sale_id)->value('id'),
+            $m instanceof PurchasePayment => Purchase::lockForUpdate()->whereKey($m->purchase_id)->value('id'),
+            default => null,
+        };
+    }
+
     /** Applies a new amount (in paisa) to the payment and to every figure it fed. */
-    private function changeAmount(Model $m, int $new): void
+    private function changeAmount(Model $m, int $new, User $user): void
     {
         $old = Money::paisa($m->amount);
 
@@ -145,15 +167,27 @@ class TransactionService
             }
 
             if ($m->installment_id) {
+                // more than is left on its installment: the installment is paid in full and the rest goes on to the next
+                // installments due, as a collection of that amount would (one payment, shown as one transaction)
                 $installment = Installment::lockForUpdate()->findOrFail($m->installment_id);
-                $paid = Money::paisa($installment->paid_amount) - $old + $new;
+                $room = Money::paisa($installment->amount) - (Money::paisa($installment->paid_amount) - $old);
+                $extra = max($new - $room, 0);
+                $own = $new - $extra;
 
-                if ($paid > Money::paisa($installment->amount)) {
-                    throw new BusinessRuleException('That is more than installment #'.$installment->seq_no.' ('.Money::format(Money::paisa($installment->amount)).').');
+                $installment->paid_amount = Money::taka(Money::paisa($installment->paid_amount) - $old + $own);
+                $installment->paid_at = null; // set again below only if it is still paid in full
+                app(PaymentService::class)->refreshInstallment($installment, $m->paid_at);
+                $m->update(['amount' => Money::taka($own), 'batch_no' => $m->batch_no ?: (string) Str::uuid()]);
+                app(PaymentService::class)->recalculate($sale);
+
+                if ($extra > 0) {
+                    app(PaymentService::class)->collect($sale, [
+                        'amount' => Money::taka($extra), 'batch_no' => $m->batch_no, 'method' => $m->method, 'paid_at' => $m->paid_at->toDateString(),
+                        'reference' => $m->reference, 'memo_no' => $m->memo_no, 'note' => $m->note,
+                    ], $user);
                 }
 
-                $installment->paid_amount = Money::taka($paid);
-                app(PaymentService::class)->refreshInstallment($installment, $m->paid_at);
+                return;
             }
 
             $m->update(['amount' => Money::taka($new)]);
@@ -164,17 +198,15 @@ class TransactionService
 
         if ($m instanceof PurchasePayment) {
             $purchase = Purchase::lockForUpdate()->findOrFail($m->purchase_id);
-            $paid = Money::paisa($purchase->paid_amount) - $old + $new;
+            $others = Money::paisa(PurchasePayment::where('purchase_id', $purchase->id)->where('id', '!=', $m->id)->sum('amount'));
+            $paid = Money::paisa($purchase->initial_paid) + $others + $new;
 
             if ($paid + Money::paisa($purchase->due_adjustment) > Money::paisa($purchase->price)) {
                 throw new BusinessRuleException('That is more than the purchase price of '.Money::format(Money::paisa($purchase->price)).'.');
             }
 
             $m->update(['amount' => Money::taka($new)]);
-            $purchase->update([
-                'paid_amount' => Money::taka($paid),
-                'payment_status' => $paid + Money::paisa($purchase->due_adjustment) >= Money::paisa($purchase->price) ? 'paid' : 'partial',
-            ]);
+            app(PayableService::class)->recalculate($purchase);
 
             return;
         }
@@ -189,6 +221,7 @@ class TransactionService
     public function update(Model $m, array $data, User $user): Model
     {
         return DB::transaction(function () use ($m, $data, $user) {
+            $this->lockParent($m);
             $m = $m::lockForUpdate()->findOrFail($m->id);
 
             if (! self::editable($m)) {
@@ -210,7 +243,7 @@ class TransactionService
 
             // the amount first, while the payment still shows what it was
             if (isset($data['amount']) && $data['amount'] !== '' && Money::paisa($data['amount']) !== Money::paisa($before['amount'])) {
-                $this->changeAmount($m, Money::paisa($data['amount']));
+                $this->changeAmount($m, Money::paisa($data['amount']), $user);
             }
 
             $fields = [
@@ -272,14 +305,34 @@ class TransactionService
     /** Removes a payment or advance and takes its amount back out of every figure it fed. The deletion is kept in the history. */
     public function delete(Model $m, User $user): void
     {
-        DB::transaction(function () use ($m, $user) {
+        $this->retire($m, $user, null);
+    }
+
+    /** Cancels a customer or supplier payment: it stays on the statement as cancelled (with who and why), and its amount comes out of every figure it fed. */
+    public function cancel(Model $m, string $reason, User $user): void
+    {
+        if (! ($m instanceof Payment || $m instanceof PurchasePayment)) {
+            throw new BusinessRuleException('Only a customer or supplier payment can be cancelled.');
+        }
+
+        $this->retire($m, $user, $reason);
+    }
+
+    /** Takes a payment or advance out of the figures it fed, then deletes it (no reason) or marks it cancelled (with a reason). */
+    private function retire(Model $m, User $user, ?string $reason): void
+    {
+        DB::transaction(function () use ($m, $user, $reason) {
+            $this->lockParent($m);
             $m = $m::lockForUpdate()->findOrFail($m->id);
 
             if ($lock = $this->deleteLock($m)) {
-                throw new BusinessRuleException($lock);
+                throw new BusinessRuleException($reason === null ? $lock : str_replace('cannot be deleted', 'cannot be cancelled', $lock));
             }
 
-            $summary = $this->plain($m->amount).' on '.$m->paid_at->toDateString().' ('.$m->method.')';
+            $summary = Money::plain($m->amount).' on '.$m->paid_at->toDateString().' ('.$m->method.')';
+            $leave = fn () => $reason === null
+                ? $m->delete()
+                : $m->forceFill(['cancelled_at' => now(), 'cancelled_by' => $user->id, 'cancel_reason' => $reason])->save(); // not fillable: only this method may cancel
 
             if ($m instanceof Payment) {
                 $sale = Sale::lockForUpdate()->with('plan')->findOrFail($m->sale_id);
@@ -291,23 +344,19 @@ class TransactionService
                     app(PaymentService::class)->refreshInstallment($installment, $m->paid_at);
                 }
 
-                $m->delete();
+                $leave();
                 app(PaymentService::class)->recalculate($sale);
             } elseif ($m instanceof PurchasePayment) {
                 $purchase = Purchase::lockForUpdate()->findOrFail($m->purchase_id);
-                $paid = max(Money::paisa($purchase->paid_amount) - Money::paisa($m->amount), 0);
-                $settled = $paid + Money::paisa($purchase->due_adjustment);
 
-                $m->delete();
-                $purchase->update([
-                    'paid_amount' => Money::taka($paid),
-                    'payment_status' => $settled >= Money::paisa($purchase->price) ? 'paid' : ($settled > 0 ? 'partial' : 'unpaid'),
-                ]);
+                $leave();
+                app(PayableService::class)->recalculate($purchase);
             } else {
-                $m->delete();
+                $leave();
             }
 
-            TransactionEdit::create(['type' => self::typeOf($m), 'subject_id' => $m->id, 'user_id' => $user->id, 'changes' => [['field' => 'Deleted', 'from' => $summary, 'to' => null]]]);
+            $change = $reason === null ? ['field' => 'Deleted', 'from' => $summary, 'to' => null] : ['field' => 'Cancelled', 'from' => $summary, 'to' => $reason];
+            TransactionEdit::create(['type' => self::typeOf($m), 'subject_id' => $m->id, 'user_id' => $user->id, 'changes' => [$change]]);
         });
     }
 

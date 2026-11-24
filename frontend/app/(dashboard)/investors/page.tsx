@@ -14,9 +14,10 @@ import { Col, DataTable } from "@/components/DataTable";
 import { InvestorForm } from "@/components/forms/InvestorForm";
 import { SettlementForm, type SettlementMode } from "@/components/forms/SettlementForm";
 import { InvestorVehiclePay } from "@/components/forms/InvestorVehiclePay";
+import { InvestorDuesModal } from "@/components/forms/InvestorDuesModal";
 import { ProfitCalculator } from "@/components/forms/ProfitCalculator";
 import { Input } from "@/components/ui/input";
-import { BellRing, Calculator, Eye, Pencil, PiggyBank, Plus, Wallet } from "lucide-react";
+import { BellRing, Calculator, Eye, HandCoins, Pencil, PiggyBank, Plus, Wallet } from "lucide-react";
 
 export default function InvestorsPage() {
   const { can } = useAuth();
@@ -28,6 +29,7 @@ export default function InvestorsPage() {
   const [open, setOpen] = useState(false);
   const [calc, setCalc] = useState(false);
   const [vehiclePay, setVehiclePay] = useState<Investor | null>(null);
+  const [collectFrom, setCollectFrom] = useState<Investor | null>(null); // collecting what this investor still owes the shop
   const [settle, setSettle] = useState<{ investor: Investor; mode: SettlementMode } | null>(null);
   const [calcFor, setCalcFor] = useState<string | undefined>();
   const [calcInit, setCalcInit] = useState<{ amount?: number; profit?: number } | undefined>();
@@ -56,9 +58,12 @@ export default function InvestorsPage() {
 
   const columns: Col<Investor>[] = [
     { header: "Name", cell: ({ row }) => <span className="flex items-center gap-2 font-medium"><Avatar name={row.original.name} url={row.original.photo_url} /> {row.original.name}</span> },
+    { header: "Father's name", cell: ({ row }) => row.original.father_name || "-" },
     { header: "Phone", cell: ({ row }) => [row.original.phone, row.original.alt_phone].filter(Boolean).join(" / ") || "-" },
     { header: "Opening balance", cell: ({ row }) => money(row.original.opening_balance) },
     { header: "Due", cell: ({ row }) => (row.original.current_due ?? 0) > 0 ? <span className="inline-flex flex-wrap items-center gap-1.5"><Badge tone="red">{row.original.installments_due} due</Badge><b className="text-amber-700">{money(row.original.current_due ?? 0)}</b></span> : <span className="text-slate-400">-</span> },
+    // what the investor still has to give the shop on their investor sales (the "Due" column is what the shop pays them)
+    { header: "To collect", cell: ({ row }) => (row.original.investor_owes ?? 0) > 0 ? <b className="text-sky-700">{money(row.original.investor_owes ?? 0)}</b> : <span className="text-slate-400">-</span> },
     { header: "Status", cell: ({ row }) => <Badge tone={row.original.is_active ? "green" : "gray"}>{row.original.is_active ? "Active" : "Inactive"}</Badge> },
     {
       header: "Action",
@@ -67,6 +72,7 @@ export default function InvestorsPage() {
         <div className="flex w-full items-center justify-end gap-1 whitespace-nowrap md:w-auto md:gap-1.5">
           {can("settlements.manage") && <Button className="h-auto min-w-0 flex-1 flex-col gap-0.5 px-1 py-1 text-[11px] md:h-8 md:flex-row md:gap-1.5 md:px-2.5 md:py-0 md:text-xs border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800" variant="outline" size="sm" onClick={() => setSettle({ investor: row.original, mode: "invest" })}><PiggyBank className="size-4" /> Invest</Button>}
           {can("settlements.manage") && <Button className="h-auto min-w-0 flex-1 flex-col gap-0.5 px-1 py-1 text-[11px] md:h-8 md:flex-row md:gap-1.5 md:px-2.5 md:py-0 md:text-xs border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100 hover:text-violet-800" variant="outline" size="sm" onClick={() => setVehiclePay(row.original)}><Wallet className="size-4" /> Pay</Button>}
+          {can("settlements.manage") && (row.original.investor_owes ?? 0) > 0 && <Button className="h-auto min-w-0 flex-1 flex-col gap-0.5 px-1 py-1 text-[11px] md:h-8 md:flex-row md:gap-1.5 md:px-2.5 md:py-0 md:text-xs border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100 hover:text-sky-800" variant="outline" size="sm" onClick={() => setCollectFrom(row.original)}><HandCoins className="size-4" /> Collect</Button>}
           <Button className="h-auto min-w-0 flex-[1.7] md:flex-1 flex-col gap-0.5 px-1 py-1 text-[11px] md:h-8 md:flex-row md:gap-1.5 md:px-2.5 md:py-0 md:text-xs border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100 hover:text-sky-800" variant="outline" size="sm" onClick={() => openCalc(row.original)}><Calculator className="size-4" /> Profit calc</Button>
           <Button className="h-auto min-w-0 flex-[0.75] md:flex-1 flex-col gap-0.5 px-1 py-1 text-[11px] md:h-8 md:flex-row md:gap-1.5 md:px-2.5 md:py-0 md:text-xs border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100 hover:text-violet-800" variant="outline" size="sm" onClick={() => router.push(`/investors/${row.original.id}`)}><Eye className="size-4" /> View</Button>
           {can("investors.edit") && <Button className="h-auto min-w-0 flex-[0.75] md:flex-1 flex-col gap-0.5 px-1 py-1 text-[11px] md:h-8 md:flex-row md:gap-1.5 md:px-2.5 md:py-0 md:text-xs border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800" variant="outline" size="sm" onClick={() => { setEditing(row.original); setOpen(true); }}><Pencil className="size-4" /> Edit</Button>}
@@ -85,6 +91,7 @@ export default function InvestorsPage() {
       <Input className={`${inputCls} mb-3 max-w-xs`} placeholder="Search name or phone" value={list.search} onChange={(e) => list.setSearch(e.target.value)} />
       <DataTable serverPaged columns={columns} data={list.rows} loading={list.loading} empty={tab === "due" ? "No investor has a due payment." : "No records found."} />
       <Pagination meta={list.meta} onPage={list.setPage} />
+      {collectFrom && <InvestorDuesModal investorId={collectFrom.id} name={collectFrom.name} onClose={() => setCollectFrom(null)} onSaved={list.reload} />}
       {vehiclePay && <InvestorVehiclePay investorId={vehiclePay.id} name={vehiclePay.name} onClose={() => setVehiclePay(null)} />}
       {settle && <SettlementForm open mode={settle.mode} name={settle.investor.name} investorId={settle.investor.id} onClose={() => setSettle(null)} onSaved={() => {}} />}
       <ProfitCalculator key={calcKey} open={calc} name={calcFor} initial={calcInit} investorId={calcInv?.id} saved={calcInv} canSave={can("investors.edit")} onClose={() => setCalc(false)} />

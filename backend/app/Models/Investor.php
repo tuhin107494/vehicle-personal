@@ -15,6 +15,7 @@ class Investor extends Model
     protected $fillable = [
         'shop_id',
         'name',
+        'father_name',
         'phone',
         'alt_phone',
         'nid',
@@ -56,6 +57,12 @@ class Investor extends Model
     public function plans(): HasMany
     {
         return $this->hasMany(InstallmentPlan::class);
+    }
+
+    /** @return HasMany<InvestorSale, $this> */
+    public function investorSales(): HasMany
+    {
+        return $this->hasMany(InvestorSale::class);
     }
 
     /** @return HasMany<InvestorSettlement, $this> */

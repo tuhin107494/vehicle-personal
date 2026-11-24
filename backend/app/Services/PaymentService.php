@@ -117,13 +117,16 @@ class PaymentService
     private function payCharges(Sale $sale, int $amount, array $base): array
     {
         $payments = [];
+        // what is already paid on each charge, in one query
+        $paid = Payment::where('sale_id', $sale->id)->whereNotNull('sale_charge_id')->groupBy('sale_charge_id')
+            ->selectRaw('sale_charge_id, SUM(amount) as total')->pluck('total', 'sale_charge_id');
 
         foreach (SaleCharge::where('sale_id', $sale->id)->orderBy('charged_on')->orderBy('id')->get() as $charge) {
             if ($amount <= 0) {
                 break;
             }
 
-            $owed = Money::paisa($charge->amount) - Money::paisa(Payment::where('sale_charge_id', $charge->id)->sum('amount'));
+            $owed = Money::paisa($charge->amount) - Money::paisa($paid[$charge->id] ?? 0);
             $take = min($amount, $owed);
 
             if ($take > 0) {
@@ -142,9 +145,10 @@ class PaymentService
      */
     private function allocate(Sale $sale, int $amount, ?int $preferredId): array
     {
+        // the one falling due first is paid first (a promised amount, number 0, may fall due after some installments)
         $installments = $sale->plan->installments
             ->whereNotIn('status', ['cancelled', 'paid'])
-            ->sortBy('seq_no')
+            ->sortBy([fn ($a, $b) => $a->due_date <=> $b->due_date, fn ($a, $b) => $a->seq_no <=> $b->seq_no])
             ->values();
 
         if ($preferredId) {

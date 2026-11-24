@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\SignupController;
 use App\Models\Shop;
+use App\Services\Billing\SubscriptionService;
 use App\Services\DraftService;
 use App\Support\SignupConfirmation;
 use Illuminate\Foundation\Inspiring;
@@ -28,5 +29,11 @@ Artisan::command('drafts:expire', function () {
     $this->info('Deleted '.app(DraftService::class)->expireDue().' expired draft(s).');
 })->purpose('Delete sale drafts past their date and free the vehicles they held');
 
+// Trials and subscriptions ending soon: the shop owner is emailed 3 days and 1 day before.
+Artisan::command('subscriptions:remind', function (SubscriptionService $subscriptions) {
+    $this->info('Sent '.$subscriptions->sendExpiryReminders().' reminder(s).');
+})->purpose('Email shop owners whose trial or subscription ends in 3 days or 1 day');
+
 Schedule::command('signups:prune')->daily();
 Schedule::command('drafts:expire')->daily();
+Schedule::command('subscriptions:remind')->dailyAt('09:00')->withoutOverlapping();

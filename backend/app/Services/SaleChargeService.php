@@ -6,6 +6,7 @@ use App\Exceptions\BusinessRuleException;
 use App\Models\Payment;
 use App\Models\Sale;
 use App\Models\SaleCharge;
+use App\Models\Scopes\NotCancelledScope;
 use App\Models\TransactionEdit;
 use App\Models\User;
 use App\Support\Money;
@@ -83,7 +84,9 @@ class SaleChargeService
                 throw new BusinessRuleException('Something has already been paid on this charge, so it cannot be deleted.');
             }
 
-            TransactionEdit::create(['type' => 'sale_charge', 'subject_id' => $charge->id, 'user_id' => $user->id, 'changes' => [['field' => 'Charge', 'from' => $charge->purpose.' '.$this->plain($charge->amount), 'to' => 'Deleted']]]);
+            // a cancelled payment on it stays on the statement as cancelled, no longer tied to the charge
+            Payment::withoutGlobalScope(NotCancelledScope::class)->where('sale_charge_id', $charge->id)->whereNotNull('cancelled_at')->update(['sale_charge_id' => null]);
+            TransactionEdit::create(['type' => 'sale_charge', 'subject_id' => $charge->id, 'user_id' => $user->id, 'changes' => [['field' => 'Charge', 'from' => $charge->purpose.' '.Money::plain($charge->amount), 'to' => 'Deleted']]]);
             $charge->delete();
             $this->refresh($sale);
         });
@@ -92,7 +95,7 @@ class SaleChargeService
     /** @return array<string,?string> */
     public function values(SaleCharge $charge): array
     {
-        return ['purpose' => $charge->purpose, 'amount' => $this->plain($charge->amount), 'charged_on' => $charge->charged_on->toDateString(), 'note' => $charge->note];
+        return ['purpose' => $charge->purpose, 'amount' => Money::plain($charge->amount), 'charged_on' => $charge->charged_on->toDateString(), 'note' => $charge->note];
     }
 
     /** @return array<int,array{id:int,by:?string,at:string,changes:array}> */
@@ -124,10 +127,5 @@ class SaleChargeService
     {
         $sale->update(['charges_total' => Money::taka(Money::paisa(SaleCharge::where('sale_id', $sale->id)->sum('amount')))]);
         $this->payments->recalculate($sale);
-    }
-
-    private function plain(float|int|string $amount): string
-    {
-        return rtrim(rtrim(number_format((float) $amount, 2, '.', ''), '0'), '.');
     }
 }

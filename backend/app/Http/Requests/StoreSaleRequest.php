@@ -18,6 +18,8 @@ class StoreSaleRequest extends ApiRequest
             'booking_id' => ['nullable', 'integer', $this->shopExists('bookings')], // the booking this sale completes: its advance is part of the down payment
             'vehicle_id' => ['required', $this->shopExists('vehicles')],
             'customer_id' => ['required', $this->shopExists('customers')],
+            // one more customer besides the buyer (a co-buyer or guarantor), never the buyer again
+            'additional_customer_id' => ['nullable', 'different:customer_id', $this->shopExists('customers')],
             'sale_date' => ['required', 'date', 'before_or_equal:today'],
             'sale_price' => ['required', 'numeric', 'min:1'],
             'payment_type' => ['required', Rule::in(['cash', 'due', 'installment'])],
@@ -26,12 +28,14 @@ class StoreSaleRequest extends ApiRequest
             'advance_date' => ['nullable', 'date', 'before_or_equal:sale_date'],
             'method' => ['nullable', Rule::in(['cash', 'bank', 'mobile'])],
             'promised_date' => ['nullable', 'date', 'after:sale_date'],
+            // installment: part of the price the customer promises to pay by promised_date, outside the installments and without interest
+            'promise_amount' => ['nullable', 'numeric', 'min:0', 'max:999999999999'],
             'promise_note' => ['nullable', 'string', 'max:1000'],
             'investor_id' => ['nullable', $this->shopExists('investors')],
             'installment_count' => ['required_if:payment_type,installment', 'nullable', 'integer', 'min:1', 'max:120'],
             'first_due_date' => ['required_if:payment_type,installment', 'nullable', 'date', 'after:sale_date'],
             'frequency' => ['nullable', Rule::in(['monthly', 'weekly'])],
-            'interest_rate' => ['nullable', 'numeric', 'min:0', 'max:1000'],
+            'interest_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'guarantor_phone' => ['nullable', 'string', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
             'guarantor_name' => ['nullable', 'string', 'max:100'],
             'memo_no' => ['nullable', 'string', 'max:100'],
@@ -45,8 +49,10 @@ class StoreSaleRequest extends ApiRequest
         return [
             'vehicle_id.required' => 'Select a vehicle.',
             'customer_id.required' => 'Select the buyer.',
+            'additional_customer_id.different' => 'The additional customer must be someone other than the buyer.',
             'guarantor_phone.regex' => 'Enter a valid mobile number (7 to 20 digits).',
             'sale_price.required' => 'Sale price is required.',
+            'interest_rate.max' => 'Interest can be at most 100% a year.',
             'sale_date.before_or_equal' => 'Sale date cannot be in the future.',
             'advance_date.before_or_equal' => 'The advance date cannot be after the sale date.',
             'down_payment.lte' => 'Down payment cannot be more than the sale price.',

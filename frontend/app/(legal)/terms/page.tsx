@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ContactEmail, LegalPage } from "@/components/LegalPage";
 
-export const metadata: Metadata = { title: "Terms of Service · Gari Becho" };
+export const metadata: Metadata = { title: "Terms of Service · Gari Becho", alternates: { canonical: "/terms" } };
 
 export default function TermsPage() {
   return (

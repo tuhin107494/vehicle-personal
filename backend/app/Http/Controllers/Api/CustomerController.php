@@ -10,8 +10,10 @@ use App\Http\Resources\CustomerResource;
 use App\Http\Resources\PurchaseResource;
 use App\Http\Resources\SaleResource;
 use App\Models\Customer;
+use App\Models\InvestorSale;
 use App\Models\Sale;
 use App\Services\CustomerImportService;
+use App\Services\CustomerMergeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -25,7 +27,7 @@ class CustomerController extends Controller implements HasMiddleware
             new Middleware('permission:parties.view', only: ['index', 'show', 'history']),
             new Middleware('permission:parties.create', only: ['store', 'import']),
             new Middleware('permission:parties.edit', only: ['update']),
-            new Middleware('permission:parties.delete', only: ['destroy']),
+            new Middleware('permission:parties.delete', only: ['destroy', 'merge']),
         ];
     }
 
@@ -75,9 +77,25 @@ class CustomerController extends Controller implements HasMiddleware
             throw new BusinessRuleException('This customer has sales or purchases and cannot be deleted.');
         }
 
+        // named as the additional customer on a sale or an investor sale
+        if (Sale::where('additional_customer_id', $customer->id)->exists() || InvestorSale::where('customer_id', $customer->id)->exists()) {
+            throw new BusinessRuleException('This customer is the additional customer on a sale and cannot be deleted.');
+        }
+
         $customer->delete();
 
         return $this->success(null, 'Customer deleted');
+    }
+
+    /** Moves the duplicates' sales and payments to this customer and deletes the duplicates. */
+    public function merge(Request $request, Customer $customer, CustomerMergeService $merger): JsonResponse
+    {
+        $data = $request->validate(
+            ['duplicate_ids' => ['required', 'array', 'min:1', 'max:20'], 'duplicate_ids.*' => ['integer', 'distinct']],
+            ['duplicate_ids.required' => 'Choose at least one duplicate customer to merge.'],
+        );
+
+        return $this->success(CustomerResource::make($merger->merge($customer, $data['duplicate_ids'])), 'Customers merged');
     }
 
     public function history(Customer $customer): JsonResponse

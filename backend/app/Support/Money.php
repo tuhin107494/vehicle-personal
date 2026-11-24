@@ -73,6 +73,12 @@ final class Money
         return [...array_fill(0, $parts - 1, $each), $paisa - $each * ($parts - 1)];
     }
 
+    /** An amount in taka as plain text, for edit histories: 15000 when there are no decimals, 15000.5 or 15000.75 when there are. */
+    public static function plain(float|int|string $amount): string
+    {
+        return rtrim(rtrim(number_format((float) $amount, 2, '.', ''), '0'), '.');
+    }
+
     /** Paisa as taka for a message, e.g. "1,000.30". */
     public static function format(int $paisa): string
     {

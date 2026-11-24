@@ -2,12 +2,50 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BadgeDollarSign, CalendarClock, Car, ChartLine, FileCheck2, FileText, HandCoins, Languages, Shield, Smartphone, Ticket, Truck, UserCog, type LucideIcon } from "lucide-react";
 import { LandingActions, LandingContact, LandingInstall, LandingIosHint, LandingLanguage, LandingWhatsApp } from "@/components/LandingParts";
-import { VehicleScene } from "@/components/LoginPoster";
+import { LandingVideo } from "@/components/LandingVideo";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Gari Becho · Vehicle shop management",
-  description: "Gari Becho (গাড়ি বেচো): manage your vehicle shop's stock, purchases, sales, installments, due collection, investors and reports in one place, in English and Bangla.",
+  description: SITE_DESCRIPTION,
+  alternates: { canonical: "/" },
 };
+
+// tells Google and AI search what the product is; fixed text only, so the escaped JSON is safe to inline
+const JSON_LD = JSON.stringify({
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": `${SITE_URL}/#organization`,
+      name: "Beacon Soft Ltd",
+      url: SITE_URL,
+      logo: `${SITE_URL}/icons/icon-512.png`,
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${SITE_URL}/#website`,
+      name: SITE_NAME,
+      alternateName: "গাড়ি বেচো",
+      url: SITE_URL,
+      inLanguage: ["en", "bn"],
+      publisher: { "@id": `${SITE_URL}/#organization` },
+    },
+    {
+      "@type": "SoftwareApplication",
+      name: SITE_NAME,
+      alternateName: "গাড়ি বেচো",
+      url: SITE_URL,
+      description: SITE_DESCRIPTION,
+      applicationCategory: "BusinessApplication",
+      // a web app that installs from the browser, not a store app
+      operatingSystem: "Web browser",
+      inLanguage: ["en", "bn"],
+      featureList: ["Stock and purchases", "Sales", "Bookings", "Installments and dues", "Investors", "Registration", "Reports", "Team roles"],
+      publisher: { "@id": `${SITE_URL}/#organization` },
+    },
+  ],
+}).replace(/</g, "\\u003c");
 
 const FEATURES: { icon: LucideIcon; tone: string; title: string; text: string }[] = [
   { icon: Truck, tone: "bg-emerald-100 text-emerald-600", title: "Stock and purchases", text: "Record each purchase and see every vehicle in stock, with its chassis and engine number." },
@@ -71,6 +109,7 @@ function SectionHeading({ title, text, eyebrow, id }: { title: string; text: str
 export default function LandingPage() {
   return (
     <div className="flex min-h-screen flex-col bg-white">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON_LD }} />
       <header className="sticky top-0 z-30 border-b border-emerald-100 bg-white/90 pt-[env(safe-area-inset-top)] shadow-sm backdrop-blur-md">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-2 px-4">
           <Link href="/" aria-label="Gari Becho" className="flex min-w-0 items-center gap-2 font-bold text-slate-800">
@@ -105,7 +144,7 @@ export default function LandingPage() {
                 <LandingActions large />
               </div>
             </div>
-            <VehicleScene className="mx-auto w-full max-w-xl" />
+            <LandingVideo />
           </div>
         </section>
 

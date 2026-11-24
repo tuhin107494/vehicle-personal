@@ -8,6 +8,7 @@ import { BadgeDollarSign, CalendarDays, Footprints, HandCoins, Menu, X, Building
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import { Avatar } from "@/components/Avatar";
+import { SubscriptionBanner } from "@/components/SubscriptionBanner";
 import { useHiddenMenu } from "@/lib/menu";
 
 export type Item = { href: string; text: string; icon: typeof Car; color: string; permission?: string; roles?: string[] };
@@ -33,6 +34,7 @@ export const NAV: Item[] = [
   { href: "/settings", text: "Settings", icon: Settings, color: "text-slate-600", permission: "settings.manage" },
   { href: "/users", text: "Users", icon: UserCog, color: "text-sky-600", roles: ["shop_owner"] },
   { href: "/roles", text: "Roles", icon: ShieldCheck, color: "text-emerald-600", roles: ["shop_owner"] },
+  { href: "/categories", text: "Categories", icon: Tags, color: "text-sky-600", permission: "vehicles.edit" },
 ];
 
 /** The menu items this user may open, before any the device has hidden. */
@@ -116,6 +118,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
       <div className="min-w-0 flex-1">
+        <SubscriptionBanner />
         <main className="min-w-0 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:p-6 md:pb-[calc(1.5rem+env(safe-area-inset-bottom))] print:p-0 print:pb-0">{children}</main>
       </div>
     </div>

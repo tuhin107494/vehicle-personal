@@ -189,11 +189,9 @@ const YEAR_FROM = 2017;
 const YEAR_TO = 2030;
 const YEARS = Array.from({ length: YEAR_TO - YEAR_FROM + 1 }, (_, i) => String(YEAR_TO - i));
 
-const BLANK_TYPE = { name: "", default_brand: "", default_model: "", default_color: "", default_cc: "", purchase_price: "" };
-
-/** Adds a vehicle type (like CNG or Car) for this shop, right from the vehicle type dropdown. */
-function AddTypeDialog({ open, onClose, onAdded }: { open: boolean; onClose: () => void; onAdded: (c: VehicleCategory & { purchase_price: number | null }) => void }) {
-  const [form, setForm] = useState(BLANK_TYPE);
+/** Adds a vehicle type (like CNG or Car) for this shop, right from the vehicle type dropdown. Only the name is asked; presets are set in Settings. */
+function AddTypeDialog({ open, onClose, onAdded }: { open: boolean; onClose: () => void; onAdded: (c: VehicleCategory) => void }) {
+  const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -202,24 +200,16 @@ function AddTypeDialog({ open, onClose, onAdded }: { open: boolean; onClose: () 
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) {
-      setForm(BLANK_TYPE);
+      setName("");
       setError("");
     }
   }
 
   const save = async () => {
-    if (!form.name.trim()) return setError("Type name is required.");
-    if (form.default_cc && (Number(form.default_cc) < 1 || Number(form.default_cc) > 10000)) return setError("Enter a valid CC.");
-    if (form.purchase_price && Number(form.purchase_price) < 1) return setError("Price must be at least 1.");
+    if (!name.trim()) return setError("Type name is required.");
     setSaving(true);
     try {
-      const res = await api<VehicleCategory & { purchase_price: number | null }>("/vehicle-categories", {
-        method: "POST",
-        body: {
-          name: form.name, default_brand: form.default_brand || null, default_model: form.default_model || null, default_color: form.default_color || null,
-          default_cc: form.default_cc ? Number(form.default_cc) : null, purchase_price: form.purchase_price ? Number(form.purchase_price) : null,
-        },
-      });
+      const res = await api<VehicleCategory>("/vehicle-categories", { method: "POST", body: { name } });
       toast.success(res.message);
       onAdded(res.data);
       onClose();
@@ -230,20 +220,10 @@ function AddTypeDialog({ open, onClose, onAdded }: { open: boolean; onClose: () 
     }
   };
 
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
-
   return (
     <Modal open={open} onClose={onClose} title="Add vehicle type">
       <div className="space-y-3" onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), save())}>
-        <Field label="Type name" error={error}><Input className={inputCls} placeholder="e.g. CNG, Car" value={form.name} onChange={set("name")} autoFocus /></Field>
-        <p className="text-xs text-slate-500">Optional: filled in automatically whenever this type is chosen.</p>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Brand"><Input className={inputCls} placeholder="Bajaj" value={form.default_brand} onChange={set("default_brand")} /></Field>
-          <Field label="Model"><Input className={inputCls} placeholder="RE Compact" value={form.default_model} onChange={set("default_model")} /></Field>
-          <Field label="Colour"><Input className={inputCls} placeholder="Green" value={form.default_color} onChange={set("default_color")} /></Field>
-          <Field label="CC"><Input type="number" className={inputCls} placeholder="200" value={form.default_cc} onChange={set("default_cc")} /></Field>
-        </div>
-        <Field label="Purchase price"><Input type="number" step="0.01" className={inputCls} placeholder="Filled in when this type is chosen on a purchase" value={form.purchase_price} onChange={set("purchase_price")} /></Field>
+        <Field label="Type name" error={error}><Input className={inputCls} placeholder="e.g. CNG, Car" value={name} onChange={(e) => setName(e.target.value)} autoFocus /></Field>
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={save} disabled={saving}>{saving ? "Adding..." : "Add type"}</Button>
@@ -253,35 +233,31 @@ function AddTypeDialog({ open, onClose, onAdded }: { open: boolean; onClose: () 
   );
 }
 
-export function VehicleFields({ register, errors, lockIds, setValue, getValues, watch, onTypeAdded }: VehicleFormParts & {
+export function VehicleFields({ register, errors, lockIds, setValue, watch }: VehicleFormParts & {
   lockIds?: boolean;
   setValue: (name: VehicleField, value: string) => void;
-  getValues: (name: VehicleField) => unknown;
   watch: (name: "vehicle_type" | "color") => string | undefined;
-  onTypeAdded?: (c: VehicleCategory & { purchase_price: number | null }) => void;
 }) {
   const { categories, reload } = useCategories();
   const [addingType, setAddingType] = useState(false);
   const currentType = watch("vehicle_type") ?? ""; // read in the change handler below: the choice before this change
 
-  const { defaultsFor, isAuto } = useTypeDefaults();
+  const { defaultsFor } = useTypeDefaults();
 
   // The type list loads after the form opens, and a select cannot hold a value that has no option yet: set the saved type again once its options exist.
   useEffect(() => {
     if (categories.length && currentType && currentType !== "__new") setValue("vehicle_type", currentType);
   }, [categories.length, currentType, setValue]);
 
-  // Fill brand, model, colour and CC from the type, unless something custom was already typed or picked.
+  // Choosing a type resets brand, model, colour, CC, year, fuel type and mileage to that type's presets; a field the type has no preset for is emptied.
   const applyDefaults = (key: string, extra?: VehicleCategory) => {
     const d = defaultsFor(key, extra);
     for (const field of DEFAULT_FIELDS) {
-      const current = getValues(field) as string | undefined;
-      const untouchedYear = field === "year" && current === String(new Date().getFullYear()); // the form starts on this year
-      if (d[field] != null && (!current || untouchedYear || isAuto(field, current))) setValue(field, String(d[field]));
+      const none = field === "year" ? String(new Date().getFullYear()) : ""; // the form starts on this year
+      setValue(field, d[field] != null ? String(d[field]) : none);
     }
   };
 
-  // Choosing a type fills in that category's default brand, colour and CC, unless a custom value was already typed or picked.
   const onTypeChange = (e: { target: { value: string } }) => {
     if (e.target.value === "__new") {
       setValue("vehicle_type", currentType); // keep the old choice until the new type is saved
@@ -299,7 +275,7 @@ export function VehicleFields({ register, errors, lockIds, setValue, getValues, 
           {categories.map((c) => <option key={c.key} value={c.key}>{c.name}</option>)}
           <option value="__new">+ Add new type...</option>
         </NativeSelect>
-        <AddTypeDialog open={addingType} onClose={() => setAddingType(false)} onAdded={(c) => { reload(); setValue("vehicle_type", c.key); applyDefaults(c.key, c); onTypeAdded?.(c); }} />
+        <AddTypeDialog open={addingType} onClose={() => setAddingType(false)} onAdded={(c) => { reload(); setValue("vehicle_type", c.key); applyDefaults(c.key, c); }} />
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field required label="Chassis no." error={errors.chassis_no?.message}><Input className={inputCls} {...register("chassis_no")} /></Field>
@@ -330,7 +306,7 @@ export function VehicleFields({ register, errors, lockIds, setValue, getValues, 
 }
 
 export function VehicleForm({ open, vehicle, onClose, onSaved }: { open: boolean; vehicle?: Vehicle | null; onClose: () => void; onSaved: () => void }) {
-  const { register, handleSubmit, reset, setValue, getValues, watch, setError, formState: { errors, isSubmitting } } = useForm<VehicleValues>({
+  const { register, handleSubmit, reset, setValue, watch, setError, formState: { errors, isSubmitting } } = useForm<VehicleValues>({
     resolver: zodResolver(schema),
     defaultValues: { ...blankVehicle, ...blankDetails },
   });
@@ -357,7 +333,7 @@ export function VehicleForm({ open, vehicle, onClose, onSaved }: { open: boolean
   return (
     <Modal open={open} onClose={onClose} title="Edit vehicle">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
-        <VehicleFields register={register} errors={errors} setValue={setValue} getValues={getValues} watch={watch} />
+        <VehicleFields register={register} errors={errors} setValue={setValue} watch={watch} />
         <VehicleDetailFields register={register} errors={errors} autoOpen />
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={onClose}>Cancel</Button>

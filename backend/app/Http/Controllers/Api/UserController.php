@@ -55,14 +55,8 @@ class UserController extends Controller
             $roleChanged = $data['role'] !== $user->role;
             $user->fill($data + ['is_active' => $request->boolean('is_active', $user->is_active)])->save();
 
-            if ($request->has('permissions')) {
-                $permissions->sync($user, $request->permissions);
-            } elseif ($roleChanged) {
-                // what was added or taken away was measured against the old role
-                $permissions->clear($user);
-            }
-
-            if (! $user->is_active) {
+            // deactivated, or a new password (perhaps the old one leaked): every device signed in must sign in again
+            if (! $user->is_active || $request->filled('password')) {
                 DB::table('personal_access_tokens')->where('tokenable_id', $user->id)->where('tokenable_type', User::class)->delete();
             }
         });

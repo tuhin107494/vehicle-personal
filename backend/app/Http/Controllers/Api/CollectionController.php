@@ -104,12 +104,12 @@ class CollectionController extends Controller implements HasMiddleware
     {
         $limit = today()->addDays(10)->toDateString();
 
-        $installments = Installment::with(['plan.sale.customer', 'plan.sale.vehicle'])
+        $installments = Installment::customer()->with(['plan.sale.customer', 'plan.sale.vehicle'])
             ->whereIn('status', ['pending', 'partial', 'overdue'])
             ->whereDate('due_date', '<=', $limit)
             ->whereHas('plan.sale', fn ($q) => $q->where('status', 'active'))
             ->get()
-            ->map(fn (Installment $i) => $this->row('installment', $i->id, "Installment #{$i->seq_no}", $i->plan->sale, $i->due_date, $i->remaining()));
+            ->map(fn (Installment $i) => $this->row('installment', $i->id, Installment::labelOf($i->seq_no), $i->plan->sale, $i->due_date, $i->remaining()));
 
         $promises = DuePromise::with(['sale.customer', 'sale.vehicle'])
             ->whereIn('status', ['open', 'broken'])
@@ -175,7 +175,7 @@ class CollectionController extends Controller implements HasMiddleware
         $target = $this->target($request);
 
         $sale = $target['kind'] === 'installment'
-            ? Installment::with('plan')->findOrFail($target['ref_id'])->plan->sale_id
+            ? Installment::customer()->with('plan')->findOrFail($target['ref_id'])->plan->sale_id
             : DuePromise::findOrFail($target['ref_id'])->sale_id;
 
         $installments = Installment::whereHas('plan', fn ($q) => $q->where('sale_id', $sale))->pluck('seq_no', 'id');
@@ -189,7 +189,7 @@ class CollectionController extends Controller implements HasMiddleware
             ->map(fn (CallLog $c) => [
                 'id' => $c->id,
                 'called_at' => $c->called_at->toIso8601String(),
-                'for' => $c->kind === 'installment' ? 'Installment #'.($installments[$c->ref_id] ?? '') : 'Due',
+                'for' => $c->kind === 'installment' ? (isset($installments[$c->ref_id]) ? Installment::labelOf($installments[$c->ref_id]) : 'Installment') : 'Due',
                 'by' => $c->caller?->name,
                 'meet_date' => $c->meet_date?->toDateString(),
                 'note' => $c->note,
@@ -202,7 +202,8 @@ class CollectionController extends Controller implements HasMiddleware
     private function target(Request $request): array
     {
         $data = $request->validate(['type' => ['required', 'in:'.implode(',', self::KINDS)], 'id' => ['required', 'integer']]);
-        $exists = $data['type'] === 'installment' ? Installment::whereKey($data['id'])->exists() : DuePromise::whereKey($data['id'])->exists();
+        // only a customer's installment can be called about (an investor's installment is the shop paying the investor)
+        $exists = $data['type'] === 'installment' ? Installment::customer()->whereKey($data['id'])->exists() : DuePromise::whereKey($data['id'])->exists();
         abort_unless($exists, 404, 'Not found.');
 
         return ['kind' => $data['type'], 'ref_id' => (int) $data['id']];
@@ -232,7 +233,7 @@ class CollectionController extends Controller implements HasMiddleware
             'amount' => $amount,
             'sale_due' => $sale->due_amount,
             'guarantor_phone' => $sale->guarantor_phone,
-            'customer' => $sale->customer->only(['id', 'name', 'phone', 'alt_phone', 'address']),
+            'customer' => $sale->customer->only(['id', 'name', 'father_name', 'phone', 'alt_phone', 'address']),
             'vehicle' => $sale->vehicle->only(['id', 'chassis_no', 'engine_no', 'brand', 'model']),
         ];
     }

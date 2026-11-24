@@ -395,3 +395,21 @@ input[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
+
+/* the toast's close (x) button: white with the x and border in the toast's colour, on the top right corner, so it is clear
+   (green success, red error, amber warning, blue info). !important: sonner's rich colours style the button after this file loads */
+[data-sonner-toaster] [data-sonner-toast] [data-close-button] {
+  width: 22px !important; height: 22px !important; border-width: 1.5px !important; background: #fff !important;
+  left: auto !important; right: 0 !important; transform: translate(35%, -35%) !important;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.2);
+}
+[data-sonner-toaster] [data-sonner-toast] [data-close-button] svg { width: 12px; height: 12px; stroke-width: 3; }
+[data-sonner-toaster] [data-sonner-toast][data-type="success"] [data-close-button] { color: #16a34a !important; border-color: #16a34a !important; }
+[data-sonner-toaster] [data-sonner-toast][data-type="error"] [data-close-button] { color: #dc2626 !important; border-color: #dc2626 !important; }
+[data-sonner-toaster] [data-sonner-toast][data-type="warning"] [data-close-button] { color: #d97706 !important; border-color: #d97706 !important; }
+[data-sonner-toaster] [data-sonner-toast][data-type="info"] [data-close-button] { color: #2563eb !important; border-color: #2563eb !important; }
+[data-sonner-toaster] [data-sonner-toast] [data-close-button]:hover { background: #f1f5f9 !important; }
+
+/* the toast box itself: slightly smaller than sonner's default (356px wide, 16px padding, 13px text) */
+[data-sonner-toaster] { --width: 320px !important; }
+[data-sonner-toaster] [data-sonner-toast] { padding: 12px 14px !important; font-size: 12px !important; }

@@ -56,14 +56,25 @@ class PayableService
                 'created_by' => $user->id,
             ]);
 
-            $paid = Money::paisa($purchase->paid_amount) + $amount;
-            $purchase->update([
-                'paid_amount' => Money::taka($paid),
-                'payment_status' => $paid + Money::paisa($purchase->due_adjustment) >= Money::paisa($purchase->price) ? 'paid' : 'partial',
-            ]);
+            $this->recalculate($purchase);
 
             return $payment;
         });
+    }
+
+    /**
+     * Sums the purchase's paid amount again from what it is made of: what was paid at the purchase and its payments
+     * (cancelled ones left out). Never added to or taken from, so it cannot drift from the payments.
+     */
+    public function recalculate(Purchase $purchase): void
+    {
+        $paid = Money::paisa($purchase->initial_paid) + Money::paisa(PurchasePayment::where('purchase_id', $purchase->id)->sum('amount'));
+        $settled = $paid + Money::paisa($purchase->due_adjustment);
+
+        $purchase->update([
+            'paid_amount' => Money::taka($paid),
+            'payment_status' => $settled >= Money::paisa($purchase->price) ? 'paid' : ($settled > 0 ? 'partial' : 'unpaid'),
+        ]);
     }
 
     public function addAdvance(array $data, User $user): Advance

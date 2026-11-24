@@ -10,6 +10,7 @@ use Illuminate\Support\Carbon;
 
 /**
  * @property Carbon $start_date
+ * @property Carbon|null $promise_date
  */
 class InstallmentPlan extends Model
 {
@@ -20,6 +21,8 @@ class InstallmentPlan extends Model
         'sale_id',
         'investor_id',
         'principal',
+        'promise_amount',
+        'promise_date',
         'interest_rate',
         'interest_amount',
         'total_payable',
@@ -33,6 +36,8 @@ class InstallmentPlan extends Model
     {
         return [
             'principal' => 'float',
+            'promise_amount' => 'float',
+            'promise_date' => 'date:Y-m-d',
             'interest_rate' => 'float',
             'interest_amount' => 'float',
             'total_payable' => 'float',

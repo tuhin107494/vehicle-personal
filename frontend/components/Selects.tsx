@@ -6,11 +6,13 @@ import { useDebounced, useFetch } from "@/lib/hooks";
 import type { Customer, Investor, Supplier } from "@/lib/types";
 import { Button, Field } from "@/components/app-ui";
 import { CustomerForm } from "@/components/forms/CustomerForm";
+import { InvestorForm } from "@/components/forms/InvestorForm";
+import { useAuth } from "@/lib/auth";
 import { SupplierForm } from "@/components/forms/SupplierForm";
 import { SearchSelect } from "@/components/SearchSelect";
 
 /** Search and pick a customer; `allowCreate` adds a "+ New" to add one on the spot, `filter` is the optional look used in report filters. */
-export function CustomerSelect({ label = "Customer", value, onChange, error, allowCreate = true, selectedLabel, filter }: { label?: string; value: string; onChange: (id: string) => void; error?: string; allowCreate?: boolean; selectedLabel?: string; filter?: boolean }) {
+export function CustomerSelect({ label = "Customer", value, onChange, error, allowCreate = true, selectedLabel, filter, optional }: { label?: string; value: string; onChange: (id: string) => void; error?: string; allowCreate?: boolean; selectedLabel?: string; filter?: boolean; optional?: boolean }) {
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
   const [typed, setTyped] = useState(""); // what was typed in the search when "+ Add new" was chosen
@@ -18,10 +20,10 @@ export function CustomerSelect({ label = "Customer", value, onChange, error, all
   const debounced = useDebounced(search);
 
   const list = useFetch<Customer[]>(debounced || value ? `/customers?per_page=30${debounced ? `&search=${encodeURIComponent(debounced)}` : ""}` : null);
-  const options = (list.data ?? []).map((p) => ({ value: String(p.id), label: p.name, hint: [[p.phone, p.alt_phone].filter(Boolean).join(" / "), p.nid ? `NID ${p.nid}` : ""].filter(Boolean).join(" · ") }));
+  const options = (list.data ?? []).map((p) => ({ value: String(p.id), label: p.name, hint: [p.father_name ? `Father: ${p.father_name}` : "", [p.phone, p.alt_phone].filter(Boolean).join(" / "), p.nid ? `NID ${p.nid}` : ""].filter(Boolean).join(" · ") }));
 
   return (
-    <Field required={!filter} label={label} error={error}>
+    <Field required={!filter && !optional} label={label} error={error}>
       <div className="flex gap-2">
         <SearchSelect options={options} value={value} onChange={(id) => onChange(id)} onQueryChange={setSearch} minChars={1} loading={list.loading} fallbackLabel={selectedLabel} placeholder="Search by name or phone..."
           onCreate={allowCreate ? (text) => { setTyped(text); setCreating(true); } : undefined} createLabel="Add new customer" />
@@ -47,7 +49,7 @@ export function SupplierSelect({ label = "Supplier", value, onChange, error, all
   const debounced = useDebounced(search);
 
   const list = useFetch<Supplier[]>(opened || value ? `/suppliers?per_page=30${debounced ? `&search=${encodeURIComponent(debounced)}` : ""}` : null);
-  const options = (list.data ?? []).map((p) => ({ value: String(p.id), label: p.name, hint: [[p.phone, p.alt_phone].filter(Boolean).join(" / "), p.nid ? `NID ${p.nid}` : ""].filter(Boolean).join(" · ") }));
+  const options = (list.data ?? []).map((p) => ({ value: String(p.id), label: p.name, hint: [p.father_name ? `Father: ${p.father_name}` : "", [p.phone, p.alt_phone].filter(Boolean).join(" / "), p.nid ? `NID ${p.nid}` : ""].filter(Boolean).join(" · ") }));
 
   return (
     <Field required={!filter} label={label} error={error}>
@@ -66,14 +68,24 @@ export function SupplierSelect({ label = "Supplier", value, onChange, error, all
   );
 }
 
-export function InvestorSelect({ value, onChange, error, optional, filter }: { value: string; onChange: (id: string) => void; error?: string; optional?: boolean; filter?: boolean }) {
+/** Search and pick an investor; `allowCreate` adds a "+ New" to add one on the spot (for users who may add investors). */
+export function InvestorSelect({ value, onChange, error, optional, filter, allowCreate = false }: { value: string; onChange: (id: string) => void; error?: string; optional?: boolean; filter?: boolean; allowCreate?: boolean }) {
+  const { can } = useAuth();
+  const canCreate = allowCreate && can("investors.create");
+  const [creating, setCreating] = useState(false);
+  const [typed, setTyped] = useState(""); // what was typed in the search when "+ Add new" was chosen
   const [opened, setOpened] = useState(false); // fetched when the field is first used, or when a value is already chosen and needs its name
   const list = useFetch<Investor[]>(opened || value ? "/investors?per_page=100&is_active=1" : null);
-  const options = (list.data ?? []).map((i) => ({ value: String(i.id), label: i.name, hint: [i.phone, i.alt_phone].filter(Boolean).join(" / ") }));
+  const options = (list.data ?? []).map((i) => ({ value: String(i.id), label: i.name, hint: [i.father_name ? `Father: ${i.father_name}` : "", [i.phone, i.alt_phone].filter(Boolean).join(" / ")].filter(Boolean).join(" · ") }));
 
   return (
     <Field required={!optional && !filter} label={filter ? "Investor" : optional ? "Investor (optional)" : "Investor"} error={error}>
-      <SearchSelect options={options} value={value} onChange={(id) => onChange(id)} onOpen={() => setOpened(true)} loading={list.loading} placeholder={filter ? "All investors" : optional ? "No investor - shop finances it" : "Search investor..."} />
+      <div className="flex gap-2">
+        <SearchSelect options={options} value={value} onChange={(id) => onChange(id)} onOpen={() => setOpened(true)} loading={list.loading} placeholder={filter ? "All investors" : optional ? "No investor - shop finances it" : "Search investor..."}
+          onCreate={canCreate ? (text) => { setTyped(text); setCreating(true); } : undefined} createLabel="Add new investor" />
+        {canCreate && <Button variant="outline" onClick={() => { setTyped(""); setCreating(true); }}>+ New</Button>}
+      </div>
+      {canCreate && <InvestorForm open={creating} initialText={typed} onClose={() => setCreating(false)} onSaved={(i) => { list.reload(); onChange(String(i.id)); }} />}
       {(optional || filter) && !filter && value && <button type="button" className="mt-1 text-xs font-medium text-emerald-700 hover:underline" onClick={() => onChange("")}>Remove investor</button>}
     </Field>
   );

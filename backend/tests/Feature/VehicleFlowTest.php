@@ -76,6 +76,44 @@ class VehicleFlowTest extends TestCase
         $this->postJson('/api/sales', $this->saleData($v2))->assertCreated()->assertJsonPath('data.memo_no', null)->assertJsonPath('data.guarantor_name', null);
     }
 
+    public function test_a_sale_can_name_an_additional_customer_besides_the_buyer(): void
+    {
+        $v = $this->stockVehicle('ADD-1');
+        $buyer = $this->buyer();
+        $second = Customer::create(['name' => 'Co-buyer', 'phone' => '01799990001']);
+
+        // the buyer again, or a customer that does not exist, is refused
+        $this->postJson('/api/sales', $this->saleData($v, ['customer_id' => $buyer->id, 'additional_customer_id' => $buyer->id]))->assertJsonValidationErrors('additional_customer_id');
+        $this->postJson('/api/sales', $this->saleData($v, ['additional_customer_id' => 999999]))->assertJsonValidationErrors('additional_customer_id');
+
+        $sale = $this->postJson('/api/sales', $this->saleData($v, ['customer_id' => $buyer->id, 'additional_customer_id' => $second->id]))->assertCreated()
+            ->assertJsonPath('data.additional_customer.name', 'Co-buyer')->json('data');
+
+        // it can be removed in an edit, which the history records
+        $this->putJson("/api/sales/{$sale['id']}", $this->editBody($sale))->assertOk()->assertJsonPath('data.additional_customer_id', null);
+        $this->getJson("/api/sales/{$sale['id']}")->assertJsonPath('data.edits.0.changes.0.field', 'Additional customer');
+
+        // while named on a sale, the additional customer cannot be deleted
+        $v2 = $this->stockVehicle('ADD-2');
+        $this->postJson('/api/sales', $this->saleData($v2, ['additional_customer_id' => $second->id]))->assertCreated();
+        $this->deleteJson("/api/customers/{$second->id}")->assertStatus(409);
+        $this->assertNotSoftDeleted('customers', ['id' => $second->id]);
+    }
+
+    public function test_a_collected_payment_keeps_an_optional_memo_number(): void
+    {
+        $v = $this->stockVehicle('MEMO-3');
+        $sale = $this->postJson('/api/sales', $this->saleData($v, ['payment_type' => 'due', 'down_payment' => 400000]))->assertCreated()->json('data');
+
+        $this->postJson("/api/sales/{$sale['id']}/payments", ['amount' => 100000, 'method' => 'cash', 'memo_no' => 'M-77'])->assertCreated();
+        $this->assertDatabaseHas('payments', ['sale_id' => $sale['id'], 'amount' => 100000, 'memo_no' => 'M-77']);
+
+        $this->postJson("/api/sales/{$sale['id']}/payments", ['amount' => 50000, 'method' => 'cash'])->assertCreated();
+        $this->assertDatabaseHas('payments', ['sale_id' => $sale['id'], 'amount' => 50000, 'memo_no' => null]);
+
+        $this->postJson("/api/sales/{$sale['id']}/payments", ['amount' => 1000, 'memo_no' => str_repeat('x', 101)])->assertJsonValidationErrors('memo_no');
+    }
+
     private function editBody(array $sale, array $extra = []): array
     {
         return $extra + [
@@ -189,7 +227,7 @@ class VehicleFlowTest extends TestCase
         $this->getJson("/api/transactions/customer_payment/{$down->id}")->assertOk()->assertJsonPath('data.values.amount_lock', 'This was taken at the sale: change it with Edit sale.');
     }
 
-    public function test_an_installment_amount_is_kept_within_its_installment(): void
+    public function test_an_installment_amount_raised_past_its_installment_goes_on_to_the_next(): void
     {
         $v = $this->stockVehicle('AMT-2');
         $plan = ['installment_count' => 4, 'first_due_date' => today()->addMonth()->toDateString(), 'interest_rate' => 0];
@@ -199,7 +237,18 @@ class VehicleFlowTest extends TestCase
 
         $this->putJson("/api/transactions/customer_payment/{$pay->id}", ['amount' => 120000, 'paid_at' => today()->toDateString(), 'method' => 'cash'])->assertOk();
         $this->assertDatabaseHas('installments', ['id' => $pay->installment_id, 'paid_amount' => 120000]);
-        $this->putJson("/api/transactions/customer_payment/{$pay->id}", ['amount' => 200000, 'paid_at' => today()->toDateString(), 'method' => 'cash'])->assertStatus(409); // installments are 150,000
+
+        // installments are 150,000: 200,000 fills #1 and the other 50,000 goes on #2, as one payment
+        $this->putJson("/api/transactions/customer_payment/{$pay->id}", ['amount' => 200000, 'paid_at' => today()->toDateString(), 'method' => 'cash'])->assertOk();
+        $rows = Payment::where('sale_id', $sale['id'])->whereNotNull('installment_id')->orderBy('id')->get();
+        $this->assertEquals([150000, 50000], $rows->pluck('amount')->all());
+        $this->assertSame($rows[0]->batch_no, $rows[1]->batch_no);
+        $this->assertDatabaseHas('installments', ['id' => $pay->installment_id, 'paid_amount' => 150000, 'status' => 'paid']);
+        $this->assertDatabaseHas('installments', ['id' => $rows[1]->installment_id, 'paid_amount' => 50000]);
+        $this->assertEquals(400000, Sale::findOrFail($sale['id'])->due_amount); // 600,000 left after the down payment, less 200,000
+
+        // now spread over two installments, so its amount is fixed (the sale total limit is checked above)
+        $this->putJson("/api/transactions/customer_payment/{$rows[1]->id}", ['amount' => 700000, 'paid_at' => today()->toDateString(), 'method' => 'cash'])->assertStatus(409);
     }
 
     public function test_a_supplier_amount_and_advance_amount_keep_the_totals_right(): void
@@ -359,7 +408,7 @@ class VehicleFlowTest extends TestCase
         $sale = $this->postJson('/api/sales', $this->saleData($v, [
             'payment_type' => 'installment', 'down_payment' => 400000, 'investor_id' => $investor->id,
             'installment_count' => 3, 'first_due_date' => today()->addMonth()->toDateString(),
-            'interest_rate' => 10, 'investor_share_percent' => 50,
+            'interest_rate' => 40, 'investor_share_percent' => 50, // 40% a year over 3 months: 10%
         ]))->assertCreated()->json('data');
 
         // principal 600000 + 10% = 660000 over 3 installments
@@ -391,7 +440,7 @@ class VehicleFlowTest extends TestCase
 
         // principal 600000 + 60000 interest = 660000, the shop finances it itself
         $this->assertEquals(660000, $sale['plan']['total_payable']);
-        $this->assertEquals(10, $sale['plan']['interest_rate']);
+        $this->assertEquals(40, $sale['plan']['interest_rate']); // 10% over 3 months is 40% a year
         $this->assertNull($sale['investor']);
 
         $this->postJson("/api/sales/{$sale['id']}/payments", ['amount' => 220000])->assertCreated();
@@ -484,7 +533,7 @@ class VehicleFlowTest extends TestCase
         $sale = $this->postJson('/api/sales', $this->saleData($v, [
             'payment_type' => 'installment', 'down_payment' => 400000, 'investor_id' => $investor->id,
             'installment_count' => 3, 'first_due_date' => today()->addMonth()->toDateString(),
-            'interest_rate' => 10, 'investor_share_percent' => 50,
+            'interest_rate' => 40, 'investor_share_percent' => 50, // 40% a year over 3 months: 10%
         ]))->assertCreated()->json('data');
 
         // 330000 collected returns 300000 of the 600000 principal; cancelling returns the other 300000

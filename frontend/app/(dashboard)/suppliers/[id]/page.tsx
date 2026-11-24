@@ -99,7 +99,7 @@ export default function SupplierDetailPage() {
       />
       <Card className="mb-4">
         {supplier.photo_url && <div className="mb-3"><Avatar name={supplier.name} url={supplier.photo_url} size="lg" /></div>}
-        <KV items={[["Phone", supplier.phone], ["Alt. phone", supplier.alt_phone], ["NID", supplier.nid], ["Address", supplier.address], ["Bank", supplier.bank_name], ["Branch", supplier.bank_branch], ["Account name", supplier.bank_account_name], ["Account no", supplier.bank_account_no], ["Other bank details", supplier.bank_info], ["Notes", supplier.notes]]} />
+        <KV items={[["Father's name", supplier.father_name ?? "-"], ["Phone", supplier.phone], ["Alt. phone", supplier.alt_phone], ["NID", supplier.nid], ["Address", supplier.address], ["Bank", supplier.bank_name], ["Branch", supplier.bank_branch], ["Account name", supplier.bank_account_name], ["Account no", supplier.bank_account_no], ["Other bank details", supplier.bank_info], ["Notes", supplier.notes]]} />
       </Card>
       <h2 className="mb-2 font-semibold">Bought from this supplier ({purchases.length})</h2>
       <DataTable columns={buyCols} data={purchases} empty="Nothing bought from this supplier." />

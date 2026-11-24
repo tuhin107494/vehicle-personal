@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 const schema = z.object({
   name: z.string().min(1, "Name is required."),
+  father_name: z.string(),
   phone: z.string().min(1, "Mobile number is required.").regex(MOBILE_RX, MOBILE_MSG),
   alt_phone: z.string().refine((v) => v === "" || MOBILE_RX.test(v), MOBILE_MSG),
   nid: z.string(),
@@ -30,7 +31,7 @@ const schema = z.object({
 });
 type Values = z.infer<typeof schema>;
 
-const blank: Values = { name: "", phone: "", alt_phone: "", nid: "", address: "", bank_name: "", bank_branch: "", bank_account_name: "", bank_account_no: "", bank_info: "", notes: "" };
+const blank: Values = { name: "", father_name: "", phone: "", alt_phone: "", nid: "", address: "", bank_name: "", bank_branch: "", bank_account_name: "", bank_account_no: "", bank_info: "", notes: "" };
 
 /** Add or edit a supplier, with optional bank details. `initialText` pre-fills the name (or the mobile number) from a search box. */
 export function SupplierForm({ open, supplier, onClose, onSaved, initialText = "" }: { open: boolean; supplier?: Supplier | null; onClose: () => void; onSaved: (s: Supplier) => void; initialText?: string }) {
@@ -51,7 +52,7 @@ export function SupplierForm({ open, supplier, onClose, onSaved, initialText = "
       const res = await api<Supplier>(supplier ? `/suppliers/${supplier.id}` : "/suppliers", {
         method: supplier ? "PUT" : "POST",
         body: {
-          ...toPayload(values), alt_phone: values.alt_phone || null, nid: values.nid || null, address: values.address || null,
+          ...toPayload(values), father_name: values.father_name || null, alt_phone: values.alt_phone || null, nid: values.nid || null, address: values.address || null,
           bank_name: values.bank_name || null, bank_branch: values.bank_branch || null, bank_account_name: values.bank_account_name || null, bank_account_no: values.bank_account_no || null, bank_info: values.bank_info || null,
           notes: values.notes || null,
         },
@@ -73,10 +74,13 @@ export function SupplierForm({ open, supplier, onClose, onSaved, initialText = "
 
   return (
     <Modal open={open} onClose={onClose} title={`${supplier ? "Edit" : "New"} supplier`}>
+      {/* opened from inside another form (the "+ New" of a picker): its submit stops here, so it does not also submit that form */}
+      <div onSubmit={(e) => e.stopPropagation()}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-3" noValidate>
         <p className="text-xs text-slate-500"><span className="text-red-600">*</span> Required</p>
         <PhotoField name={watch("name")} url={supplier?.photo_url} change={photo} onChange={setPhoto} />
         <Field required label="Name" error={errors.name?.message}><Input className={inputCls} {...register("name")} /></Field>
+        <Field label="Father's name" error={errors.father_name?.message}><Input className={inputCls} {...register("father_name")} /></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field required label="Mobile number" error={errors.phone?.message}><Input className={inputCls} {...register("phone")} /></Field>
           <Field label="Alt. mobile number" error={errors.alt_phone?.message}><Input className={inputCls} {...register("alt_phone")} /></Field>
@@ -90,6 +94,7 @@ export function SupplierForm({ open, supplier, onClose, onSaved, initialText = "
           <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Saving..." : "Save"}</Button>
         </div>
       </form>
+      </div>
     </Modal>
   );
 }

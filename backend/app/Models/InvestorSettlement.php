@@ -18,6 +18,7 @@ class InvestorSettlement extends Model
         'shop_id',
         'investor_id',
         'plan_id',
+        'investor_sale_id',
         'type',
         'amount',
         'date',
@@ -33,6 +34,15 @@ class InvestorSettlement extends Model
         ];
     }
 
+    /**
+     * Made by the system on a plan an investor finances: the investment at the sale, the principal and profit shares of
+     * each collection, the principal returned on a cancel. Each changes only with what made it, never by hand.
+     */
+    public function isAutomatic(): bool
+    {
+        return $this->plan_id !== null && str_starts_with((string) $this->note, 'Auto:');
+    }
+
     /** @return BelongsTo<Investor, $this> */
     public function investor(): BelongsTo
     {
@@ -43,5 +53,11 @@ class InvestorSettlement extends Model
     public function plan(): BelongsTo
     {
         return $this->belongsTo(InstallmentPlan::class, 'plan_id');
+    }
+
+    /** @return BelongsTo<InvestorSale, $this> */
+    public function investorSale(): BelongsTo
+    {
+        return $this->belongsTo(InvestorSale::class);
     }
 }

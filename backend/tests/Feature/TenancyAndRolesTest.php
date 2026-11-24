@@ -214,9 +214,10 @@ class TenancyAndRolesTest extends TestCase
             ->assertCreated()->assertJsonPath('data.father_name', 'Karim Uddin')->assertJsonMissingPath('data.bank_name');
         $this->getJson('/api/customers?search=Karim%20Uddin')->assertJsonPath('meta.total', 1);
 
-        // a supplier has bank details; a father's name is not part of a supplier
-        $this->postJson('/api/suppliers', ['name' => 'Parts Ltd', 'phone' => '01710000012', 'father_name' => 'Ignored', 'bank_name' => 'City Bank', 'bank_account_no' => '123', 'bank_info' => 'bKash 017'])
-            ->assertCreated()->assertJsonPath('data.bank_name', 'City Bank')->assertJsonPath('data.bank_account_no', '123')->assertJsonPath('data.bank_info', 'bKash 017')->assertJsonMissingPath('data.father_name');
+        // a supplier has bank details, and a father's name too (as an investor has)
+        $this->postJson('/api/suppliers', ['name' => 'Parts Ltd', 'phone' => '01710000012', 'father_name' => 'Abdul Malek', 'bank_name' => 'City Bank', 'bank_account_no' => '123', 'bank_info' => 'bKash 017'])
+            ->assertCreated()->assertJsonPath('data.bank_name', 'City Bank')->assertJsonPath('data.bank_account_no', '123')->assertJsonPath('data.bank_info', 'bKash 017')->assertJsonPath('data.father_name', 'Abdul Malek');
+        $this->postJson('/api/investors', ['name' => 'Selim', 'phone' => '01710000013', 'father_name' => 'Jabbar Miah'])->assertCreated()->assertJsonPath('data.father_name', 'Jabbar Miah');
 
         // the same mobile number can be both a customer and a supplier: they are separate lists
         $this->postJson('/api/suppliers', ['name' => 'Rahim as supplier', 'phone' => '01710000001'])->assertCreated();
