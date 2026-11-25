@@ -49,9 +49,9 @@ function StockReport() {
       header: "Action",
       id: "view",
       cell: ({ row }) => (
-        <div className="flex flex-wrap items-center justify-end gap-1.5 md:flex-nowrap">
-          <Link className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 px-2.5 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-50" href={`/vehicles/${row.original.id}`}><Eye className="size-4" /> View</Link>
-          {can("sales.create") && <Link className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100" href={`/sales/new?vehicle=${row.original.id}`} title="Sell"><ArrowUpRight className="size-4" /> Sell</Link>}
+        <div className="flex flex-wrap items-center justify-end gap-1 md:justify-start">
+          <Link className="inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-violet-200 px-2 py-1 text-xs font-medium text-violet-700 hover:bg-violet-50" href={`/vehicles/${row.original.id}`}><Eye className="size-3.5" /> View</Link>
+          {can("sales.create") && <Link className="inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100" href={`/sales/new?vehicle=${row.original.id}`} title="Sell"><ArrowUpRight className="size-3.5" /> Sell</Link>}
         </div>
       ),
     },
@@ -126,9 +126,9 @@ function InvestorSalesReport() {
       header: "Action",
       id: "view",
       cell: ({ row }) => (
-        <div className="flex flex-wrap items-center justify-end gap-1.5 md:flex-nowrap">
-          <Link className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 px-2.5 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-50" href={`/investor-sales/${row.original.id}`}><Eye className="size-4" /> View</Link>
-          <button type="button" onClick={() => printInvestorSaleInvoice(row.original, user?.shop?.name ?? "Gari Becho")} className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 px-2.5 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50"><Printer className="size-4" /> Invoice</button>
+        <div className="flex flex-wrap items-center justify-end gap-1 md:justify-start">
+          <Link className="inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-violet-200 px-2 py-1 text-xs font-medium text-violet-700 hover:bg-violet-50" href={`/investor-sales/${row.original.id}`}><Eye className="size-3.5" /> View</Link>
+          <button type="button" onClick={() => printInvestorSaleInvoice(row.original, user?.shop?.name ?? "Gari Becho")} className="inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-sky-200 px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50"><Printer className="size-3.5" /> Invoice</button>
           <button type="button" onClick={async () => {
             // the statement needs the investor sale's payments, so the full investor sale is loaded
             try {
@@ -136,7 +136,7 @@ function InvestorSalesReport() {
             } catch (e) {
               toast.error(e instanceof ApiError ? e.message : "Could not load the investor sale.");
             }
-          }} className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50"><FileText className="size-4" /> Statement</button>
+          }} className="inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-emerald-200 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50"><FileText className="size-3.5" /> Statement</button>
         </div>
       ),
     },
@@ -285,10 +285,10 @@ function SalesReport() {
       header: "Action",
       id: "view",
       cell: ({ row }) => (
-        <div className="flex flex-wrap items-center justify-end gap-1.5 md:flex-nowrap">
-          <Link className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 px-2.5 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-50" href={`/sales/${row.original.id}`}><Eye className="size-4" /> View</Link>
-          <button type="button" onClick={() => printSale(row.original.id, "memo")} className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 px-2.5 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50"><Printer className="size-4" /> Memo</button>
-          <button type="button" onClick={() => printSale(row.original.id, "statement")} className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50"><FileText className="size-4" /> Statement</button>
+        <div className="flex flex-wrap items-center justify-end gap-1 md:justify-start">
+          <Link className="inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-violet-200 px-2 py-1 text-xs font-medium text-violet-700 hover:bg-violet-50" href={`/sales/${row.original.id}`}><Eye className="size-3.5" /> View</Link>
+          <button type="button" onClick={() => printSale(row.original.id, "memo")} className="inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-sky-200 px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50"><Printer className="size-3.5" /> Memo</button>
+          <button type="button" onClick={() => printSale(row.original.id, "statement")} className="inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-emerald-200 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50"><FileText className="size-3.5" /> Statement</button>
         </div>
       ),
     },
