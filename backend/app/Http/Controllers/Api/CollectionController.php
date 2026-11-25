@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CallRequest;
+use App\Http\Resources\CustomerResource;
+use App\Http\Resources\VehicleResource;
 use App\Models\CallLog;
 use App\Models\DuePromise;
 use App\Models\Installment;
@@ -32,6 +34,11 @@ class CollectionController extends Controller implements HasMiddleware
     ];
 
     private const KINDS = ['installment', 'promise'];
+
+    /** What a due row shows of its customer and vehicle (the list can be long, so only these are loaded). */
+    private const CUSTOMER_COLUMNS = 'id,name,father_name,phone,alt_phone,address,photo';
+
+    private const VEHICLE_COLUMNS = 'id,chassis_no,engine_no,brand,model';
 
     public static function middleware(): array
     {
@@ -105,14 +112,14 @@ class CollectionController extends Controller implements HasMiddleware
     {
         $limit = today()->addDays(10)->toDateString();
 
-        $installments = Installment::customer()->with(['plan.sale.customer', 'plan.sale.vehicle'])
+        $installments = Installment::customer()->with(['plan.sale.customer:'.self::CUSTOMER_COLUMNS, 'plan.sale.vehicle:'.self::VEHICLE_COLUMNS])
             ->whereIn('status', ['pending', 'partial', 'overdue'])
             ->whereDate('due_date', '<=', $limit)
             ->whereHas('plan.sale', fn ($q) => $q->where('status', 'active'))
             ->get()
             ->map(fn (Installment $i) => $this->row('installment', $i->id, Installment::labelOf($i->seq_no), $i->plan->sale, $i->due_date, $i->remaining()));
 
-        $promises = DuePromise::with(['sale.customer', 'sale.vehicle'])
+        $promises = DuePromise::with(['sale.customer:'.self::CUSTOMER_COLUMNS, 'sale.vehicle:'.self::VEHICLE_COLUMNS])
             ->whereIn('status', ['open', 'broken'])
             ->whereDate('promised_date', '<=', $limit)
             ->whereHas('sale', fn ($q) => $q->where('status', 'active')->where('due_amount', '>', 0))
@@ -233,8 +240,8 @@ class CollectionController extends Controller implements HasMiddleware
             'amount' => $amount,
             'sale_due' => $sale->due_amount,
             'guarantor_phone' => $sale->guarantor_phone,
-            'customer' => $sale->customer->only(['id', 'name', 'father_name', 'phone', 'alt_phone', 'address']),
-            'vehicle' => $sale->vehicle->only(['id', 'chassis_no', 'engine_no', 'brand', 'model']),
+            'customer' => CustomerResource::make($sale->customer)->resolve(),
+            'vehicle' => VehicleResource::make($sale->vehicle)->resolve(),
         ];
     }
 

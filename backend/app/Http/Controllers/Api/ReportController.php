@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\CustomerResource;
 use App\Http\Resources\InvestorSaleResource;
 use App\Http\Resources\PurchaseResource;
 use App\Http\Resources\SaleResource;
+use App\Http\Resources\SupplierResource;
 use App\Http\Resources\VehicleResource;
 use App\Models\Advance;
 use App\Models\Booking;
@@ -212,7 +214,7 @@ class ReportController extends Controller implements HasMiddleware
         })->reverse()->values();
 
         return $this->success([
-            'person' => $party->only(['id', 'name', 'phone', 'alt_phone', 'address']),
+            'person' => $party instanceof Customer ? CustomerResource::make($party) : SupplierResource::make($party),
             'side' => $request->side,
             'from' => $from,
             'to' => $to,
@@ -360,9 +362,10 @@ class ReportController extends Controller implements HasMiddleware
         $from = $request->from;
         $to = $request->to;
         $model = $request->side === 'customer' ? Customer::class : Supplier::class;
-        $people = $model::whereIn('id', $entries->pluck('person_id')->unique())->get(['id', 'name', 'phone', 'alt_phone'])->keyBy('id');
+        $people = $model::whereIn('id', $entries->pluck('person_id')->unique())->get(['id', 'name', 'phone', 'alt_phone', 'photo'])->keyBy('id');
+        $resource = $request->side === 'customer' ? CustomerResource::class : SupplierResource::class;
 
-        $rows = $entries->groupBy('person_id')->map(function ($list, $personId) use ($from, $to, $people) {
+        $rows = $entries->groupBy('person_id')->map(function ($list, $personId) use ($from, $to, $people, $resource) {
             $opening = $from ? $this->net($list->filter(fn ($e) => $e['date'] < $from)) : 0.0;
             $range = $list->filter(fn ($e) => (! $from || $e['date'] >= $from) && (! $to || $e['date'] <= $to));
             $charge = Money::sum($range, 'charge');
@@ -370,7 +373,7 @@ class ReportController extends Controller implements HasMiddleware
             $last = $range->max('date');
 
             return [
-                'person' => $people[$personId]->only(['id', 'name', 'phone', 'alt_phone']),
+                'person' => $resource::make($people[$personId])->resolve(),
                 'opening_balance' => $opening, 'charge' => $charge, 'paid' => $paid,
                 'closing_balance' => Money::add($opening, $charge, -$paid), 'transactions' => $range->count(), 'last_date' => $last,
             ];

@@ -24,6 +24,6 @@ class RegistrationController extends Controller implements HasMiddleware
     {
         $sale = $registration->advance($sale, $request->status, $request->note, $request->user());
 
-        return $this->success(SaleResource::make($sale->load('registrationLogs.user')), 'Registration updated');
+        return $this->success(SaleResource::make($sale->load('registrationLogs.user:id,name')), 'Registration updated');
     }
 }

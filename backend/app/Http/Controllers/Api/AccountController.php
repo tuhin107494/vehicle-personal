@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\AccountRequest;
+use App\Http\Resources\CustomerResource;
+use App\Http\Resources\SupplierResource;
 use App\Models\Customer;
-use App\Models\Supplier;
 use App\Models\Purchase;
 use App\Models\Sale;
+use App\Models\Supplier;
 use App\Models\Vehicle;
 use App\Services\PayableService;
 use App\Services\PaymentService;
@@ -112,10 +114,10 @@ class AccountController extends Controller
 
     private function summaryFor(string $side, Customer|Supplier $party): array
     {
-        $party = $party->only(['id', 'name', 'phone', 'alt_phone', 'bank_name', 'bank_branch', 'bank_account_name', 'bank_account_no', 'bank_info']);
+        $person = $party instanceof Customer ? CustomerResource::make($party) : SupplierResource::make($party);
 
         if ($side === 'customer') {
-            $items = Sale::with(['vehicle:id,chassis_no,engine_no,brand,model,year', 'purchase:id,memo_no', 'plan.installments', 'promises'])->where('customer_id', $party['id'])->where('status', 'active')->where('due_amount', '>', 0)
+            $items = Sale::with(['vehicle:id,chassis_no,engine_no,brand,model,year', 'purchase:id,memo_no', 'plan.installments', 'promises'])->where('customer_id', $party->id)->where('status', 'active')->where('due_amount', '>', 0)
                 ->orderBy('sale_date')->orderBy('id')->get()
                 ->map(fn (Sale $s) => [
                     'kind' => 'sale', 'id' => $s->id, 'date' => $s->sale_date->toDateString(),
@@ -124,19 +126,19 @@ class AccountController extends Controller
                 ] + $this->lateness($s));
 
             return [
-                'person' => $party, 'total_due' => Money::sum($items, 'due'), 'current_due' => Money::sum($items, 'current_due'),
+                'person' => $person, 'total_due' => Money::sum($items, 'due'), 'current_due' => Money::sum($items, 'current_due'),
                 'days_late' => (int) $items->max('days_late'), 'advance_available' => 0, 'items' => $items->values(),
             ];
         }
 
-        $items = Purchase::with('vehicle:id,chassis_no,engine_no,brand,model,year')->where('supplier_id', $party['id'])->whereRaw('price - paid_amount - due_adjustment > 0')
+        $items = Purchase::with('vehicle:id,chassis_no,engine_no,brand,model,year')->where('supplier_id', $party->id)->whereRaw('price - paid_amount - due_adjustment > 0')
             ->orderBy('purchase_date')->orderBy('id')->get()
             ->map(fn (Purchase $p) => ['kind' => 'purchase', 'id' => $p->id, 'date' => $p->purchase_date->toDateString(), 'vehicle' => $p->vehicle->chassis_no, 'vehicle_name' => $this->vehicleName($p->vehicle), 'engine_no' => $p->vehicle->engine_no, 'memo_no' => $p->memo_no, 'due' => $this->payables->balance($p)]);
 
         return [
-            'person' => $party,
+            'person' => $person,
             'total_due' => Money::sum($items, 'due'),
-            'advance_available' => $this->payables->advanceBalance($party['id']),
+            'advance_available' => $this->payables->advanceBalance($party->id),
             'items' => $items->values(),
         ];
     }

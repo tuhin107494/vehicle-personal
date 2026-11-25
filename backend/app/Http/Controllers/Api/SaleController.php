@@ -27,8 +27,8 @@ class SaleController extends Controller implements HasMiddleware
     }
 
     private const DETAIL = [
-        'vehicle', 'customer', 'additionalCustomer', 'investor', 'purchase', 'creator', 'plan.installments',
-        'payments.receiver', 'promises', 'registrationLogs.user', 'booking.creator:id,name', 'edits.user:id,name', 'charges',
+        'vehicle', 'customer', 'additionalCustomer', 'investor', 'purchase', 'creator:id,name', 'plan.installments',
+        'payments.receiver:id,name', 'promises', 'registrationLogs.user:id,name', 'booking.creator:id,name', 'edits.user:id,name', 'charges',
         'investorSale.investor', 'investorSale.customer', 'investorSale.settlements',
     ];
 

@@ -51,9 +51,9 @@ export function BookingList() {
   const draftRows: Row[] = (list.meta?.drafts ?? []).map((d) => {
     const values = (d.data?.values ?? {}) as Record<string, string | null>;
     return {
-      id: -d.id, draft: d, vehicle_id: d.vehicle_id ?? null, customer_id: d.customer?.id ?? 0, agreed_price: values.sale_price ? String(values.sale_price) : null,
-      advance_amount: String(values.advance_amount || 0), advance_method: "cash", booked_on: d.updated_at, expires_on: null, status: "draft" as Booking["status"], sale_id: null,
-      refund_amount: "0", kept_amount: "0", closed_on: null, note: null, close_note: null, balance: null, days_left: null, vehicle: d.vehicle ? { ...d.vehicle, engine_no: "", status: "booked" } : undefined, customer: d.customer ?? undefined,
+      id: -d.id, draft: d, vehicle_id: d.vehicle_id ?? null, customer_id: d.customer?.id ?? 0, agreed_price: values.sale_price ? Number(values.sale_price) : null,
+      advance_amount: Number(values.advance_amount || 0), advance_method: "cash", booked_on: d.updated_at, expires_on: null, status: "draft" as Booking["status"], sale_id: null,
+      refund_amount: 0, kept_amount: 0, closed_on: null, note: null, close_note: null, balance: null, days_left: null, vehicle: d.vehicle ? { ...d.vehicle, engine_no: "", status: "booked" } : undefined, customer: d.customer ?? undefined,
     };
   });
   const rows: Row[] = [...draftRows, ...list.rows.filter((r) => "vehicle_id" in r)];

@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\DuePromiseResource;
 use App\Http\Resources\InstallmentResource;
+use App\Http\Resources\InvestorResource;
+use App\Http\Resources\VehicleResource;
 use App\Models\Customer;
 use App\Models\DuePromise;
 use App\Models\Installment;
@@ -47,14 +49,14 @@ class DashboardController extends Controller implements HasMiddleware
         $investorToday = InstallmentPlan::whereNotNull('investor_id')
             ->whereHas('sale', fn ($q) => $q->where('status', 'active'))
             ->whereHas('installments', fn ($q) => $q->whereDate('due_date', today())->where('status', '!=', 'cancelled'))
-            ->with(['investor:id,name,phone', 'sale.vehicle:id,chassis_no,engine_no'])->get()
+            ->with(['investor:id,name,phone,photo', 'sale.vehicle:id,chassis_no,engine_no'])->get()
             ->map(function (InstallmentPlan $plan) {
                 $profit = (float) $plan->interest_amount * $plan->investor_share_percent / 100;
 
                 return [
                     'plan_id' => $plan->id, 'investor_sale_id' => null, 'sale_id' => $plan->sale_id,
-                    'investor' => $plan->investor->only(['id', 'name', 'phone']),
-                    'vehicle' => $plan->sale->vehicle->only(['chassis_no', 'engine_no']),
+                    'investor' => InvestorResource::make($plan->investor)->resolve(),
+                    'vehicle' => VehicleResource::make($plan->sale->vehicle)->resolve(),
                     'amount' => $plan->number_of_installments > 0 ? round(($plan->principal + $profit) / $plan->number_of_installments, 2) : 0.0,
                 ];
             })
@@ -62,11 +64,11 @@ class DashboardController extends Controller implements HasMiddleware
             // a schedule runs at most 120 months, so older investor sales can have nothing due today
             ->concat(InvestorSale::where('status', 'active')->whereDate('start_date', '<=', today())->whereDate('start_date', '>=', today()->subMonths(120))
                 ->select(['id', 'sale_id', 'investor_id', 'total_payable', 'number_of_installments', 'frequency', 'start_date'])
-                ->with(['investor:id,name,phone', 'sale.vehicle:id,chassis_no,engine_no'])->get()
+                ->with(['investor:id,name,phone,photo', 'sale.vehicle:id,chassis_no,engine_no'])->get()
                 ->flatMap(fn (InvestorSale $x) => collect($x->schedule())->filter(fn ($row) => $row['due_date']->isToday())->map(fn ($row) => [
                     'plan_id' => null, 'investor_sale_id' => $x->id, 'sale_id' => $x->sale_id,
-                    'investor' => $x->investor->only(['id', 'name', 'phone']),
-                    'vehicle' => $x->sale->vehicle->only(['chassis_no', 'engine_no']),
+                    'investor' => InvestorResource::make($x->investor)->resolve(),
+                    'vehicle' => VehicleResource::make($x->sale->vehicle)->resolve(),
                     'amount' => Money::taka($row['amount']),
                 ])))
             ->values();
@@ -143,7 +145,8 @@ class DashboardController extends Controller implements HasMiddleware
             'investor_payments_today' => $investorToday,
             'today' => $today,
             'promises_due_today' => DuePromiseResource::collection(
-                DuePromise::with(['sale.vehicle', 'sale.customer'])->where('status', 'open')->whereDate('promised_date', today())->get()
+                // the sale's total needs its plan: loaded here, not once per promise
+                DuePromise::with(['sale.vehicle', 'sale.customer', 'sale.plan'])->where('status', 'open')->whereDate('promised_date', today())->get()
             ),
         ]);
     }

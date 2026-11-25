@@ -10,7 +10,7 @@ class VehicleResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            ...parent::toArray($request),
+            ...$this->resource->attributesToArray(), // its own columns: relations only as mapped below
             'current_purchase' => PurchaseResource::make($this->whenLoaded('currentPurchase')),
             'current_sale' => SaleResource::make($this->whenLoaded('currentSale')),
         ];

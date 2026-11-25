@@ -12,7 +12,7 @@ class InstallmentResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            ...parent::toArray($request),
+            ...$this->resource->attributesToArray(), // its own columns: relations only as mapped below
             // an unpaid installment past its date is overdue, whatever was last stored
             'status' => in_array($this->status, ['pending', 'partial'], true) && $this->due_date->lt(today()) ? 'overdue' : $this->status,
             'plan' => InstallmentPlanResource::make($this->whenLoaded('plan')),

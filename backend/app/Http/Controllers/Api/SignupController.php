@@ -85,7 +85,7 @@ class SignupController extends Controller implements HasMiddleware
 
         $this->tellSuperAdmins($user->shop, 'confirmed their email');
 
-        return $this->success($user->newSession(), 'Email confirmed. Welcome! Your shop is ready.');
+        return $this->success($this->session($user), 'Email confirmed. Welcome! Your shop is ready.');
     }
 
     /** Sends the confirmation link again. The answer is the same for every email, so it cannot be used to find accounts. */
@@ -134,7 +134,7 @@ class SignupController extends Controller implements HasMiddleware
 
         $this->tellSuperAdmins($shop, 'signed up with Google');
 
-        return $this->success($owner->load('shop')->newSession(), 'Welcome! Your shop is ready.', 201);
+        return $this->success($this->session($owner), 'Welcome! Your shop is ready.', 201);
     }
 
     /** Deletes a signed-up shop that never opened, with its owner (users are not removed with their shop on their own). */

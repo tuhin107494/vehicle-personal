@@ -9,6 +9,6 @@ class PermissionResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        return parent::toArray($request);
+        return $this->resource->attributesToArray(); // its own columns, never a loaded relation
     }
 }

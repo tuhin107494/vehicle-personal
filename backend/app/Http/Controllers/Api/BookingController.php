@@ -7,13 +7,17 @@ use App\Http\Requests\CancelBookingRequest;
 use App\Http\Requests\StoreBookingRequest;
 use App\Http\Requests\UpdateBookingRequest;
 use App\Http\Resources\BookingResource;
+use App\Http\Resources\DraftResource;
 use App\Models\Booking;
+use App\Models\Customer;
 use App\Models\Draft;
+use App\Models\Vehicle;
 use App\Services\BookingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Collection;
 
 /** Vehicle bookings: a customer's advance holds a vehicle until the booking is completed, cancelled or expires. */
 class BookingController extends Controller implements HasMiddleware
@@ -45,7 +49,7 @@ class BookingController extends Controller implements HasMiddleware
         // the tabs' badges: how many bookings are in each state, for the current search; the drafts count as active
         $counts = (clone $base)->selectRaw('status, COUNT(*) as total')->groupBy('status')->pluck('total', 'status');
         // drafts hold their customer in JSON, so the search is applied to them after they are loaded (there are only a few)
-        $draftRows = $drafts ? $this->searchDrafts(Draft::presentMany((clone $drafts)->with('creator:id,name')->latest('updated_at')->get()), (string) $request->search) : collect();
+        $draftRows = $drafts ? $this->searchDrafts($this->draftRows((clone $drafts)->with('creator:id,name')->latest('updated_at')->get()), (string) $request->search) : collect();
         $counts->put('active', ($counts['active'] ?? 0) + $draftRows->count());
 
         $bookings = $base->with(['vehicle:id,chassis_no,engine_no,brand,model,year,vehicle_type,status', 'customer:id,name,phone,alt_phone', 'creator:id,name'])
@@ -64,8 +68,26 @@ class BookingController extends Controller implements HasMiddleware
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, array<string,mixed>>  $drafts
-     * @return \Illuminate\Support\Collection<int, array<string,mixed>>
+     * Drafts as the booking list shows them: each with the vehicle it holds and the customer chosen so far (kept in the
+     * draft's data, so not a relation), looked up together so a long list stays a few queries.
+     *
+     * @param  \Illuminate\Database\Eloquent\Collection<int, Draft>  $drafts
+     * @return Collection<int, array<string,mixed>>
+     */
+    private function draftRows($drafts)
+    {
+        $customerOf = fn (Draft $d) => (int) ($d->data['values']['party_id'] ?? 0);
+        $vehicles = Vehicle::whereIn('id', $drafts->pluck('vehicle_id')->filter())->get(['id', 'chassis_no', 'brand', 'model', 'year', 'vehicle_type'])->keyBy('id');
+        $customers = Customer::whereIn('id', $drafts->map($customerOf)->filter())->get(['id', 'name', 'phone', 'alt_phone', 'photo'])->keyBy('id');
+
+        $drafts->each(fn (Draft $d) => $d->setRelation('vehicle', $vehicles->get($d->vehicle_id))->setRelation('customer', $customers->get($customerOf($d))));
+
+        return collect(DraftResource::collection($drafts)->resolve());
+    }
+
+    /**
+     * @param  Collection<int, array<string,mixed>>  $drafts
+     * @return Collection<int, array<string,mixed>>
      */
     private function searchDrafts($drafts, string $search)
     {

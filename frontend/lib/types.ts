@@ -78,7 +78,7 @@ export type Sale = {
   registration_status: string; vehicle?: Vehicle; customer?: Customer; investor?: Investor; plan?: Plan;
   investor_sale?: InvestorSale | null; // the active investor sale funding this sale
   payments?: Payment[]; promises?: Promise_[]; registration_logs?: RegLog[]; charges?: { id: number; purpose: string; amount: number; charged_on: string; note: string | null; paid: number | null }[]; edits?: { id: number; by: string | null; at: string; changes: { field: string; from: string | null; to: string | null }[] }[];
-  booking?: { id: number; advance_amount: number; advance_method: string; booked_on: string; expires_on: string | null; agreed_price: number | null; note: string | null; booked_by: string | null } | null; // the booking this sale completed
+  booking?: Booking | null; // the booking this sale completed (with booked_by: who took it)
   advance?: { amount: number; date: string; method: string; booking_id: number | null } | null; // received before the sale: a booking's advance or an advance payment
 };
 export type Settlement = {
@@ -130,9 +130,9 @@ export type AccountSummary = {
 };
 
 export type Booking = {
-  id: number; vehicle_id: number | null; customer_id: number; agreed_price: string | null; advance_amount: string; advance_method: "cash" | "bank" | "mobile";
+  id: number; vehicle_id: number | null; customer_id: number; agreed_price: number | null; advance_amount: number; advance_method: "cash" | "bank" | "mobile";
   booked_on: string; expires_on: string | null; status: "active" | "completed" | "cancelled" | "expired"; sale_id: number | null;
-  refund_amount: string; kept_amount: string; closed_on: string | null; note: string | null; close_note: string | null;
+  refund_amount: number; kept_amount: number; closed_on: string | null; note: string | null; close_note: string | null;
   balance: number | null; days_left: number | null;
   booked_by?: string | null;
   vehicle?: { id: number; chassis_no: string; engine_no: string; brand: string | null; model: string | null; year: number | null; vehicle_type: string; status: string };

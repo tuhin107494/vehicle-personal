@@ -20,7 +20,7 @@ class VehicleDeletionResource extends JsonResource
             'vehicle_name' => $this->vehicle_name,
             'summary' => $this->summary, // what was removed with it: sales, purchases, investor sales and totals
             'created_at' => $this->created_at, // written like every other response's dates (ISO 8601, UTC)
-            'user' => $this->whenLoaded('user', fn () => $this->user?->only(['id', 'name'])),
+            'user' => UserResource::make($this->whenLoaded('user')),
         ];
     }
 }

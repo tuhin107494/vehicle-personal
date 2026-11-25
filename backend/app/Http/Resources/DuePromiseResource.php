@@ -12,9 +12,10 @@ class DuePromiseResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            ...parent::toArray($request),
+            ...$this->resource->attributesToArray(), // its own columns: relations only as mapped below
             // an open promise whose date has passed is a broken one
             'status' => $this->status === 'open' && $this->promised_date->lt(today()) ? 'broken' : $this->status,
+            'sale' => SaleResource::make($this->whenLoaded('sale')),
         ];
     }
 }

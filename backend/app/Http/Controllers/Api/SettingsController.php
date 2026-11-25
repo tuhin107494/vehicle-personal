@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SettingsRequest;
 use App\Http\Requests\ShopProfileRequest;
+use App\Http\Resources\ShopResource;
 use App\Support\ShopSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -31,10 +32,10 @@ class SettingsController extends Controller implements HasMiddleware
         return $this->success(ShopSettings::all(), 'Settings saved');
     }
 
-    /** The signed-in user's own shop: name. */
+    /** The signed-in user's own shop. */
     public function shop(Request $request): JsonResponse
     {
-        return $this->success($request->user()->shop->only(['id', 'name']));
+        return $this->success(ShopResource::make($request->user()->shop));
     }
 
     /** The shop's owner (anyone allowed to manage settings) renames the shop. */
@@ -43,6 +44,6 @@ class SettingsController extends Controller implements HasMiddleware
         $shop = $request->user()->shop;
         $shop->update($request->validated());
 
-        return $this->success($shop->only(['id', 'name']), 'Shop updated');
+        return $this->success(ShopResource::make($shop), 'Shop updated');
     }
 }

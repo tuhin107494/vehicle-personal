@@ -10,7 +10,7 @@ class InvestorSettlementResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            ...parent::toArray($request),
+            ...$this->resource->attributesToArray(), // its own columns: relations only as mapped below
             'investor' => InvestorResource::make($this->whenLoaded('investor')),
         ];
     }

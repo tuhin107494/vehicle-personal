@@ -393,7 +393,7 @@ class BookingTest extends TestCase
         $booking = $this->book();
 
         $this->postJson("/api/bookings/{$booking['id']}/cancel", ['refund_amount' => 250000, 'note' => 'changed mind'])
-            ->assertOk()->assertJsonPath('data.status', 'cancelled')->assertJsonPath('data.refund_amount', '250000.00')->assertJsonPath('data.kept_amount', '50000.00');
+            ->assertOk()->assertJsonPath('data.status', 'cancelled')->assertJsonPath('data.refund_amount', 250000)->assertJsonPath('data.kept_amount', 50000);
         $this->assertSame('in_stock', $this->vehicle->fresh()->status);
 
         $cash = $this->getJson('/api/reports/daily?date='.today()->toDateString())->json('data');
@@ -414,7 +414,7 @@ class BookingTest extends TestCase
         $this->putJson('/api/settings', ['booking' => ['on_cancel' => 'keep']])->assertOk();
         $booking = $this->book();
 
-        $this->postJson("/api/bookings/{$booking['id']}/cancel")->assertOk()->assertJsonPath('data.refund_amount', '0.00')->assertJsonPath('data.kept_amount', '300000.00');
+        $this->postJson("/api/bookings/{$booking['id']}/cancel")->assertOk()->assertJsonPath('data.refund_amount', 0)->assertJsonPath('data.kept_amount', 300000);
     }
 
     public function test_a_booking_past_its_deadline_expires_and_frees_the_vehicle(): void
@@ -422,7 +422,7 @@ class BookingTest extends TestCase
         $booking = $this->book();
         Booking::whereKey($booking['id'])->update(['expires_on' => today()->subDay()->toDateString()]);
 
-        $this->getJson('/api/bookings')->assertOk()->assertJsonPath('data.0.status', 'expired')->assertJsonPath('data.0.refund_amount', '300000.00');
+        $this->getJson('/api/bookings')->assertOk()->assertJsonPath('data.0.status', 'expired')->assertJsonPath('data.0.refund_amount', 300000);
         $this->assertSame('in_stock', $this->vehicle->fresh()->status);
         $this->sell($booking)->assertStatus(422)->assertJsonValidationErrors('booking_id');
     }

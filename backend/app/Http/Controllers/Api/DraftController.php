@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\DraftRequest;
+use App\Http\Resources\DraftResource;
 use App\Models\Draft;
 use App\Services\DraftService;
 use Illuminate\Http\JsonResponse;
@@ -23,7 +24,7 @@ class DraftController extends Controller
 
         $drafts = Draft::with('creator:id,name')->where('type', $type)->latest('updated_at')->get();
 
-        return $this->success($drafts->map(fn (Draft $d) => $d->present()));
+        return $this->success(DraftResource::collection($drafts));
     }
 
     public function store(DraftRequest $request): JsonResponse
@@ -32,7 +33,7 @@ class DraftController extends Controller
 
         $draft = $this->drafts->save($request->safe()->only(['type', 'label', 'data']), $request->user());
 
-        return $this->success($draft->load('creator:id,name')->present(), 'Draft saved', 201);
+        return $this->success(DraftResource::make($draft->load('creator:id,name')), 'Draft saved', 201);
     }
 
     public function update(DraftRequest $request, Draft $draft): JsonResponse
@@ -41,7 +42,7 @@ class DraftController extends Controller
 
         $draft = $this->drafts->save($request->safe()->only(['label', 'data']), $request->user(), $draft);
 
-        return $this->success($draft->load('creator:id,name')->present(), 'Draft saved');
+        return $this->success(DraftResource::make($draft->load('creator:id,name')), 'Draft saved');
     }
 
     public function destroy(Draft $draft): JsonResponse

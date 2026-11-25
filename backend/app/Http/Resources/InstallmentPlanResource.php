@@ -10,7 +10,7 @@ class InstallmentPlanResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            ...parent::toArray($request),
+            ...$this->resource->attributesToArray(), // its own columns: relations only as mapped below
             'installments' => InstallmentResource::collection($this->whenLoaded('installments')),
             'investor' => InvestorResource::make($this->whenLoaded('investor')),
             'sale' => SaleResource::make($this->whenLoaded('sale')),

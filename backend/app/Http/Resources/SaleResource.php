@@ -13,7 +13,7 @@ class SaleResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            ...parent::toArray($request),
+            ...$this->resource->attributesToArray(), // its own columns: relations only as mapped below
             'grand_total' => ($this->payment_type === 'installment' ? $this->loadMissing('plan') : $this)->grandTotal(),
             'vehicle' => VehicleResource::make($this->whenLoaded('vehicle')),
             'customer' => CustomerResource::make($this->whenLoaded('customer')),
@@ -21,12 +21,7 @@ class SaleResource extends JsonResource
             'investor' => InvestorResource::make($this->whenLoaded('investor')),
             'purchase' => PurchaseResource::make($this->whenLoaded('purchase')),
             // the advance paid when the vehicle was booked, and the day it was received
-            'booking' => $this->whenLoaded('booking', fn () => $this->booking ? [
-                'id' => $this->booking->id, 'advance_amount' => (float) $this->booking->advance_amount,
-                'advance_method' => $this->booking->advance_method, 'booked_on' => $this->booking->booked_on->toDateString(),
-                'expires_on' => $this->booking->expires_on?->toDateString(), 'agreed_price' => $this->booking->agreed_price === null ? null : (float) $this->booking->agreed_price,
-                'note' => $this->booking->note, 'booked_by' => $this->booking->creator?->name,
-            ] : null),
+            'booking' => BookingResource::make($this->whenLoaded('booking')),
             // money received before the sale: the booking's advance, or an advance payment recorded with the sale
             'advance' => $this->advance(),
             'plan' => InstallmentPlanResource::make($this->whenLoaded('plan')),
@@ -34,13 +29,13 @@ class SaleResource extends JsonResource
             'investor_sale' => $this->whenLoaded('investorSale', fn () => $this->investorSale ? InvestorSaleResource::make($this->investorSale) : null),
             'payments' => PaymentResource::collection($this->whenLoaded('payments')),
             'promises' => DuePromiseResource::collection($this->whenLoaded('promises')),
-            'charges' => $this->whenLoaded('charges', fn () => $this->charges->map(fn ($c) => [
-                'id' => $c->id, 'purpose' => $c->purpose, 'amount' => $c->amount, 'charged_on' => $c->charged_on->toDateString(), 'note' => $c->note,
-                'paid' => $this->relationLoaded('payments') ? (float) $this->payments->where('sale_charge_id', $c->id)->sum('amount') : null,
-            ])),
-            'edits' => $this->whenLoaded('edits', fn () => $this->edits->map(fn ($e) => ['id' => $e->id, 'by' => $e->user?->name, 'at' => $e->created_at->toIso8601String(), 'changes' => $e->changes])),
+            // each charge with what was paid of it: its payments are taken from the sale's, already loaded (no query per charge)
+            'charges' => SaleChargeResource::collection($this->whenLoaded('charges', fn () => $this->relationLoaded('payments')
+                ? $this->charges->each(fn ($c) => $c->setRelation('payments', $this->payments->where('sale_charge_id', $c->id)->values()))
+                : $this->charges)),
+            'edits' => SaleEditResource::collection($this->whenLoaded('edits')),
             'registration_logs' => RegistrationLogResource::collection($this->whenLoaded('registrationLogs')),
-            'creator' => $this->whenLoaded('creator', fn () => $this->creator->only(['id', 'name'])),
+            'creator' => UserResource::make($this->whenLoaded('creator')),
         ];
     }
 

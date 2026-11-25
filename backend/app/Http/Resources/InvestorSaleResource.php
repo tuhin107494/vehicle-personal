@@ -14,10 +14,11 @@ class InvestorSaleResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            ...parent::toArray($request),
+            ...$this->resource->attributesToArray(), // its own columns: relations only as mapped below
             'investor' => InvestorResource::make($this->whenLoaded('investor')),
             'customer' => CustomerResource::make($this->whenLoaded('customer')),
             'sale' => SaleResource::make($this->whenLoaded('sale')),
+            'settlements' => InvestorSettlementResource::collection($this->whenLoaded('settlements')),
             // with its payments loaded: what the investor has given the shop of their amount, and still owes it
             'investor_paid' => $this->whenLoaded('settlements', fn () => Money::sum($this->settlements->where('type', 'investment'), 'amount')),
             'investor_owes' => $this->whenLoaded('settlements', fn () => Money::taka(max($this->resource->investorAmount() - Money::paisa(Money::sum($this->settlements->where('type', 'investment'), 'amount')), 0))),

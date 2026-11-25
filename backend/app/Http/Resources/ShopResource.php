@@ -12,10 +12,10 @@ class ShopResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            ...parent::toArray($request),
-            'owner' => $this->whenLoaded('owner', fn () => $this->owner?->only(['id', 'name', 'email', 'is_active'])),
+            ...$this->resource->attributesToArray(), // its own columns: relations only as mapped below
+            'owner' => UserResource::make($this->whenLoaded('owner')),
             'users_count' => $this->whenCounted('users'),
-            'subscription' => $this->whenLoaded('subscription', fn () => $this->subscription?->summary()),
+            'subscription' => SubscriptionResource::make($this->whenLoaded('subscription')),
         ];
     }
 }

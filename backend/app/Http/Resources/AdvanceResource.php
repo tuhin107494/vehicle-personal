@@ -22,7 +22,7 @@ class AdvanceResource extends JsonResource
             'reference' => $this->reference,
             'note' => $this->note,
             'created_at' => $this->created_at, // written like every other response's dates (ISO 8601, UTC)
-            'supplier' => $this->whenLoaded('supplier', fn () => $this->supplier?->only(['id', 'name', 'phone'])),
+            'supplier' => SupplierResource::make($this->whenLoaded('supplier')),
         ];
     }
 }

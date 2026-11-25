@@ -12,8 +12,8 @@ class RegistrationLogResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            ...parent::toArray($request),
-            'user' => $this->whenLoaded('user', fn () => $this->user->only(['id', 'name'])),
+            ...$this->resource->attributesToArray(), // its own columns: relations only as mapped below
+            'user' => UserResource::make($this->whenLoaded('user')),
         ];
     }
 }

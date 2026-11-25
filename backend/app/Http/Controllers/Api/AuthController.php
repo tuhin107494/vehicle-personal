@@ -8,6 +8,7 @@ use App\Http\Requests\GoogleCodeRequest;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\ProfileRequest;
 use App\Http\Requests\ResetPasswordRequest;
+use App\Http\Resources\AuthUserResource;
 use App\Http\Resources\VehicleCategoryResource;
 use App\Models\User;
 use App\Models\VehicleCategory;
@@ -87,7 +88,7 @@ class AuthController extends Controller
             throw ValidationException::withMessages(['email' => ['This shop is currently disabled. Contact support.']]);
         }
 
-        return $this->success($user->newSession(), 'Logged in');
+        return $this->success($this->session($user), 'Logged in');
     }
 
     /** Emails a reset link. The answer is the same whether or not the address has an account, so it cannot be used to find accounts. */
@@ -140,7 +141,7 @@ class AuthController extends Controller
             }
         }
 
-        return $this->success($user->authData(), 'OK', 200, ['preload' => $preload]);
+        return $this->success(AuthUserResource::make($user), 'OK', 200, ['preload' => $preload]);
     }
 
     /** Lets any signed-in user change their own name, email and (with the current password) password. */
@@ -158,7 +159,7 @@ class AuthController extends Controller
             $user->save();
         });
 
-        return $this->success($user->load('shop')->authData(), 'Profile updated');
+        return $this->success(AuthUserResource::make($user), 'Profile updated');
     }
 
     /** A hash made with the app's current hashing cost, to compare against when the email is unknown. */
