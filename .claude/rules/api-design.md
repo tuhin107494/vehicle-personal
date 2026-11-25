@@ -52,7 +52,20 @@ Every response goes through `ApiResponse` and `bootstrap/app.php`:
 ### Responses
 - Every model, or collection of models, in a response MUST go through a Resource (`app/Http/Resources/<Model>Resource.php`): `Resource::make($m)`, `Resource::collection($list)`, or `$this->paginated($paginator, Resource::class)`. This includes a model nested in another payload (`['payment' => PurchasePaymentResource::make($p)]`) and data preloaded with another response (the categories sent with `/me`).
 - MUST NOT pass a model, a query result (`->get()`, `->first()`) or `$model->toArray()` to `$this->success()`. To add a field next to a Resource, use `Resource::make($m)->resolve() + [...]`.
-- A Resource lists its fields explicitly (no `parent::toArray()` in new Resources), so a new column is never exposed by accident. Relations use `whenLoaded()` and return only the fields the page needs (`->only(['id', 'name'])`).
+- A Resource sends only its own columns: list them, or spread `$this->resource->attributesToArray()`. MUST NOT use `parent::toArray()`, which also sends every loaded relation as a raw model.
+
+### Relations
+- Relation information MUST go through the related model's own Resource, wherever it appears: in a Resource, or in an array a controller builds (a report row, a due list row). A sale with its shop uses `ShopResource`; with its customer, `CustomerResource`; with its payments, `PaymentResource::collection(...)`; who made it, `UserResource`.
+  ```php
+  'customer' => CustomerResource::make($this->whenLoaded('customer')),
+  'payments' => PaymentResource::collection($this->whenLoaded('payments')),
+  'customer' => CustomerResource::make($sale->customer)->resolve(), // in a controller's array that is filtered or summed later
+  ```
+- MUST NOT hand-pick a relation with `->only([...])` or build its array by hand. Every loaded relation a response sends is mapped this way; an unmapped one is not sent.
+- To send fewer of a relation's fields (a long list, or a staff member shown only by name), choose the columns in the eager load: `with('creator:id,name')`, `'plan.sale.customer:id,name,phone,photo'`. The Resource then sends only what was loaded (`UserResource` uses `whenHas()` for this). Select `photo` too for a model with a photo, so its `photo_url` is right.
+- The customer or supplier a statement, account or report is about also goes through its Resource (`'person' => CustomerResource::make($party)`).
+- A single display value taken from a relation MAY stay a plain field: `'booked_by' => $this->creator?->name`, a report's customer name.
+- Models MUST NOT shape API output (no `present()` or `authData()` methods): that is a Resource's job, and a model must not depend on the HTTP layer.
 - Fields are snake_case and money is a number with 2 decimals. Dates are `Y-m-d` (`->toDateString()`). Datetimes are ISO 8601 in UTC: return the value itself (`'created_at' => $this->created_at`) so it is written like every other response (`2026-03-10T04:00:00.000000Z`).
 - Moving a response to a Resource MUST keep every field and format a caller reads (check `frontend/` and the mobile app). Only fields nobody reads (`shop_id`, `created_by`, `updated_at`) may be dropped.
 - Not needed: computed data that is not a model (reports, summaries, totals, `['photo_url' => ...]`). Build it as a plain array with the same field rules.
