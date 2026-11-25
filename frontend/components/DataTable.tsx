@@ -26,6 +26,7 @@ export function DataTable<T>({
   rowClass,
   urlKey,
   pageKey = "",
+  tableFrom = "md",
 }: {
   columns: Col<T>[];
   data: T[];
@@ -46,6 +47,8 @@ export function DataTable<T>({
   rowClass?: (row: T) => string;
   /** keeps the page number in the address under this name (?page=3), so a refresh or coming Back shows the same page: for a page's main list */
   urlKey?: string;
+  /** the screen width the wide table starts at; narrower, one card per row ("xl" for a table too wide for a small laptop beside the menu) */
+  tableFrom?: "md" | "xl";
   /** what the rows are filtered by (the page's filters and search): a change starts again from page 1, a reload of the same list (after an edit) keeps the page */
   pageKey?: string;
 }) {
@@ -76,7 +79,7 @@ export function DataTable<T>({
   return (
     <>
       {/* Mobile: one card per row, no sideways scrolling */}
-      <div className={`space-y-3 ${cards ? "" : "md:hidden"}`}>
+      <div className={`space-y-3 ${cards ? "" : tableFrom === "xl" ? "xl:hidden" : "md:hidden"}`}>
         {rows.map((row) => {
           const [first, ...rest] = row.getVisibleCells();
           const headerOf = (c: typeof first) => (typeof c.column.columnDef.header === "string" ? t(c.column.columnDef.header) : "");
@@ -108,7 +111,7 @@ export function DataTable<T>({
         {!data.length && <p className="rounded-xl bg-white/90 py-8 text-center text-sm text-slate-500 ring-1 ring-emerald-300">{loading ? t("Loading...") : t(empty)}</p>}
       </div>
 
-    <div data-report-table className={`hidden overflow-hidden [&_[data-slot=table-container]]:overflow-x-visible [&_th]:!whitespace-normal [&_td]:!whitespace-normal rounded-xl bg-white/90 shadow-sm ring-1 ring-emerald-300 ${cards ? "" : "md:block"}`}>
+    <div data-report-table className={`hidden overflow-hidden [&_[data-slot=table-container]]:overflow-x-visible [&_th]:!whitespace-normal [&_td]:!whitespace-normal rounded-xl bg-white/90 shadow-sm ring-1 ring-emerald-300 ${cards ? "" : tableFrom === "xl" ? "xl:block" : "md:block"}`}>
       <Table>
         <TableHeader className="bg-gradient-to-r from-emerald-50 to-green-50">
           {table.getHeaderGroups().map((hg) => (

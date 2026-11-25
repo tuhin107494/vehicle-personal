@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Check, Eye, History, Printer, Search, Undo2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
@@ -60,7 +59,6 @@ function When({ row }: { row: CallRow }) {
 }
 
 export default function CollectionsPage() {
-  const router = useRouter();
   const { user } = useAuth();
   // the tab, filters and search live in the address (as the table's page does), so a refresh or coming back from a sale keeps them
   const [bucketParam, setBucket] = useUrlState("bucket", "overdue");
@@ -167,7 +165,7 @@ export default function CollectionsPage() {
         : "-",
     },
     {
-      header: "Vehicle", meta: { className: "min-w-44" },
+      header: "Vehicle", meta: { className: "min-w-36" },
       cell: ({ row }) => {
         const v = row.original.vehicle;
         return (
@@ -196,18 +194,20 @@ export default function CollectionsPage() {
       id: "actions",
       cell: ({ row }) => (
         <div className="flex flex-col items-end gap-1 md:items-start" onClick={(e) => e.stopPropagation()}>
-          <div className="flex flex-nowrap items-center justify-end gap-1 md:justify-start">
-          <Link className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-emerald-200 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50" href={`/sales/${row.original.sale_id}`}><Eye className="size-3.5" /> Sales details</Link>
-          <button type="button" onClick={() => showHistory(row.original)} className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-sky-300 bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100"><History className="size-3.5" /> Call history</button>
+          {/* in the table: Details and Call history side by side, the call button under them as wide as both (from 1366px, where
+              that fits); on a smaller laptop one column of equal buttons; on a card: in a row */}
+          <div className="flex flex-wrap items-center justify-end gap-1 xl:flex-col xl:flex-nowrap xl:items-stretch min-[1366px]:grid min-[1366px]:grid-cols-[auto_auto]">
+          <Link className="inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-violet-300 bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700 hover:bg-violet-100" href={`/sales/${row.original.sale_id}`}><Eye className="size-3.5" /> Details</Link>
+          <button type="button" onClick={() => showHistory(row.original)} className="inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-sky-300 bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100"><History className="size-3.5" /> Call history</button>
           {row.original.called_until ? (
-            <button type="button" onClick={() => mark(row.original, false)} className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-rose-300 bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"><Undo2 className="size-3.5" /> Undo</button>
+            <button type="button" onClick={() => mark(row.original, false)} className="inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-rose-300 bg-rose-50 xl:col-span-2 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"><Undo2 className="size-3.5" /> Undo</button>
           ) : (
-            <button type="button" onClick={() => startCall(row.original)} className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-green-300 bg-green-50 px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-100"><Check className="size-3.5" /> Call done</button>
+            <button type="button" onClick={() => startCall(row.original)} className="inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-green-400 bg-green-100 xl:col-span-2 px-2 py-1 text-xs font-medium text-green-800 hover:bg-green-200"><Check className="size-3.5" /> Call done</button>
           )}
           </div>
           {row.original.called_until && (
             <span className="text-[11px] font-medium leading-tight text-amber-800">
-              Called · call again {fmtDate(row.original.called_until)}
+              Call again {fmtDate(row.original.called_until)}
               {row.original.called_meet_date && <span className="block">Will meet: {fmtDate(row.original.called_meet_date)}</span>}
               {row.original.called_note && <span className="block font-normal">{row.original.called_note}</span>}
             </span>
@@ -288,8 +288,8 @@ export default function CollectionsPage() {
         </select>
       </div>
 
-      <div className="[&_td]:!text-xs [&_td_a]:!text-xs [&_td_button]:!text-xs [&_th]:!text-[11px]">
-        <DataTable urlKey="page" pageKey={[bucket, kind, callFilter, term].join("|")} columns={columns} data={rows} rowClass={(r) => (r.called_until ? "!bg-amber-100/80 hover:!bg-amber-100" : "")} loading={list.loading} onRowClick={(r) => router.push(`/sales/${r.sale_id}`)} empty={term ? "No match found." : bucket === "overdue" ? "Nothing is overdue." : "Nothing falls due in this period."} />
+      <div className="[&_td]:!text-xs [&_td_a]:!text-xs [&_td_button]:!text-xs [&_th]:!text-[11px] [&_td]:!px-1.5 [&_th]:!px-1.5">
+        <DataTable urlKey="page" pageKey={[bucket, kind, callFilter, term].join("|")} tableFrom="xl" columns={columns} data={rows} rowClass={(r) => (r.called_until ? "!bg-amber-100/80 hover:!bg-amber-100" : "")} loading={list.loading} empty={term ? "No match found." : bucket === "overdue" ? "Nothing is overdue." : "Nothing falls due in this period."} />
       </div>
       <Modal open={!!historyOf} title="Call history" onClose={() => setHistoryOf(null)}>
         {historyOf && (
