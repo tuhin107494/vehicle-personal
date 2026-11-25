@@ -25,7 +25,9 @@ type Data = { rows: Row[]; totals: { principal_due: number; profit_due: number; 
 export default function InvestorPaymentPage() {
   const { can } = useAuth();
   // the investor, search and the table's page live in the address: a refresh or coming back from a vehicle keeps them
-  const [investorId, setInvestorId] = useUrlState("investor", "");
+  const [investorParam, setInvestorId] = useUrlState("investor", "");
+  // only an id: it goes into the request path, so a crafted address cannot point the request somewhere else (?investor=../users)
+  const investorId = /^\d+$/.test(investorParam) ? investorParam : "";
   const investor = useFetch<Investor>(investorId ? `/investors/${investorId}` : null);
   const { data, loading, error, reload } = useFetch<Data>(investorId ? `/investors/${investorId}/vehicle-payments` : null);
   const [pay, setPay] = useState<Row | null>(null);
