@@ -92,7 +92,7 @@ export default function InvestorsPage() {
       </div>
       <Input className={`${inputCls} mb-3 max-w-xs`} placeholder="Search name or phone" value={list.search} onChange={(e) => list.setSearch(e.target.value)} />
       <DataTable serverPaged columns={columns} data={list.rows} loading={list.loading} empty={tab === "due" ? "No investor has a due payment." : "No records found."} />
-      <Pagination meta={list.meta} onPage={list.setPage} />
+      <Pagination meta={list.meta} onPage={list.setPage} onPerPage={list.setPerPage} />
       {collectFrom && <InvestorDuesModal investorId={collectFrom.id} name={collectFrom.name} onClose={() => setCollectFrom(null)} onSaved={list.reload} />}
       {vehiclePay && <InvestorVehiclePay investorId={vehiclePay.id} name={vehiclePay.name} onClose={() => setVehiclePay(null)} />}
       {settle && <SettlementForm open mode={settle.mode} name={settle.investor.name} investorId={settle.investor.id} onClose={() => setSettle(null)} onSaved={() => {}} />}

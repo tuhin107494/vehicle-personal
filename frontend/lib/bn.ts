@@ -1,6 +1,7 @@
 /** English -> Bangla. The English text itself is the key, so a missing entry simply shows the English. */
 export const BN: Record<string, string> = {
   // menu and pages
+  "Rows per page": "প্রতি পৃষ্ঠায় সারি", Lists: "তালিকা", "How many rows every list shows on a page, unless another number is picked under the list.": "তালিকার নিচে অন্য সংখ্যা বেছে না নিলে প্রতিটি তালিকা এক পৃষ্ঠায় কতটি সারি দেখাবে।", "Enter a whole number from 1 to 100.": "১ থেকে ১০০ এর মধ্যে একটি পূর্ণ সংখ্যা লিখুন।",
   Dashboard: "ড্যাশবোর্ড", Sales: "বিক্রয়", Purchases: "ক্রয়", Vehicles: "গাড়ি", "Due collection": "বাকি আদায়", "Due alert": "ডিউ অ্যালার্ট",
   "Supplier payment": "সাপ্লায়ারকে পরিশোধ", Customers: "কাস্টমার", Suppliers: "সাপ্লায়ার", Investors: "ইনভেস্টর", "Daily report": "দৈনিক রিপোর্ট",
   Reports: "রিপোর্ট", Settings: "সেটিংস", Users: "ইউজার", Roles: "রোল", Shops: "দোকান", Categories: "ক্যাটাগরি", Permissions: "পারমিশন",

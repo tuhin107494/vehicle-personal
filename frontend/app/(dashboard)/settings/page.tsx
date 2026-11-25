@@ -59,6 +59,8 @@ export default function SettingsPage() {
   const { hidden, setHidden } = useHiddenMenu();
   const dash = useHiddenDashboard();
   const [recallDays, setRecallDays] = useState<number | null>(null); // saved on its own, apart from the settings table
+  const [perPage, setPerPage] = useState<string | null>(null); // rows per page as typed, until saved
+  const [perPageError, setPerPageError] = useState("");
   const [memoNo, setMemoNo] = useState<boolean | null>(null); // same, for the memo number field
   const [extraCustomer, setExtraCustomer] = useState<boolean | null>(null); // same, for the additional customer option
   const [promiseField, setPromiseField] = useState<boolean | null>(null); // same, for the promise amount field
@@ -224,6 +226,27 @@ export default function SettingsPage() {
           Show the language switch (EN / বাং) in the menu
         </label>
         <p className="mt-1 text-xs text-slate-500">Applies at once, on this device.</p>
+      </Card>
+      <Card title="Lists" className="mb-4">
+        <p className="mb-3 text-xs text-slate-500">How many rows every list shows on a page, unless another number is picked under the list.</p>
+        <div className="flex flex-wrap items-start gap-2">
+          <Field label="Rows per page" error={perPageError}>
+            <Input type="number" inputMode="numeric" min={1} max={100} step={1} className={`${inputCls} w-32`} value={perPage ?? String(settings.data.lists?.per_page ?? 15)} onChange={(e) => { setPerPage(e.target.value); setPerPageError(""); }} />
+          </Field>
+          <Button className="mt-6" onClick={async () => {
+            const n = Number(perPage ?? settings.data?.lists?.per_page ?? 15);
+            if (!Number.isInteger(n) || n < 1 || n > 100) return setPerPageError("Enter a whole number from 1 to 100.");
+            try {
+              await api("/settings", { method: "PUT", body: { lists: { per_page: n } } });
+              setPerPage(String(n));
+              toast.success("Saved");
+            } catch (err) {
+              const message = err instanceof ApiError ? (err.errors?.["lists.per_page"]?.[0] ?? err.message) : "Failed to save";
+              setPerPageError(message);
+              toast.error(message);
+            }
+          }}><Save className="size-4" /> Save</Button>
+        </div>
       </Card>
       <Card title="Call follow-up" className="mb-4">
         <p className="mb-3 text-xs text-slate-500">A &quot;Call done&quot; row on Due alert returns for another call after this many days.</p>

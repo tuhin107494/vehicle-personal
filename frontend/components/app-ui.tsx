@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { PageMeta } from "@/lib/api";
 import { label } from "@/lib/format";
+import { useDefaultPerPage } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 import { Badge as ShadBadge } from "@/components/ui/badge";
 import { Button as ShadButton } from "@/components/ui/button";
@@ -212,16 +213,34 @@ export function KV({ items }: { items: [string, ReactNode][] }) {
   );
 }
 
-export function Pagination({ meta, onPage }: { meta: PageMeta | null; onPage: (p: number) => void }) {
-  const { lang } = useT();
+/** The rows-per-page choices under a list; the shop's own default (Settings) and the number in use are added when they are not among them. */
+const PER_PAGE = [10, 20, 50, 100];
+
+export function Pagination({ meta, onPage, onPerPage }: { meta: PageMeta | null; onPage: (p: number) => void; onPerPage?: (n: number) => void }) {
+  const { lang, t } = useT();
+  const { perPage: defaultPerPage } = useDefaultPerPage();
   // shown on every list, even when it fits on one page, so the footer is always the same
   if (!meta || meta.total === 0) return null;
+  const sizes = [...new Set([...PER_PAGE, defaultPerPage, meta.per_page])].sort((a, b) => a - b);
   return (
-    <div className="mt-3 flex items-center justify-between gap-2 text-xs text-slate-600 sm:text-sm">
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 sm:text-sm">
       <span className="min-w-0">
         {lang === "bn" ? `পৃষ্ঠা ${toBn(String(meta.current_page))} / ${toBn(String(meta.last_page))} · ${toBn(String(meta.total))}টি তথ্য` : `Page ${meta.current_page} of ${meta.last_page} · ${meta.total} record${meta.total === 1 ? "" : "s"}`}
       </span>
-      <div className="flex shrink-0 gap-1.5 sm:gap-2">
+      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+        {onPerPage && (
+          <label className="flex items-center gap-1.5 whitespace-nowrap">
+            <span className="hidden sm:inline">{t("Rows per page")}</span>
+            <select
+              aria-label={t("Rows per page")}
+              value={meta.per_page}
+              onChange={(e) => onPerPage(Number(e.target.value))}
+              className="h-8 rounded-lg border border-emerald-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 sm:h-10 sm:text-sm"
+            >
+              {sizes.map((n) => <option key={n} value={n}>{lang === "bn" ? toBn(String(n)) : n}</option>)}
+            </select>
+          </label>
+        )}
         <Button className="h-8 px-2.5 text-xs sm:h-10 sm:px-4 sm:text-sm" variant="outline" disabled={meta.current_page <= 1} onClick={() => onPage(meta.current_page - 1)}><ChevronLeft className="size-4 " /> Previous</Button>
         <Button className="h-8 px-2.5 text-xs sm:h-10 sm:px-4 sm:text-sm" variant="outline" disabled={meta.current_page >= meta.last_page} onClick={() => onPage(meta.current_page + 1)}>Next <ChevronRight className="size-4" /></Button>
       </div>

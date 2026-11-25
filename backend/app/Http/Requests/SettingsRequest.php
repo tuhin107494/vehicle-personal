@@ -18,6 +18,7 @@ class SettingsRequest extends ApiRequest
             'purchase.prices.*' => ['nullable', 'numeric', 'min:1'],
             'sale.prices' => ['nullable', 'array'],
             'sale.prices.*' => ['nullable', 'numeric', 'min:1'],
+            'lists.per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'collections.recall_days' => ['nullable', 'integer', 'min:1', 'max:360'],
             'collections.keep_selection' => ['nullable', 'boolean'],
             'forms.auto_date' => ['nullable', 'boolean'],
@@ -64,6 +65,9 @@ class SettingsRequest extends ApiRequest
     public function messages(): array
     {
         return [
+            'lists.per_page.integer' => 'Rows per page must be a whole number.',
+            'lists.per_page.min' => 'Rows per page must be at least 1.',
+            'lists.per_page.max' => 'Rows per page cannot be more than 100.',
             'purchase.vehicle_type.exists' => 'Select a valid vehicle type.',
             'sale.vehicle_type.exists' => 'Select a valid vehicle type.',
             'purchase.prices.*.min' => 'Price must be at least 1.',

@@ -44,3 +44,21 @@ export function useUrlPage(key?: string): [number, (page: number) => void] {
   }, [key, page]);
   return [page, setPage];
 }
+
+/** A rows-per-page number from the address: a whole number from 1 to 100, else null (the shop's default is used). */
+export function validPerPage(value: string | null): number | null {
+  const n = Number(value);
+  return value && Number.isInteger(n) && n >= 1 && n <= 100 ? n : null;
+}
+
+/** Where a list keeps its rows per page in the address, beside its page number (?page=2&per_page=50). */
+export const perPageParam = (pageKey: string) => (pageKey === "page" ? "per_page" : `${pageKey}_per_page`);
+
+/** The rows per page picked under a list, kept in the address under `key` (left out while it is the shop's default); null until one is picked. */
+export function useUrlPerPage(key?: string): [number | null, (n: number | null) => void] {
+  const [perPage, setPerPage] = useState<number | null>(() => (key ? validPerPage(urlParam(key)) : null));
+  useEffect(() => {
+    if (key) setUrlParams({ [key]: perPage === null ? null : String(perPage) });
+  }, [key, perPage]);
+  return [perPage, setPerPage];
+}

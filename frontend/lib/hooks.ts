@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { api, PageMeta } from "@/lib/api";
 import type { VehicleCategory } from "@/lib/categories";
 import type { PermissionT } from "@/lib/types";
-import { setUrlParams, urlParam, useUrlPage } from "@/lib/url-state";
+import { useAuth } from "@/lib/auth";
+import { setUrlParams, urlParam, useUrlPage, useUrlPerPage } from "@/lib/url-state";
 
 type Meta = PageMeta & { unread_count?: number; total_amount?: number; type_counts?: Record<string, number>; due_count?: number; status_counts?: Record<string, number>; drafts?: import("@/lib/types").DraftT[]; permissions?: PermissionT[]; categories?: VehicleCategory[] };
 
@@ -77,6 +78,17 @@ export function useLoadMore<T>(base: string | null, perPage = 20) {
   return { data: base ? rows : null, loading: result.loading, hasMore, loadMore, reload };
 }
 
+/**
+ * The rows per page the shop chose in Settings (1 to 100), or 15. `ready` is false until it is known, so a list waits
+ * for it instead of first loading the wrong number of rows. The super admin has no shop: 15.
+ */
+export function useDefaultPerPage(): { perPage: number; ready: boolean } {
+  const { user } = useAuth();
+  const settings = useFetch<{ lists?: { per_page?: number } }>(user?.shop ? "/settings" : null);
+  const n = settings.data?.lists?.per_page;
+  return { perPage: n && n >= 1 && n <= 100 ? n : 15, ready: !settings.loading };
+}
+
 const noSubscribe = () => () => {};
 
 /** An element some other part of the page renders (a slot to portal into), or null when it is not there. */
@@ -93,6 +105,10 @@ export function usePagedList<T>(base: string, filters: Record<string, string> = 
   const pageKey = urlKey ? `${urlKey}_page` : "page";
   const searchKey = urlKey ? `${urlKey}_search` : "search";
   const [page, setPage] = useUrlPage(pageKey);
+  // rows per page: what was picked under the list (kept in the address), else the shop's default
+  const { perPage: defaultPerPage, ready } = useDefaultPerPage();
+  const [chosenPerPage, setChosenPerPage] = useUrlPerPage(urlKey ? `${urlKey}_per_page` : "per_page");
+  const perPage = chosenPerPage ?? defaultPerPage;
   const [search, setSearch] = useState(() => urlParam(searchKey) ?? "");
   const [debounced, setDebounced] = useState(search);
   const filterKey = JSON.stringify(filters);
@@ -115,10 +131,10 @@ export function usePagedList<T>(base: string, filters: Record<string, string> = 
     setPage(1);
   }
 
-  const qs = new URLSearchParams({ page: String(page), ...(debounced && { search: debounced }) });
+  const qs = new URLSearchParams({ page: String(page), per_page: String(perPage), ...(debounced && { search: debounced }) });
   for (const [k, v] of Object.entries(filters)) if (v) qs.set(k, v);
 
-  const result = useFetch<T[]>(`${base}?${qs}`);
+  const result = useFetch<T[]>(ready ? `${base}?${qs}` : null);
   // a page that is no longer there (its last row was deleted, or an old address): the last page there is
   const lastPage = result.meta?.last_page;
   if (!result.loading && lastPage && page > lastPage) setPage(lastPage);
@@ -129,5 +145,10 @@ export function usePagedList<T>(base: string, filters: Record<string, string> = 
     setPage(1);
     result.reload();
   };
-  return { ...result, rows: result.data ?? [], page, setPage, search, setSearch, showFirst };
+  // more or fewer rows a page: the page holding the first row shown now
+  const setPerPage = (n: number) => {
+    setPage(Math.floor(((page - 1) * perPage) / n) + 1);
+    setChosenPerPage(n === defaultPerPage ? null : n);
+  };
+  return { ...result, loading: !ready || result.loading, rows: result.data ?? [], page, setPage, perPage, setPerPage, search, setSearch, showFirst };
 }

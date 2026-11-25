@@ -92,6 +92,48 @@ class PaginationTest extends TestCase
         }
     }
 
+    public function test_the_shop_chooses_how_many_rows_a_page_shows(): void
+    {
+        foreach (range(1, 30) as $n) {
+            Customer::create(['name' => "Customer $n", 'phone' => sprintf('017000000%02d', $n)]);
+        }
+        $this->getJson('/api/settings')->assertOk()->assertJsonPath('data.lists.per_page', 15);
+
+        $this->putJson('/api/settings', ['lists' => ['per_page' => 25]])->assertOk()->assertJsonPath('data.lists.per_page', 25);
+        // the shop's number when a list asks for none, the number picked under a list when it does
+        $this->getJson('/api/customers')->assertOk()->assertJsonPath('meta.per_page', 25)->assertJsonCount(25, 'data')->assertJsonPath('meta.last_page', 2);
+        $this->getJson('/api/customers?per_page=10')->assertOk()->assertJsonPath('meta.per_page', 10)->assertJsonCount(10, 'data');
+
+        foreach (['0' => 'Rows per page must be at least 1.', '101' => 'Rows per page cannot be more than 100.', 'abc' => 'Rows per page must be a whole number.', '2.5' => 'Rows per page must be a whole number.'] as $value => $message) {
+            $this->putJson('/api/settings', ['lists' => ['per_page' => $value]])->assertStatus(422)->assertJsonPath('errors', ['lists.per_page' => [$message]]);
+        }
+        $this->putJson('/api/settings', ['lists' => ['per_page' => 1]])->assertOk()->assertJsonPath('data.lists.per_page', 1);
+        $this->putJson('/api/settings', ['lists' => ['per_page' => 100]])->assertOk()->assertJsonPath('data.lists.per_page', 100);
+        $this->getJson('/api/customers')->assertOk()->assertJsonPath('meta.per_page', 100)->assertJsonCount(30, 'data');
+
+        // the super admin has no shop: the usual 15
+        Sanctum::actingAs($this->admin);
+        $this->getJson('/api/shops')->assertOk()->assertJsonPath('meta.per_page', 15);
+    }
+
+    public function test_only_a_settings_manager_changes_it_and_each_shop_has_its_own(): void
+    {
+        // a moderator may not change it
+        $moderator = User::factory()->create(['role' => 'moderator', 'shop_id' => $this->owner->shop_id]);
+        Sanctum::actingAs($moderator);
+        $this->putJson('/api/settings', ['lists' => ['per_page' => 50]])->assertForbidden();
+        $this->getJson('/api/settings')->assertOk()->assertJsonPath('data.lists.per_page', 15);
+
+        // another shop's number stays in that shop
+        Sanctum::actingAs($this->admin);
+        $other = app(ShopService::class)->create(['name' => 'Shop B', 'is_active' => true, 'approved_at' => now()], ['name' => 'Owner B', 'email' => 'owner@b.test', 'password' => 'password'])->owner;
+        Sanctum::actingAs($other);
+        $this->putJson('/api/settings', ['lists' => ['per_page' => 40]])->assertOk();
+        Sanctum::actingAs($this->owner);
+        $this->getJson('/api/settings')->assertOk()->assertJsonPath('data.lists.per_page', 15);
+        $this->getJson('/api/customers')->assertOk()->assertJsonPath('meta.per_page', 15);
+    }
+
     public function test_pages_split_a_list_with_nothing_repeated_or_missed(): void
     {
         $customers = collect(range(1, 7))->map(fn ($n) => Customer::create(['name' => "Customer $n", 'phone' => "0170000000$n"])->id);

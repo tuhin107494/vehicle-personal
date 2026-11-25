@@ -53,7 +53,7 @@ type Tone = keyof typeof TONE;
 // which modules have their details open; everything starts as an overview
 const OpenCtx = createContext<Partial<Record<Tone, boolean>>>({});
 
-function Section({ title, count, tone, cards, pager, children }: { title: string; count: number; tone: Tone; pager: { meta: { current_page: number; last_page: number; per_page: number; total: number }; setPage: (p: number) => void }; cards: { items: CardItem[]; empty: string; totals: [string, React.ReactNode][] }; children: React.ReactNode }) {
+function Section({ title, count, tone, cards, pager, children }: { title: string; count: number; tone: Tone; pager: { meta: { current_page: number; last_page: number; per_page: number; total: number }; setPage: (p: number) => void; setPerPage?: (n: number) => void }; cards: { items: CardItem[]; empty: string; totals: [string, React.ReactNode][] }; children: React.ReactNode }) {
   const t = TONE[tone];
   const open = useContext(OpenCtx);
   if (!open[tone]) return null;
@@ -64,7 +64,7 @@ function Section({ title, count, tone, cards, pager, children }: { title: string
         <MobileCards tone={t} {...cards} />
         <div className="hidden md:block print:block">{children}</div>
       </div>
-      <div className="print:hidden"><Pagination meta={pager.meta} onPage={pager.setPage} /></div>
+      <div className="print:hidden"><Pagination meta={pager.meta} onPage={pager.setPage} onPerPage={pager.setPerPage} /></div>
     </section>
   );
 }

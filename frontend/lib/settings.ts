@@ -13,6 +13,7 @@ export type Settings = {
   collections: { recall_days: number; keep_selection: boolean };
   forms: { auto_date: boolean; memo_no: boolean; additional_customer: boolean; promise_amount: boolean; removal: "delete" | "cancel" };
   booking: { days: number; on_cancel: "refund" | "keep"; on_expire: "refund" | "keep" };
+  lists: { per_page: number }; // rows a list shows on a page (1 to 100) unless another number is picked under it
 };
 
 /** The shop's primary form values (what the purchase and sale forms start with). */

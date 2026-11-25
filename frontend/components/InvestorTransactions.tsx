@@ -193,7 +193,7 @@ export function InvestorTransactions() {
         </div>
       )}
       {editing && <EditEntry x={editing} onClose={() => setEditing(null)} onSaved={reload} />}
-      <DataTable urlKey="page" pageKey={qs.toString()} columns={cols} data={lines} loading={loading} empty="No investor transactions in this period." pageSize={printing ? 100000 : 15} />
+      <DataTable urlKey="page" pageKey={qs.toString()} columns={cols} data={lines} loading={loading} empty="No investor transactions in this period." pageSize={printing ? 100000 : undefined} />
     </>
   );
 }

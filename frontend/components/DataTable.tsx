@@ -4,7 +4,8 @@ import { useState } from "react";
 import { ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
 import { Pagination } from "@/components/app-ui";
 import { useT } from "@/lib/i18n";
-import { useUrlPage } from "@/lib/url-state";
+import { useDefaultPerPage } from "@/lib/hooks";
+import { perPageParam, useUrlPage, useUrlPerPage } from "@/lib/url-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const ACTION_IDS = ["actions", "view", "pay"]; // columns shown as buttons on a phone card, not as a labelled field
@@ -17,7 +18,7 @@ export function DataTable<T>({
   loading,
   onRowClick,
   empty = "No records found.",
-  pageSize = 15,
+  pageSize,
   serverPaged,
   pager = true,
   compact,
@@ -31,6 +32,7 @@ export function DataTable<T>({
   loading?: boolean;
   onRowClick?: (row: T) => void;
   empty?: string;
+  /** a fixed number of rows a page (a short list, or every row while printing); without it: the number picked under the list, or the shop's default (Settings) */
   pageSize?: number;
   /** the page already pages on the server and shows its own pager */
   serverPaged?: boolean;
@@ -52,16 +54,24 @@ export function DataTable<T>({
 
   // every list pages through its rows, so a long list never becomes one endless page
   const [page, setPage] = useUrlPage(urlKey);
+  const { perPage: defaultPerPage } = useDefaultPerPage();
+  const [chosenPerPage, setChosenPerPage] = useUrlPerPage(urlKey ? perPageParam(urlKey) : undefined);
+  const size = pageSize ?? chosenPerPage ?? defaultPerPage;
   const [pagedFor, setPagedFor] = useState(pageKey);
   if (pagedFor !== pageKey) {
     setPagedFor(pageKey);
     setPage(1);
   }
   const all = table.getRowModel().rows;
-  const last = Math.max(1, Math.ceil(all.length / pageSize));
+  const last = Math.max(1, Math.ceil(all.length / size));
   const current = Math.min(page, last);
   // a list paged on the server shows the page it was sent whole (the booking list adds its saved drafts on top of it)
-  const rows = serverPaged ? all : all.slice((current - 1) * pageSize, current * pageSize);
+  const rows = serverPaged ? all : all.slice((current - 1) * size, current * size);
+  // more or fewer rows a page: the page holding the first row shown now
+  const setPerPage = (n: number) => {
+    setPage(Math.floor(((current - 1) * size) / n) + 1);
+    setChosenPerPage(n === defaultPerPage ? null : n);
+  };
 
   return (
     <>
@@ -135,7 +145,7 @@ export function DataTable<T>({
         </TableBody>
       </Table>
     </div>
-    {!serverPaged && pager && <div className="print:hidden"><Pagination meta={{ current_page: current, last_page: last, per_page: pageSize, total: all.length }} onPage={setPage} /></div>}
+    {!serverPaged && pager && <div className="print:hidden"><Pagination meta={{ current_page: current, last_page: last, per_page: size, total: all.length }} onPage={setPage} onPerPage={pageSize === undefined ? setPerPage : undefined} /></div>}
     </>
   );
 }

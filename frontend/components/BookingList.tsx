@@ -148,7 +148,7 @@ export function BookingList() {
       </div>
       <Input className={`${inputCls} mb-3 max-w-xs`} placeholder="Search customer, phone, chassis" value={list.search} onChange={(e) => list.setSearch(e.target.value)} />
       <DataTable serverPaged columns={columns} data={status === "active" || status === "" ? rows : rows.filter((r) => !r.draft)} loading={list.loading} empty="No bookings here." />
-      <Pagination meta={list.meta} onPage={list.setPage} />
+      <Pagination meta={list.meta} onPage={list.setPage} onPerPage={list.setPerPage} />
       <BookingForm open={!!editing} booking={editing} onClose={() => setEditing(null)} onSaved={(b) => list.mutate((rows, meta) => ({ data: (rows ?? []).map((r) => ("vehicle_id" in r && r.id === b.id ? b : r)), meta }))} />
       <BookingForm open={open} onClose={() => setOpen(false)} onSaved={(b) => {
         if (status !== "active") return setStatus("active"); // another tab was open: the Active list loads

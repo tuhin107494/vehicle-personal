@@ -56,7 +56,7 @@ export function CustomerList() {
       {merging && <CustomerMergeDialog open onClose={() => setMerging(false)} onMerged={() => list.reload()} />}
       <Input className={`${inputCls} mb-3 max-w-xs`} placeholder="Search name, phone, NID" value={list.search} onChange={(e) => list.setSearch(e.target.value)} />
       <DataTable serverPaged columns={columns} data={list.rows} loading={list.loading} empty="No customers yet." />
-      <Pagination meta={list.meta} onPage={list.setPage} />
+      <Pagination meta={list.meta} onPage={list.setPage} onPerPage={list.setPerPage} />
       <CustomerForm open={open} customer={editing} onClose={() => setOpen(false)} onSaved={() => (editing ? list.reload() : list.showFirst())} />
       <CustomerImportDialog open={importing} onClose={() => setImporting(false)} onImported={() => list.showFirst()} />
     </>

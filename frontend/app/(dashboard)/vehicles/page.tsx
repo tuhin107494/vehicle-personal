@@ -132,7 +132,7 @@ function Vehicles() {
         })}
       </div>
       <DataTable serverPaged columns={columns} data={list.rows} loading={list.loading} />
-      <Pagination meta={list.meta} onPage={list.setPage} />
+      <Pagination meta={list.meta} onPage={list.setPage} onPerPage={list.setPerPage} />
       <RegistrationModal key={reg?.id} saleId={reg?.current_sale_id ?? null} status={reg?.registration_status ?? "pending"} title={`Registration · ${reg?.chassis_no ?? ""}`} open={!!reg} onClose={() => setReg(null)} onSaved={list.reload} />
       <VehicleForm open={open} vehicle={editing} onClose={() => setOpen(false)} onSaved={() => (editing ? list.reload() : list.showFirst())} />
     </>

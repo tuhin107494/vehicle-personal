@@ -50,7 +50,7 @@ export function SupplierList() {
       <PageHeader title="Suppliers" actions={can("parties.create") && <Button onClick={() => { setEditing(null); setOpen(true); }}><Plus className="size-4" /> New supplier</Button>} />
       <Input className={`${inputCls} mb-3 max-w-xs`} placeholder="Search name, phone, NID" value={list.search} onChange={(e) => list.setSearch(e.target.value)} />
       <DataTable serverPaged columns={columns} data={list.rows} loading={list.loading} empty="No suppliers yet." />
-      <Pagination meta={list.meta} onPage={list.setPage} />
+      <Pagination meta={list.meta} onPage={list.setPage} onPerPage={list.setPerPage} />
       <SupplierForm open={open} supplier={editing} onClose={() => setOpen(false)} onSaved={() => (editing ? list.reload() : list.showFirst())} />
     </>
   );

@@ -19,6 +19,7 @@ class ShopSettings
             'collections' => ['recall_days' => self::recallDays(), 'keep_selection' => self::keepSelection()],
             'forms' => ['auto_date' => self::autoDate(), 'memo_no' => self::memoNo(), 'additional_customer' => self::additionalCustomer(), 'promise_amount' => self::promiseAmount(), 'removal' => self::removal()],
             'booking' => ['days' => self::bookingDays(), 'on_cancel' => self::bookingPolicy('on_cancel'), 'on_expire' => self::bookingPolicy('on_expire')],
+            'lists' => ['per_page' => self::perPage()],
         ];
     }
 
@@ -26,6 +27,16 @@ class ShopSettings
     public static function purchaseFromCustomer(): bool
     {
         return ShopSetting::where('key', 'purchase.from_customer')->value('value') !== '0';
+    }
+
+    public const DEFAULT_PER_PAGE = 15;
+
+    /** How many rows a list shows on a page (1 to 100) when no other number is asked for. */
+    public static function perPage(): int
+    {
+        $value = (int) ShopSetting::where('key', 'lists.per_page')->value('value');
+
+        return $value >= 1 && $value <= 100 ? $value : self::DEFAULT_PER_PAGE;
     }
 
     public const DEFAULT_RECALL_DAYS = 7;
@@ -123,6 +134,10 @@ class ShopSettings
     {
         // every key is saved together or none are
         DB::transaction(function () use ($input) {
+            if (isset($input['lists']['per_page'])) {
+                ShopSetting::updateOrCreate(['key' => 'lists.per_page'], ['value' => (int) $input['lists']['per_page']]);
+            }
+
             if (isset($input['collections']['recall_days'])) {
                 ShopSetting::updateOrCreate(['key' => 'collections.recall_days'], ['value' => $input['collections']['recall_days']]);
             }

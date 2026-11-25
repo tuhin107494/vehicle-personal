@@ -94,9 +94,9 @@ export function PersonStatement({ side }: { side: "customer" | "supplier" }) {
   const txs = useFetch<Txs>(personId || view !== "transaction" ? null : `/reports/transactions?${listQs}`);
   const [printing, setPrinting] = useState(false); // while printing, every row is shown, not just this page
   // each starts again at page 1 only when what it shows changes (an edit reloads the same rows and keeps the page)
-  const stPg = usePaging(data?.rows, printing, 15, { key: qs.toString(), urlKey: "page" });
-  const listPg = usePaging(list.data?.rows, printing, 15, { key: `party|${listQs}`, urlKey: "page" });
-  const txPg = usePaging(txs.data?.rows, printing, 15, { key: `transaction|${listQs}`, urlKey: "page" });
+  const stPg = usePaging(data?.rows, printing, undefined, { key: qs.toString(), urlKey: "page" });
+  const listPg = usePaging(list.data?.rows, printing, undefined, { key: `party|${listQs}`, urlKey: "page" });
+  const txPg = usePaging(txs.data?.rows, printing, undefined, { key: `transaction|${listQs}`, urlKey: "page" });
 
   const period = from || to ? `${from ? fmtDate(from) : "Beginning"} to ${to ? fmtDate(to) : "today"}` : "All dates";
   
@@ -200,7 +200,7 @@ export function PersonStatement({ side }: { side: "customer" | "supplier" }) {
                 </table>
                 </div>
               </div>
-              <div className="print:hidden"><Pagination meta={listPg.meta} onPage={listPg.setPage} /></div>
+              <div className="print:hidden"><Pagination meta={listPg.meta} onPage={listPg.setPage} onPerPage={listPg.setPerPage} /></div>
               <p className="mt-2 hidden text-xs text-slate-500 print:block">Printed on {fmtDate(new Date().toISOString())}</p>
             </>
           )}
@@ -264,7 +264,7 @@ export function PersonStatement({ side }: { side: "customer" | "supplier" }) {
                   </table>
                 </div>
               </div>
-              <div className="print:hidden"><Pagination meta={txPg.meta} onPage={txPg.setPage} /></div>
+              <div className="print:hidden"><Pagination meta={txPg.meta} onPage={txPg.setPage} onPerPage={txPg.setPerPage} /></div>
               <p className="mt-2 hidden text-xs text-slate-500 print:block">Printed on {fmtDate(new Date().toISOString())}</p>
             </>
           )}
@@ -349,7 +349,7 @@ export function PersonStatement({ side }: { side: "customer" | "supplier" }) {
             </table>
             </div>
           </div>
-          <div className="print:hidden"><Pagination meta={stPg.meta} onPage={stPg.setPage} /></div>
+          <div className="print:hidden"><Pagination meta={stPg.meta} onPage={stPg.setPage} onPerPage={stPg.setPerPage} /></div>
           <p className="mt-2 hidden text-xs text-slate-500 print:block">Printed on {fmtDate(new Date().toISOString())}</p>
         </div>
       )}

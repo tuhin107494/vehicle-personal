@@ -19,7 +19,7 @@ export function useReportPrint(title: string) {
       }
     }, 150);
   };
-  return { run, pageSize: building ? 100000 : 15 };
+  return { run, pageSize: building ? 100000 : undefined }; // every row while printing; otherwise the list's own rows per page
 }
 
 export function ReportPrint({ pr, meta, disabled }: { pr: ReturnType<typeof useReportPrint>; meta?: Omit<ReportMeta, "shop" | "title">; disabled?: boolean }) {
