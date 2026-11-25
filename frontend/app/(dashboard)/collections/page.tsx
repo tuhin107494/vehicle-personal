@@ -8,6 +8,7 @@ import { Check, Eye, History, Printer, Search, Undo2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { fmtDate, money } from "@/lib/format";
 import { useFetch } from "@/lib/hooks";
+import { useUrlState } from "@/lib/url-state";
 import type { CallRow } from "@/lib/types";
 import { Badge, Button, Field, inputCls, Modal, PageHeader, Stat } from "@/components/app-ui";
 import { Input } from "@/components/ui/input";
@@ -61,10 +62,14 @@ function When({ row }: { row: CallRow }) {
 export default function CollectionsPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const [bucket, setBucket] = useState("overdue");
-  const [kind, setKind] = useState<Kind>("");
-  const [q, setQ] = useState("");
-  const [callFilter, setCallFilter] = useState<"" | "done" | "pending">("");
+  // the tab, filters and search live in the address (as the table's page does), so a refresh or coming back from a sale keeps them
+  const [bucketParam, setBucket] = useUrlState("bucket", "overdue");
+  const bucket = ["overdue", "d3", "d7", "d10"].includes(bucketParam) ? bucketParam : "overdue";
+  const [kindParam, setKind] = useUrlState("kind", "");
+  const kind: Kind = kindParam === "installment" || kindParam === "promise" ? kindParam : "";
+  const [q, setQ] = useUrlState("search", "");
+  const [callParam, setCallFilter] = useUrlState("call", "");
+  const callFilter: "" | "done" | "pending" = callParam === "done" || callParam === "pending" ? callParam : "";
   // the tabs and totals come back with the list (meta.summary), so the page makes one request
   const list = useFetch<CallRow[]>(`/collections/upcoming?bucket=${bucket}${kind ? `&kind=${kind}` : ""}&with_summary=1`);
   const summary = { data: (list.meta as { summary?: { buckets: Bucket[]; current_due: number; total_due: number; recall_days: number } } | null)?.summary };
@@ -284,7 +289,7 @@ export default function CollectionsPage() {
       </div>
 
       <div className="[&_td]:!text-xs [&_td_a]:!text-xs [&_td_button]:!text-xs [&_th]:!text-[11px]">
-        <DataTable columns={columns} data={rows} rowClass={(r) => (r.called_until ? "!bg-amber-100/80 hover:!bg-amber-100" : "")} loading={list.loading} onRowClick={(r) => router.push(`/sales/${r.sale_id}`)} empty={term ? "No match found." : bucket === "overdue" ? "Nothing is overdue." : "Nothing falls due in this period."} />
+        <DataTable urlKey="page" pageKey={[bucket, kind, callFilter, term].join("|")} columns={columns} data={rows} rowClass={(r) => (r.called_until ? "!bg-amber-100/80 hover:!bg-amber-100" : "")} loading={list.loading} onRowClick={(r) => router.push(`/sales/${r.sale_id}`)} empty={term ? "No match found." : bucket === "overdue" ? "Nothing is overdue." : "Nothing falls due in this period."} />
       </div>
       <Modal open={!!historyOf} title="Call history" onClose={() => setHistoryOf(null)}>
         {historyOf && (

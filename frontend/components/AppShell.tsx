@@ -52,6 +52,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setMenuOpen(false);
   }
 
+  // The menu item of the page already open, while it shows filters or a page (kept in the address), opens it fresh on
+  // its first view, as from anywhere else: the address is cleared and the page shown again. With nothing in the address
+  // (a form being filled in) it does nothing, as before; Ctrl/Cmd-click still opens a new tab.
+  const [fresh, setFresh] = useState(0);
+  const openFresh = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (pathname !== href || !window.location.search || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    window.history.replaceState(null, "", href);
+    setFresh((n) => n + 1);
+    setMenuOpen(false);
+  };
+
   const { t, lang, setLang, showSwitch } = useT();
   const { hidden } = useHiddenMenu();
   // Settings can never be hidden: it is where hidden items are brought back
@@ -79,6 +91,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Link
                 key={href}
                 href={href}
+                onClick={(e) => openFresh(e, href)}
                 className={`flex items-center gap-2 rounded-xl px-2.5 py-2 text-[0.9375rem] font-medium transition md:gap-3 md:px-3 md:py-2.5 ${active ? "bg-white text-emerald-700 shadow" : "text-white/85 hover:bg-white/15"}`}
               >
                 <span className="flex size-7 items-center justify-center rounded-lg bg-white shadow-sm"><Icon className={`size-4 ${color}`} /></span>
@@ -106,7 +119,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
       <div className="min-w-0 flex-1">
         <SubscriptionBanner />
-        <main className="min-w-0 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:p-6 md:pb-[calc(1.5rem+env(safe-area-inset-bottom))] print:p-0 print:pb-0">{children}</main>
+        <main key={fresh} className="min-w-0 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:p-6 md:pb-[calc(1.5rem+env(safe-area-inset-bottom))] print:p-0 print:pb-0">{children}</main>
       </div>
     </div>
   );

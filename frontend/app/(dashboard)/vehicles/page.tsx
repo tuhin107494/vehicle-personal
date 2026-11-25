@@ -1,9 +1,9 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { usePagedList } from "@/lib/hooks";
+import { useUrlState } from "@/lib/url-state";
 import { useAuth } from "@/lib/auth";
 import { label } from "@/lib/format";
 import { typeColor } from "@/lib/typeColors";
@@ -19,12 +19,15 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { ArrowUpRight, Eye, HandCoins, History, Pencil, Plus, Trash2 } from "lucide-react";
 
 function Vehicles() {
-  const params = useSearchParams();
-  const wanted = params.get("status"); // e.g. /vehicles?status=in_stock
-  // opened from the menu the list starts on what is in stock; ?status=sold or ?status=all opens another view
-  const [status, setStatus] = useState(wanted === "sold" ? "sold" : wanted === "all" ? "" : "stock"); // "stock" is in stock plus booked, the booked ones marked
-  const [type, setType] = useState("");
-  const [registration, setRegistration] = useState(REGISTRATION_STEPS.includes(params.get("registration") ?? "") ? params.get("registration")! : ""); // e.g. ?registration=pending
+  // the view, filters, page and search live in the address, so a refresh or coming back from a vehicle keeps them.
+  // Opened from the menu the list starts on what is in stock; ?status=sold or ?status=all opens another view, ?registration=pending a step
+  const [view, setView] = useUrlState("status", "stock");
+  // "stock" is in stock plus booked, the booked ones marked; "all" in the address is every status
+  const status = view === "all" ? "" : ["stock", "in_stock", "sold", "booked"].includes(view) ? view : "stock";
+  const setStatus = (v: string) => setView(v === "" ? "all" : v);
+  const [type, setType] = useUrlState("type", "");
+  const [registrationParam, setRegistration] = useUrlState("registration", "");
+  const registration = REGISTRATION_STEPS.includes(registrationParam) ? registrationParam : "";
   const { can } = useAuth();
   const [showDeleted, setShowDeleted] = useState(false); // the vehicles deleted with everything on them
   const list = usePagedList<Vehicle>("/vehicles", { status, vehicle_type: type, registration_status: registration });

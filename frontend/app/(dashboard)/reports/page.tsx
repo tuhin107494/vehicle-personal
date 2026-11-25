@@ -9,9 +9,10 @@ import { printVoucher } from "@/components/TransactionVoucher";
 import { purchaseVoucher } from "@/lib/purchaseVoucher";
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { fmtDate, money } from "@/lib/format";
+import { fmtDate, money, yearAgoStr } from "@/lib/format";
 import { useCategories } from "@/lib/categories";
 import { useFetch } from "@/lib/hooks";
+import { useUrlState } from "@/lib/url-state";
 import type { InvestorSale, Purchase, Sale, Vehicle } from "@/lib/types";
 import { Button, ErrorText, Field, inputCls, Loading, Modal, PageHeader, Stat, StatusBadge } from "@/components/app-ui";
 import Link from "next/link";
@@ -59,7 +60,7 @@ function StockReport() {
     <>
       <ReportPrint pr={pr} meta={{ totals: [["Vehicles in stock", data.total_count], ["Stock cost", money(data.total_cost)]] }} />
       <div className="mb-3 grid grid-cols-2 gap-3 md:max-w-md"><Stat color="blue" label="Vehicles in stock" value={data.total_count} /><Stat color="slate" label="Stock cost" value={money(data.total_cost)} /></div>
-      <DataTable columns={cols} data={data.vehicles} empty="No vehicles in stock." pageSize={pr.pageSize} />
+      <DataTable urlKey="page" columns={cols} data={data.vehicles} empty="No vehicles in stock." pageSize={pr.pageSize} />
     </>
   );
 }
@@ -84,17 +85,17 @@ function DuesReport() {
     <>
       <ReportPrint pr={pr} meta={{ totals: [["Total due", money(data.total_due)]] }} />
       <div className="mb-3 md:max-w-xs"><Stat label="Total due" value={money(data.total_due)} tone="red" /></div>
-      <DataTable columns={cols} data={data.sales} empty="Nothing due." pageSize={pr.pageSize} />
+      <DataTable urlKey="page" columns={cols} data={data.sales} empty="Nothing due." pageSize={pr.pageSize} />
     </>
   );
 }
 
 /** Investor sales in a period: only the investor's and the shop's side (no customer), each opening its own investor sale page. */
 function InvestorSalesReport() {
-  const [from, setFrom] = useState(monthStart());
-  const [to, setTo] = useState(today());
-  const [investor, setInvestor] = useState("");
-  const [status, setStatus] = useState("");
+  const [from, setFrom] = useUrlState("from", yearAgoStr()); // filters and page stay in the address: a refresh or coming back keeps them
+  const [to, setTo] = useUrlState("to", today());
+  const [investor, setInvestor] = useUrlState("investor", "");
+  const [status, setStatus] = useUrlState("status", "");
   const qs = new URLSearchParams({ ...(from && { from }), ...(to && { to }), ...(investor && { investor_id: investor }), ...(status && { status }) });
   const { data, loading, error, reload } = useFetch<{ totals: Record<string, number>; investor_sales: InvestorSale[] }>(`/reports/investor-sales?${qs}`);
   const { can, user } = useAuth();
@@ -163,7 +164,7 @@ function InvestorSalesReport() {
           <Stat color="slate" label="To collect from investor" value={money(data.totals.investor_owes)} />
         </div>
       )}
-      <DataTable columns={cols} data={data?.investor_sales ?? []} loading={loading} empty="No investor sales in this period." pageSize={pr.pageSize} />
+      <DataTable urlKey="page" pageKey={qs.toString()} columns={cols} data={data?.investor_sales ?? []} loading={loading} empty="No investor sales in this period." pageSize={pr.pageSize} />
       {receiveFrom && <ReceiveModal x={receiveFrom} owed={receiveFrom.investor_owes ?? 0} onClose={() => setReceiveFrom(null)} onSaved={reload} />}
     </>
   );
@@ -171,7 +172,6 @@ function InvestorSalesReport() {
 
 type TypeRow = { type: string; count: number; amount: number; profit?: number };
 
-const monthStart = () => new Date(new Date().getFullYear(), new Date().getMonth(), 1).toLocaleDateString("en-CA");
 const today = () => new Date().toLocaleDateString("en-CA");
 
 /** Date range + vehicle type filters shared by the purchase and sales reports. */
@@ -193,11 +193,11 @@ function Filters({ from, to, type, setFrom, setTo, setType, children }: { from: 
 }
 
 function PurchasesReport() {
-  const [from, setFrom] = useState(monthStart());
-  const [to, setTo] = useState(today());
-  const [type, setType] = useState("");
-  const [source, setSource] = useState("");
-  const [supplier, setSupplier] = useState("");
+  const [from, setFrom] = useUrlState("from", yearAgoStr());
+  const [to, setTo] = useUrlState("to", today());
+  const [type, setType] = useUrlState("type", "");
+  const [source, setSource] = useUrlState("source", "");
+  const [supplier, setSupplier] = useUrlState("supplier", "");
   const { categories } = useCategories();
   const qs = new URLSearchParams({ ...(from && { from }), ...(to && { to }), ...(type && { vehicle_type: type }), ...(source && { source }), ...(supplier && { supplier_id: supplier }) });
   const { data, loading, error } = useFetch<{ totals: Record<string, number>; by_type: TypeRow[]; purchases: (Purchase & { total_cost: number; unpaid: number })[] }>(`/reports/purchases?${qs}`);
@@ -238,18 +238,18 @@ function PurchasesReport() {
           <Stat color="slate" label="Extra cost" value={money(data.totals.extra_cost)} />
         </div>
       )}
-      <DataTable columns={cols} data={data?.purchases ?? []} loading={loading} empty="No purchases in this period." pageSize={pr.pageSize} />
+      <DataTable urlKey="page" pageKey={qs.toString()} columns={cols} data={data?.purchases ?? []} loading={loading} empty="No purchases in this period." pageSize={pr.pageSize} />
     </>
   );
 }
 
 function SalesReport() {
-  const [from, setFrom] = useState(monthStart());
-  const [to, setTo] = useState(today());
-  const [type, setType] = useState("");
-  const [paymentType, setPaymentType] = useState("");
-  const [status, setStatus] = useState("");
-  const [customer, setCustomer] = useState("");
+  const [from, setFrom] = useUrlState("from", yearAgoStr());
+  const [to, setTo] = useUrlState("to", today());
+  const [type, setType] = useUrlState("type", "");
+  const [paymentType, setPaymentType] = useUrlState("payment_type", "");
+  const [status, setStatus] = useUrlState("status", "");
+  const [customer, setCustomer] = useUrlState("customer", "");
   const { categories } = useCategories();
   const qs = new URLSearchParams({ ...(from && { from }), ...(to && { to }), ...(type && { vehicle_type: type }), ...(paymentType && { payment_type: paymentType }), ...(status && { status }), ...(customer && { customer_id: customer }) });
   const { data, loading, error } = useFetch<{ totals: Record<string, number>; by_type: TypeRow[]; sales: (Sale & { cost: number; profit: number })[] }>(`/reports/sales?${qs}`);
@@ -319,7 +319,7 @@ function SalesReport() {
           <Stat color="green" label="Profit" value={money(data.totals.profit)} />
         </div>
       )}
-      <DataTable columns={cols} data={data?.sales ?? []} loading={loading} empty="No sales in this period." pageSize={pr.pageSize} />
+      <DataTable urlKey="page" pageKey={qs.toString()} columns={cols} data={data?.sales ?? []} loading={loading} empty="No sales in this period." pageSize={pr.pageSize} />
     </>
   );
 }

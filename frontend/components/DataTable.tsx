@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
 import { Pagination } from "@/components/app-ui";
 import { useT } from "@/lib/i18n";
+import { useUrlPage } from "@/lib/url-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const ACTION_IDS = ["actions", "view", "pay"]; // columns shown as buttons on a phone card, not as a labelled field
@@ -22,6 +23,8 @@ export function DataTable<T>({
   compact,
   cards,
   rowClass,
+  urlKey,
+  pageKey = "",
 }: {
   columns: Col<T>[];
   data: T[];
@@ -39,17 +42,26 @@ export function DataTable<T>({
   cards?: boolean;
   /** extra classes for a row, e.g. to tint it */
   rowClass?: (row: T) => string;
+  /** keeps the page number in the address under this name (?page=3), so a refresh or coming Back shows the same page: for a page's main list */
+  urlKey?: string;
+  /** what the rows are filtered by (the page's filters and search): a change starts again from page 1, a reload of the same list (after an edit) keeps the page */
+  pageKey?: string;
 }) {
   const { t } = useT();
   const table = useReactTable({ data, columns, getCoreRowModel: getCoreRowModel() });
 
   // every list pages through its rows, so a long list never becomes one endless page
-  const [page, setPage] = useState(1);
-  useEffect(() => setPage(1), [data]);
+  const [page, setPage] = useUrlPage(urlKey);
+  const [pagedFor, setPagedFor] = useState(pageKey);
+  if (pagedFor !== pageKey) {
+    setPagedFor(pageKey);
+    setPage(1);
+  }
   const all = table.getRowModel().rows;
   const last = Math.max(1, Math.ceil(all.length / pageSize));
   const current = Math.min(page, last);
-  const rows = all.slice((current - 1) * pageSize, current * pageSize);
+  // a list paged on the server shows the page it was sent whole (the booking list adds its saved drafts on top of it)
+  const rows = serverPaged ? all : all.slice((current - 1) * pageSize, current * pageSize);
 
   return (
     <>

@@ -84,7 +84,7 @@ export default function CategoriesPage() {
     <>
       <PageHeader title="Vehicle categories" actions={<Button onClick={() => { setEditing(null); setOpen(true); }}><Plus className="size-4" /> New category</Button>} />
       <p className="mb-4 text-sm text-slate-600">Types you can pick when buying a vehicle. Brand, model, colour, CC and year for each type are set in Settings.</p>
-      <DataTable columns={columns} data={categories} empty="No categories yet." />
+      <DataTable urlKey="page" columns={columns} data={categories} empty="No categories yet." />
       <CategoryForm open={open} category={editing} onClose={() => setOpen(false)} onSaved={reload} />
     </>
   );

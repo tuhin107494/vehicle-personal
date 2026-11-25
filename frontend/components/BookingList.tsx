@@ -6,6 +6,7 @@ import { Eye, HandCoins, Pencil, Plus, Printer, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 import { usePagedList } from "@/lib/hooks";
+import { useUrlState } from "@/lib/url-state";
 import { useAuth } from "@/lib/auth";
 import { fmtDate, money } from "@/lib/format";
 import type { Booking, DraftT } from "@/lib/types";
@@ -26,7 +27,7 @@ const TABS: [string, string][] = [["active", "Active"], ["cancelled", "Cancelled
  */
 export function BookingList() {
   const { can, user } = useAuth();
-  const [status, setStatus] = useState("active");
+  const [status, setStatus] = useUrlState("status", "active"); // the tab, page and search stay in the address: a refresh or coming back keeps them
   const list = usePagedList<Booking>("/bookings", { status });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Booking | null>(null);

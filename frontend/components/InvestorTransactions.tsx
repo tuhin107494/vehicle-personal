@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { fmtDate, label, money } from "@/lib/format";
+import { fmtDate, label, money, yearAgoStr } from "@/lib/format";
 import { useFetch } from "@/lib/hooks";
+import { useUrlState } from "@/lib/url-state";
 import { useAuth } from "@/lib/auth";
 import { Button, ErrorText, Field, inputCls, Modal, Stat } from "@/components/app-ui";
 import { toast } from "sonner";
@@ -44,7 +45,6 @@ function mergeBatches(rows: Row[]): Line[] {
 }
 type Data = { rows: Row[]; totals: { investment: number; principal_return: number; profit_share: number; withdrawal: number } };
 
-const monthStart = () => new Date(new Date().getFullYear(), new Date().getMonth(), 1).toLocaleDateString("en-CA");
 const today = () => new Date().toLocaleDateString("en-CA");
 
 /** Every investor transaction: money in, principal returned, profit paid and withdrawals. Used on the Reports page and as its own menu page. */
@@ -118,10 +118,11 @@ function EditEntry({ x, onClose, onSaved }: { x: Line; onClose: () => void; onSa
 
 export function InvestorTransactions() {
   const { user } = useAuth();
-  const [from, setFrom] = useState(monthStart());
-  const [to, setTo] = useState(today());
-  const [investor, setInvestor] = useState("");
-  const [type, setType] = useState("");
+  // the filters and the table's page live in the address, so a refresh or an edit keeps them
+  const [from, setFrom] = useUrlState("from", yearAgoStr());
+  const [to, setTo] = useUrlState("to", today());
+  const [investor, setInvestor] = useUrlState("investor", "");
+  const [type, setType] = useUrlState("type", "");
   const [printing, setPrinting] = useState(false); // while printing every row shows, not just this page
   const qs = new URLSearchParams({ ...(from && { from }), ...(to && { to }), ...(investor && { investor_id: investor }), ...(type && { type }) });
   const { data, loading, error, reload } = useFetch<Data>(`/reports/investor-transactions?${qs}`);
@@ -192,7 +193,7 @@ export function InvestorTransactions() {
         </div>
       )}
       {editing && <EditEntry x={editing} onClose={() => setEditing(null)} onSaved={reload} />}
-      <DataTable columns={cols} data={lines} loading={loading} empty="No investor transactions in this period." pageSize={printing ? 100000 : 15} />
+      <DataTable urlKey="page" pageKey={qs.toString()} columns={cols} data={lines} loading={loading} empty="No investor transactions in this period." pageSize={printing ? 100000 : 15} />
     </>
   );
 }

@@ -6,6 +6,7 @@ import { useFetch } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
 import { Button, ErrorText, Field, inputCls, Pagination, Stat } from "@/components/app-ui";
 import { usePaging } from "@/lib/paging";
+import { useUrlState } from "@/lib/url-state";
 import { CustomerSelect, SupplierSelect } from "@/components/Selects";
 import { Input } from "@/components/ui/input";
 import { PrintButton } from "@/components/PrintButton";
@@ -75,9 +76,10 @@ export function PersonStatement({ side }: { side: "customer" | "supplier" }) {
     if (cancelMode && r.tx.cancellable) return can("transactions.cancel") ? <button type="button" onClick={() => setCancelling(r.tx!)} className={removeStyle}><Ban className="size-3.5" /> Cancel</button> : null;
     return r.tx.deletable && can("transactions.delete") ? <button type="button" onClick={() => deleteTx(r.tx!)} className={removeStyle}><Trash2 className="size-3.5" /> Delete</button> : null;
   };
-  const [personId, setPersonId] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  // the person, dates, view and page live in the address, so a refresh or an edit keeps the same statement and page
+  const [personId, setPersonId] = useUrlState("person", "");
+  const [from, setFrom] = useUrlState("from", "");
+  const [to, setTo] = useUrlState("to", "");
   const qs = new URLSearchParams({ side, [side === "customer" ? "customer_id" : "supplier_id"]: personId, ...(from && { from }), ...(to && { to }) });
   const { data, loading, error, reload: reloadStatement } = useFetch<Statement>(personId ? `/reports/person-transactions?${qs}` : null);
   const [pickedName, setPickedName] = useState<string | undefined>();
@@ -86,13 +88,15 @@ export function PersonStatement({ side }: { side: "customer" | "supplier" }) {
   const shopName = user?.shop?.name ?? "Gari Becho";
   // a row of one person's statement, as the voucher the per-transaction report prints for it
   const voucherOf = (r: Row): VoucherTx => ({ no: r.no, date: r.date, person: data?.person.name ?? "", phone: data?.person.phone ?? null, description: r.description, vehicle: r.vehicle, reference: r.reference, charge: r.charge, paid: r.paid, details: r.details });
-  const [view, setView] = useState<"party" | "transaction">("transaction");
+  const [viewParam, setView] = useUrlState("view", "transaction");
+  const view: "party" | "transaction" = viewParam === "party" ? "party" : "transaction";
   const list = useFetch<Listing>(personId || view !== "party" ? null : `/reports/person-summary?${listQs}`);
   const txs = useFetch<Txs>(personId || view !== "transaction" ? null : `/reports/transactions?${listQs}`);
   const [printing, setPrinting] = useState(false); // while printing, every row is shown, not just this page
-  const stPg = usePaging(data?.rows, printing);
-  const listPg = usePaging(list.data?.rows, printing);
-  const txPg = usePaging(txs.data?.rows, printing);
+  // each starts again at page 1 only when what it shows changes (an edit reloads the same rows and keeps the page)
+  const stPg = usePaging(data?.rows, printing, 15, { key: qs.toString(), urlKey: "page" });
+  const listPg = usePaging(list.data?.rows, printing, 15, { key: `party|${listQs}`, urlKey: "page" });
+  const txPg = usePaging(txs.data?.rows, printing, 15, { key: `transaction|${listQs}`, urlKey: "page" });
 
   const period = from || to ? `${from ? fmtDate(from) : "Beginning"} to ${to ? fmtDate(to) : "today"}` : "All dates";
   
@@ -125,8 +129,8 @@ export function PersonStatement({ side }: { side: "customer" | "supplier" }) {
       </div>
       <ResponsiveFilters desktopClass="mb-4 hidden items-start gap-3 lg:grid lg:grid-cols-3">
         {side === "customer"
-          ? <CustomerSelect filter allowCreate={false} value={personId} selectedLabel={pickedName} onChange={(id) => { setPersonId(id); setPickedName(undefined); }} />
-          : <SupplierSelect filter allowCreate={false} value={personId} selectedLabel={pickedName} onChange={(id) => { setPersonId(id); setPickedName(undefined); }} />}
+          ? <CustomerSelect filter allowCreate={false} value={personId} selectedLabel={pickedName ?? data?.person.name} onChange={(id) => { setPersonId(id); setPickedName(undefined); }} />
+          : <SupplierSelect filter allowCreate={false} value={personId} selectedLabel={pickedName ?? data?.person.name} onChange={(id) => { setPersonId(id); setPickedName(undefined); }} />}
         <Field label="From"><Input type="date" className={inputCls} value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} /></Field>
         <Field label="To"><Input type="date" className={inputCls} value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} /></Field>
       </ResponsiveFilters>

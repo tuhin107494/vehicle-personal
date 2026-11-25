@@ -95,7 +95,7 @@ export default function UsersPage() {
   return (
     <>
       <PageHeader title="Users" actions={<Button onClick={() => { setEditing(null); setOpen(true); }}><Plus className="size-4" /> New user</Button>} />
-      <DataTable columns={columns} data={data} />
+      <DataTable urlKey="page" columns={columns} data={data} />
       <UserForm open={open} user={editing} onClose={() => setOpen(false)} onSaved={reload} />
     </>
   );

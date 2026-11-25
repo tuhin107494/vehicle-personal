@@ -38,7 +38,7 @@ export function DashboardCharts({ stats }: { stats: Stats }) {
 
   return (
     <>
-        <Bars title="Stock" rows={typeRows} color="#2563eb" total={stats.vehicles.in_stock} href="/vehicles?status=in_stock" />
+        <Bars title="Stock" rows={typeRows} color="#2563eb" total={stats.vehicles.in_stock} href="/vehicles?status=stock" />
     </>
   );
 }

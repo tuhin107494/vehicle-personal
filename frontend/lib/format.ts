@@ -11,6 +11,12 @@ export const label = (v?: string | null) => (v ? v.replace(/_/g, " ") : "-");
 // the shop's own calendar day (the server runs on the same time zone), not UTC: between midnight and 6am in Dhaka UTC is still yesterday
 const dayOf = (d: Date) => d.toLocaleDateString("en-CA");
 export const todayStr = () => dayOf(new Date());
+/** The same day a year ago: the reports open on the last year (from here to today). */
+export const yearAgoStr = () => {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 1);
+  return dayOf(d);
+};
 
 export const addDays = (days: number) => {
   const d = new Date();

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { api, PageMeta } from "@/lib/api";
 import type { VehicleCategory } from "@/lib/categories";
 import type { PermissionT } from "@/lib/types";
+import { setUrlParams, urlParam, useUrlPage } from "@/lib/url-state";
 
 type Meta = PageMeta & { unread_count?: number; total_amount?: number; type_counts?: Record<string, number>; due_count?: number; status_counts?: Record<string, number>; drafts?: import("@/lib/types").DraftT[]; permissions?: PermissionT[]; categories?: VehicleCategory[] };
 
@@ -83,20 +84,29 @@ export function useElementById(id: string): HTMLElement | null {
   return useSyncExternalStore(noSubscribe, () => document.getElementById(id), () => null);
 }
 
-/** Paginated + searchable list. `filters` are extra query params. */
-export function usePagedList<T>(base: string, filters: Record<string, string> = {}) {
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
-  const [debounced, setDebounced] = useState("");
+/**
+ * Paginated + searchable list. `filters` are extra query params. The page and search are kept in the page's address
+ * (?page=5&search=...), so a refresh, an edit, or coming Back from a record shows the same page; `urlKey` names them
+ * apart (urlKey_page) when one page has two lists.
+ */
+export function usePagedList<T>(base: string, filters: Record<string, string> = {}, urlKey = "") {
+  const pageKey = urlKey ? `${urlKey}_page` : "page";
+  const searchKey = urlKey ? `${urlKey}_search` : "search";
+  const [page, setPage] = useUrlPage(pageKey);
+  const [search, setSearch] = useState(() => urlParam(searchKey) ?? "");
+  const [debounced, setDebounced] = useState(search);
   const filterKey = JSON.stringify(filters);
 
+  // a new search starts again from page 1; nothing typed since (a search kept in the address) keeps the page
   useEffect(() => {
+    if (search === debounced) return;
     const t = setTimeout(() => {
       setDebounced(search);
       setPage(1);
     }, 300);
     return () => clearTimeout(t);
-  }, [search]);
+  }, [search, debounced, setPage]);
+  useEffect(() => setUrlParams({ [searchKey]: debounced || null }), [searchKey, debounced]);
 
   // a new filter starts again from page 1
   const [pagedFor, setPagedFor] = useState(filterKey);
@@ -109,6 +119,9 @@ export function usePagedList<T>(base: string, filters: Record<string, string> = 
   for (const [k, v] of Object.entries(filters)) if (v) qs.set(k, v);
 
   const result = useFetch<T[]>(`${base}?${qs}`);
+  // a page that is no longer there (its last row was deleted, or an old address): the last page there is
+  const lastPage = result.meta?.last_page;
+  if (!result.loading && lastPage && page > lastPage) setPage(lastPage);
   // after creating a record: back to page 1 with no search, so the new one is on the screen (newest first)
   const showFirst = () => {
     setSearch("");

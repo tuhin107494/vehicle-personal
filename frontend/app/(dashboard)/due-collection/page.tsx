@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { money } from "@/lib/format";
 import { useDebounced, useFetch } from "@/lib/hooks";
 import { useHiddenMenu } from "@/lib/menu";
+import { useUrlState } from "@/lib/url-state";
 import type { InvestorSale } from "@/lib/types";
 import { Button, ErrorText, inputCls, PageHeader } from "@/components/app-ui";
 import { Col, DataTable } from "@/components/DataTable";
@@ -16,7 +17,7 @@ import { Input } from "@/components/ui/input";
 
 /** What investors still have to give the shop on their investor sales, each with a Collect button. */
 function InvestorDues() {
-  const [q, setQ] = useState("");
+  const [q, setQ] = useUrlState("search", ""); // kept in the address, with the table's page: a refresh or coming back keeps them
   const search = useDebounced(q.trim());
   const { data, loading, error, reload } = useFetch<InvestorSale[]>(`/investor-sales/dues${search ? `?search=${encodeURIComponent(search)}` : ""}`);
   const [collect, setCollect] = useState<InvestorSale | null>(null);
@@ -40,7 +41,7 @@ function InvestorDues() {
         <p className="text-sm text-slate-600">Total due from investors: <b className="text-amber-700">{money(total)}</b></p>
       </div>
       {error && <ErrorText message={error} />}
-      <DataTable columns={cols} data={rows} loading={loading} empty="No investor owes the shop anything." />
+      <DataTable urlKey="page" pageKey={search} columns={cols} data={rows} loading={loading} empty="No investor owes the shop anything." />
       {collect && <ReceiveModal x={collect} owed={collect.investor_owes ?? 0} onClose={() => setCollect(null)} onSaved={reload} />}
     </>
   );

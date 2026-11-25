@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePagedList } from "@/lib/hooks";
+import { useUrlState } from "@/lib/url-state";
 import { useAuth } from "@/lib/auth";
 import { money } from "@/lib/format";
 import type { Investor } from "@/lib/types";
@@ -22,7 +23,8 @@ import { BellRing, Calculator, Eye, HandCoins, Pencil, PiggyBank, Plus, Wallet }
 export default function InvestorsPage() {
   const { can } = useAuth();
   const router = useRouter();
-  const [tab, setTab] = useState<"all" | "due">("all");
+  const [tabParam, setTab] = useUrlState("tab", "all"); // the tab, page and search stay in the address: a refresh or coming back keeps them
+  const tab = tabParam === "due" ? "due" : "all";
   // the Due tab's count comes back with the list, so the page makes one request
   const list = usePagedList<Investor>("/investors", tab === "due" ? { due: "1" } : { with_due_count: "1" });
   const [editing, setEditing] = useState<Investor | null>(null);

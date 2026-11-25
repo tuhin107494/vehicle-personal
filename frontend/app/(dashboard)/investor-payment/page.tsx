@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Wallet } from "lucide-react";
 import { money } from "@/lib/format";
 import { useFetch } from "@/lib/hooks";
+import { useUrlState } from "@/lib/url-state";
 import { useAuth } from "@/lib/auth";
 import { Button, ErrorText, inputCls, PageHeader, Stat } from "@/components/app-ui";
 import { Input } from "@/components/ui/input";
@@ -23,11 +24,12 @@ type Data = { rows: Row[]; totals: { principal_due: number; profit_due: number; 
 /** Pay an investor back vehicle by vehicle: what each financed vehicle owes in principal and profit, and a button to pay it. */
 export default function InvestorPaymentPage() {
   const { can } = useAuth();
-  const [investorId, setInvestorId] = useState("");
+  // the investor, search and the table's page live in the address: a refresh or coming back from a vehicle keeps them
+  const [investorId, setInvestorId] = useUrlState("investor", "");
   const investor = useFetch<Investor>(investorId ? `/investors/${investorId}` : null);
   const { data, loading, error, reload } = useFetch<Data>(investorId ? `/investors/${investorId}/vehicle-payments` : null);
   const [pay, setPay] = useState<Row | null>(null);
-  const [q, setQ] = useState("");
+  const [q, setQ] = useUrlState("search", "");
   const payDefaults = useMemo(() => ({ principal: pay?.principal_due, profit: pay?.profit_due }), [pay]); // a stable object, so typing in the form is not reset
   const due = useMemo(() => (pay ? { monthly: pay.monthly, current: pay.current_due, principalLeft: pay.principal_due, profitLeft: pay.profit_due } : undefined), [pay]);
 
@@ -59,7 +61,7 @@ export default function InvestorPaymentPage() {
         </div>
       )}
       {investorId && <Input className={`${inputCls} mb-3 max-w-xs`} placeholder="Search chassis, vehicle or buyer" value={q} onChange={(e) => setQ(e.target.value)} />}
-      {investorId && <DataTable columns={cols} data={(data?.rows ?? []).filter((r) => `${r.vehicle} ${r.vehicle_name} ${r.buyer}`.toLowerCase().includes(q.trim().toLowerCase()))} loading={loading} empty="This investor has not financed any active sale." />}
+      {investorId && <DataTable urlKey="page" pageKey={`${investorId}|${q.trim().toLowerCase()}`} columns={cols} data={(data?.rows ?? []).filter((r) => `${r.vehicle} ${r.vehicle_name} ${r.buyer}`.toLowerCase().includes(q.trim().toLowerCase()))} loading={loading} empty="This investor has not financed any active sale." />}
       {pay && investor.data && (
         <SettlementForm open mode="pay" name={`${investor.data.name} · ${pay.vehicle}`} investorId={investor.data.id} planId={pay.plan_id} investorSaleId={pay.investor_sale_id} outstanding={pay.principal_due}
           defaults={payDefaults} due={due}
