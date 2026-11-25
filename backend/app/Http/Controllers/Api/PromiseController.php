@@ -31,7 +31,7 @@ class PromiseController extends Controller implements HasMiddleware
             ->when($request->status, fn ($q, $v) => $q->where('status', $v))
             ->when($request->from, fn ($q, $v) => $q->whereDate('promised_date', '>=', $v))
             ->when($request->to, fn ($q, $v) => $q->whereDate('promised_date', '<=', $v))
-            ->orderBy('promised_date')
+            ->orderBy('promised_date')->orderBy('id') // id last: many promises share a date, and pages need one fixed order
             ->paginate($this->perPage($request));
 
         return $this->paginated($promises, DuePromiseResource::class);
