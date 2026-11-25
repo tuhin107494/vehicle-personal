@@ -139,4 +139,4 @@ export type Booking = {
   customer?: { id: number; name: string; phone: string; alt_phone: string | null };
 };
 
-export type WalkIn = { id: number; name: string | null; phone: string; address: string | null; note: string | null; created_at: string; saved_by?: string | null };
+export type WalkIn = { id: number; name: string | null; phone: string; address: string | null; note: string | null; created_at: string; saved_by?: string | null; customer_id?: number | null };

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil, Plus, Trash2, UserPlus } from "lucide-react";
+import Link from "next/link";
+import { Pencil, Plus, Trash2, UserCheck, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -45,7 +46,9 @@ export default function WalkInsPage() {
       id: "actions",
       cell: ({ row }) => (
         <div className="flex items-center justify-end gap-1.5 md:whitespace-nowrap">
-          {can("walkins.edit") && can("parties.create") && <Button variant="outline" size="sm" className="border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100" onClick={() => setConverting(row.original)}><UserPlus className="size-4" /> Make customer</Button>}
+          {row.original.customer_id ? (
+            <Link href={`/customers/${row.original.customer_id}`} className="inline-flex items-center gap-1 rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"><UserCheck className="size-4" /> Already a customer</Link>
+          ) : can("walkins.edit") && can("parties.create") && <Button variant="outline" size="sm" className="border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100" onClick={() => setConverting(row.original)}><UserPlus className="size-4" /> Make customer</Button>}
           {can("walkins.edit") && <Button variant="outline" size="sm" onClick={() => { setEditing(row.original); setOpen(true); }}><Pencil className="size-4 text-emerald-600" /> Edit</Button>}
           {can("walkins.delete") && <Button variant="outline" size="sm" className="border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800" onClick={() => remove(row.original)}><Trash2 className="size-4" /> Delete</Button>}
         </div>

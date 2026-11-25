@@ -118,6 +118,19 @@ class WalkInTest extends TestCase
         $this->assertDatabaseCount('customers', 1);
     }
 
+    public function test_a_walk_in_who_already_is_a_customer_is_marked_with_them(): void
+    {
+        $owner = $this->makeShop('A');
+        $this->as($owner);
+        $this->postJson('/api/walk-ins', ['phone' => '01712345678'])->assertCreated();
+        $this->postJson('/api/walk-ins', ['phone' => '01800000000'])->assertCreated();
+        $customer = $this->postJson('/api/customers', ['name' => 'Rahim', 'phone' => '01712345678'])->assertCreated()->json('data.id');
+
+        $rows = collect($this->getJson('/api/walk-ins')->assertOk()->json('data'))->pluck('customer_id', 'phone');
+        $this->assertSame($customer, $rows['01712345678']);
+        $this->assertNull($rows['01800000000']);
+    }
+
     public function test_converting_needs_a_name_and_keeps_the_walk_in_when_the_customer_is_refused(): void
     {
         $this->as($this->makeShop('A'));

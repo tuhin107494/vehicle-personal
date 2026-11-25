@@ -7,6 +7,7 @@ use App\Http\Requests\CustomerRequest;
 use App\Http\Requests\WalkInRequest;
 use App\Http\Resources\CustomerResource;
 use App\Http\Resources\WalkInResource;
+use App\Models\Customer;
 use App\Models\WalkIn;
 use App\Services\WalkInService;
 use Illuminate\Http\JsonResponse;
@@ -36,6 +37,10 @@ class WalkInController extends Controller implements HasMiddleware
                 ->where('name', 'like', "%$s%")->orWhere('phone', 'like', "%$s%")->orWhere('address', 'like', "%$s%")->orWhere('note', 'like', "%$s%")))
             ->latest('id')
             ->paginate($this->perPage($request));
+
+        // one who became a customer another way (a sale, the customers page) is marked with that customer, in one query
+        $customers = Customer::whereIn('phone', $walkIns->getCollection()->pluck('phone')->unique())->pluck('id', 'phone');
+        $walkIns->getCollection()->each(fn (WalkIn $w) => $w->setAttribute('customer_id', $customers[$w->phone] ?? null));
 
         return $this->paginated($walkIns, WalkInResource::class);
     }
