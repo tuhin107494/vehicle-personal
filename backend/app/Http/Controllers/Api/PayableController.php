@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreAdvanceRequest;
 use App\Http\Requests\StorePurchasePaymentRequest;
+use App\Http\Resources\AdvanceResource;
+use App\Http\Resources\PurchasePaymentResource;
 use App\Models\Advance;
 use App\Models\Purchase;
 use App\Services\PayableService;
@@ -49,25 +51,25 @@ class PayableController extends Controller implements HasMiddleware
         $payment = $this->payables->pay($purchase, $request->validated(), $request->user());
 
         return $this->success([
-            'payment' => $payment,
+            'payment' => PurchasePaymentResource::make($payment),
             'balance' => $this->payables->balance($purchase->fresh()),
         ], 'Payment recorded', 201);
     }
 
     public function purchasePayments(Purchase $purchase): JsonResponse
     {
-        return $this->success($purchase->payments()->orderBy('paid_at')->orderBy('id')->get());
+        return $this->success(PurchasePaymentResource::collection($purchase->payments()->orderBy('paid_at')->orderBy('id')->get()));
     }
 
     public function advances(): JsonResponse
     {
-        return $this->success(Advance::with('supplier:id,name,phone')->orderByDesc('paid_at')->orderByDesc('id')->limit(200)->get());
+        return $this->success(AdvanceResource::collection(Advance::with('supplier:id,name,phone')->orderByDesc('paid_at')->orderByDesc('id')->limit(200)->get()));
     }
 
     public function storeAdvance(StoreAdvanceRequest $request): JsonResponse
     {
         $advance = $this->payables->addAdvance($request->validated(), $request->user());
 
-        return $this->success($advance->load('supplier:id,name,phone'), 'Advance recorded', 201);
+        return $this->success(AdvanceResource::make($advance->load('supplier:id,name,phone')), 'Advance recorded', 201);
     }
 }

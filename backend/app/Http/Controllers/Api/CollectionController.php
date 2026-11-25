@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\CallRequest;
 use App\Models\CallLog;
 use App\Models\DuePromise;
 use App\Models\Installment;
@@ -150,11 +151,10 @@ class CollectionController extends Controller implements HasMiddleware
     }
 
     /** Mark a row "call done": it stays in the lists, marked as called, until the recall days pass. */
-    public function markCalled(Request $request): JsonResponse
+    public function markCalled(CallRequest $request): JsonResponse
     {
         $data = $this->target($request);
-
-        $extra = $request->validate(['meet_date' => ['nullable', 'date', 'after_or_equal:today', 'before_or_equal:'.today()->addDays(360)->toDateString()], 'note' => ['nullable', 'string', 'max:500']]);
+        $extra = $request->safe()->only(['meet_date', 'note']);
 
         CallLog::create($data + $extra + ['called_by' => $request->user()->id, 'called_at' => now()]);
 
@@ -162,7 +162,7 @@ class CollectionController extends Controller implements HasMiddleware
     }
 
     /** Undo the latest "call done" mark so the row is due for a call again; earlier calls stay in the history. */
-    public function unmarkCalled(Request $request): JsonResponse
+    public function unmarkCalled(CallRequest $request): JsonResponse
     {
         CallLog::where($this->target($request))->latest('called_at')->latest('id')->first()?->delete();
 
@@ -170,7 +170,7 @@ class CollectionController extends Controller implements HasMiddleware
     }
 
     /** Every call made about the sale behind a row (all its installments and dues), newest first. */
-    public function callHistory(Request $request): JsonResponse
+    public function callHistory(CallRequest $request): JsonResponse
     {
         $target = $this->target($request);
 
@@ -199,9 +199,9 @@ class CollectionController extends Controller implements HasMiddleware
     }
 
     /** @return array{kind:string,ref_id:int} */
-    private function target(Request $request): array
+    private function target(CallRequest $request): array
     {
-        $data = $request->validate(['type' => ['required', 'in:'.implode(',', self::KINDS)], 'id' => ['required', 'integer']]);
+        $data = $request->validated();
         // only a customer's installment can be called about (an investor's installment is the shop paying the investor)
         $exists = $data['type'] === 'installment' ? Installment::customer()->whereKey($data['id'])->exists() : DuePromise::whereKey($data['id'])->exists();
         abort_unless($exists, 404, 'Not found.');

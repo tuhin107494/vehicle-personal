@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\SaleChargeRequest;
 use App\Models\Sale;
 use App\Models\SaleCharge;
 use App\Services\SaleChargeService;
@@ -21,9 +22,9 @@ class SaleChargeController extends Controller implements HasMiddleware
 
     public function __construct(private SaleChargeService $charges) {}
 
-    public function store(Request $request, Sale $sale): JsonResponse
+    public function store(SaleChargeRequest $request, Sale $sale): JsonResponse
     {
-        $charge = $this->charges->add($sale, $this->validated($request), $request->user());
+        $charge = $this->charges->add($sale, $request->validated(), $request->user());
 
         return $this->success($this->charges->values($charge) + ['id' => $charge->id], 'Charge added', 201);
     }
@@ -33,9 +34,9 @@ class SaleChargeController extends Controller implements HasMiddleware
         return $this->success(['values' => $this->charges->values($charge), 'edits' => $this->charges->history($charge)]);
     }
 
-    public function update(Request $request, SaleCharge $charge): JsonResponse
+    public function update(SaleChargeRequest $request, SaleCharge $charge): JsonResponse
     {
-        $charge = $this->charges->update($charge, $this->validated($request), $request->user());
+        $charge = $this->charges->update($charge, $request->validated(), $request->user());
 
         return $this->success(['values' => $this->charges->values($charge->fresh()), 'edits' => $this->charges->history($charge)], 'Charge updated');
     }
@@ -45,20 +46,5 @@ class SaleChargeController extends Controller implements HasMiddleware
         $this->charges->delete($charge, $request->user());
 
         return $this->success(null, 'Charge deleted');
-    }
-
-    private function validated(Request $request): array
-    {
-        return $request->validate([
-            'purpose' => ['required', 'string', 'max:100'],
-            'amount' => ['required', 'numeric', 'min:1'],
-            'charged_on' => ['required', 'date', 'before_or_equal:today'],
-            'note' => ['nullable', 'string', 'max:1000'],
-        ], [
-            'purpose.required' => 'Enter what the charge is for.',
-            'amount.required' => 'Enter the amount.',
-            'amount.min' => 'Amount must be greater than zero.',
-            'charged_on.before_or_equal' => 'Date cannot be in the future.',
-        ]);
     }
 }

@@ -214,5 +214,10 @@ class SignupTest extends TestCase
         PlatformSettings::save(['signup' => ['enabled' => false]]);
         $this->postJson('/api/signup', ['email' => 'other@example.com'] + $this->form)->assertForbidden();
         $this->getJson('/api/auth/config')->assertJsonPath('data.signup_enabled', false);
+
+        // closed is said first, before the form is checked: an empty or half form gets the same answer
+        foreach (['/api/signup', '/api/signup/google'] as $url) {
+            $this->postJson($url, [])->assertForbidden()->assertJsonPath('message', 'Sign-up is closed. Contact support to open an account.');
+        }
     }
 }

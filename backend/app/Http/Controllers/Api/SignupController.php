@@ -3,6 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\EmailRequest;
+use App\Http\Requests\GoogleSignupRequest;
+use App\Http\Requests\SignupConfirmRequest;
+use App\Http\Requests\SignupRequest;
 use App\Models\Shop;
 use App\Models\User;
 use App\Notifications\ConfirmSignupEmail;
@@ -11,8 +15,11 @@ use App\Services\ShopService;
 use App\Support\GoogleOAuth;
 use App\Support\PlatformSettings;
 use App\Support\SignupConfirmation;
+use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -23,35 +30,25 @@ use Illuminate\Validation\ValidationException;
  * - email and password: the shop waits until the owner opens the link emailed to them, which opens it and signs them in;
  * - Google: Google has proven the email, so the shop opens at once and the owner is signed in.
  */
-class SignupController extends Controller
+class SignupController extends Controller implements HasMiddleware
 {
-    private const SHOP_RULES = [
-        'shop_name' => ['required', 'string', 'max:255'],
-        'phone' => ['required', 'string', 'max:30'],
-    ];
-
-    private const MESSAGES = [
-        'name.required' => 'Your name is required.',
-        'shop_name.required' => 'Shop name is required.',
-        'phone.required' => 'Phone is required.',
-        'email.required' => 'Email is required.',
-        'email.email' => 'Enter a valid email address.',
-        'password.required' => 'Password is required.',
-        'password.min' => 'Password must be at least 8 characters.',
-        'password.confirmed' => 'The two passwords do not match.',
-    ];
-
     public function __construct(private ShopService $shops, private SubscriptionService $subscriptions) {}
 
-    public function store(Request $request): JsonResponse
+    /** A closed sign-up says so before the form is checked: its fields do not matter while nobody can sign up. */
+    public static function middleware(): array
     {
-        $this->ensureOpen();
+        return [
+            new Middleware(function (Request $request, Closure $next) {
+                self::ensureOpen();
 
-        $data = $request->validate(self::SHOP_RULES + [
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
-        ], self::MESSAGES);
+                return $next($request);
+            }, only: ['store', 'google']),
+        ];
+    }
+
+    public function store(SignupRequest $request): JsonResponse
+    {
+        $data = $request->validated();
 
         if ($existing = User::with('shop')->where('email', $data['email'])->first()) {
             throw ValidationException::withMessages(['email' => [SignupConfirmation::awaiting($existing)
@@ -70,9 +67,9 @@ class SignupController extends Controller
     }
 
     /** The link from the confirmation email: proves the email, opens the shop and signs the owner in. */
-    public function confirm(Request $request): JsonResponse
+    public function confirm(SignupConfirmRequest $request): JsonResponse
     {
-        $data = $request->validate(['id' => ['required', 'integer'], 'expires' => ['required', 'integer'], 'token' => ['required', 'string']]);
+        $data = $request->validated();
 
         $user = SignupConfirmation::user((int) $data['id'], (int) $data['expires'], $data['token']);
 
@@ -92,9 +89,9 @@ class SignupController extends Controller
     }
 
     /** Sends the confirmation link again. The answer is the same for every email, so it cannot be used to find accounts. */
-    public function resend(Request $request): JsonResponse
+    public function resend(EmailRequest $request): JsonResponse
     {
-        $data = $request->validate(['email' => ['required', 'email']], ['email.required' => 'Email is required.', 'email.email' => 'Enter a valid email address.']);
+        $data = $request->validated();
 
         $user = User::with('shop')->where('email', $data['email'])->first();
 
@@ -106,11 +103,9 @@ class SignupController extends Controller
     }
 
     /** Sign-up with Google in place of a password: the name and email come from the Google account. */
-    public function google(Request $request): JsonResponse
+    public function google(GoogleSignupRequest $request): JsonResponse
     {
-        $this->ensureOpen();
-
-        $data = $request->validate(self::SHOP_RULES + ['code' => ['required', 'string']], self::MESSAGES);
+        $data = $request->validated();
         $person = GoogleOAuth::person($data['code']);
 
         $existing = User::with('shop')->where('email', $person['email'])->first();
@@ -151,7 +146,7 @@ class SignupController extends Controller
         });
     }
 
-    private function ensureOpen(): void
+    private static function ensureOpen(): void
     {
         if (! PlatformSettings::get('signup.enabled')) {
             abort(403, 'Sign-up is closed. Contact support to open an account.');

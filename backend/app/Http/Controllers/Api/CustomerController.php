@@ -6,6 +6,7 @@ use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CustomerImportRequest;
 use App\Http\Requests\CustomerRequest;
+use App\Http\Requests\MergeCustomersRequest;
 use App\Http\Resources\CustomerResource;
 use App\Http\Resources\PurchaseResource;
 use App\Http\Resources\SaleResource;
@@ -88,14 +89,9 @@ class CustomerController extends Controller implements HasMiddleware
     }
 
     /** Moves the duplicates' sales and payments to this customer and deletes the duplicates. */
-    public function merge(Request $request, Customer $customer, CustomerMergeService $merger): JsonResponse
+    public function merge(MergeCustomersRequest $request, Customer $customer, CustomerMergeService $merger): JsonResponse
     {
-        $data = $request->validate(
-            ['duplicate_ids' => ['required', 'array', 'min:1', 'max:20'], 'duplicate_ids.*' => ['integer', 'distinct']],
-            ['duplicate_ids.required' => 'Choose at least one duplicate customer to merge.'],
-        );
-
-        return $this->success(CustomerResource::make($merger->merge($customer, $data['duplicate_ids'])), 'Customers merged');
+        return $this->success(CustomerResource::make($merger->merge($customer, $request->validated('duplicate_ids'))), 'Customers merged');
     }
 
     public function history(Customer $customer): JsonResponse

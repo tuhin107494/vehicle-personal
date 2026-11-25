@@ -8,6 +8,7 @@ use App\Http\Resources\BookingResource;
 use App\Http\Resources\InvestorSaleResource;
 use App\Http\Resources\PurchaseResource;
 use App\Http\Resources\SaleResource;
+use App\Http\Resources\VehicleDeletionResource;
 use App\Http\Resources\VehicleResource;
 use App\Models\Booking;
 use App\Models\Draft;
@@ -108,7 +109,7 @@ class VehicleController extends Controller implements HasMiddleware
     /** The vehicles deleted with everything on them, newest first: who, when, and what was removed. */
     public function deletions(): JsonResponse
     {
-        return $this->success(VehicleDeletion::with('user:id,name')->latest('id')->limit(500)->get());
+        return $this->success(VehicleDeletionResource::collection(VehicleDeletion::with('user:id,name')->latest('id')->limit(500)->get()));
     }
 
     /** Find a vehicle by chassis number or by registration number (used to repurchase a vehicle we already know). */

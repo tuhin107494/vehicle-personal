@@ -3,7 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\EmailRequest;
+use App\Http\Requests\GoogleCodeRequest;
+use App\Http\Requests\LoginRequest;
 use App\Http\Requests\ProfileRequest;
+use App\Http\Requests\ResetPasswordRequest;
+use App\Http\Resources\VehicleCategoryResource;
 use App\Models\User;
 use App\Models\VehicleCategory;
 use App\Models\VehicleColor;
@@ -22,15 +27,9 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    public function login(Request $request): JsonResponse
+    public function login(LoginRequest $request): JsonResponse
     {
-        $credentials = $request->validate([
-            'email' => ['required', 'email'],
-            'password' => ['required', 'string'],
-        ], [
-            'email.required' => 'Email is required.',
-            'password.required' => 'Password is required.',
-        ]);
+        $credentials = $request->validated();
 
         $user = User::with('shop')->where('email', $credentials['email'])->first();
 
@@ -56,11 +55,9 @@ class AuthController extends Controller
     }
 
     /** Signs in with Google. Only existing accounts can sign in this way; new shops use the sign-up page. */
-    public function google(Request $request): JsonResponse
+    public function google(GoogleCodeRequest $request): JsonResponse
     {
-        $request->validate(['code' => ['required', 'string']]);
-
-        $person = GoogleOAuth::person($request->input('code'));
+        $person = GoogleOAuth::person($request->validated('code'));
         $user = User::with('shop')->where('email', $person['email'])->first();
 
         if (! $user) {
@@ -94,25 +91,16 @@ class AuthController extends Controller
     }
 
     /** Emails a reset link. The answer is the same whether or not the address has an account, so it cannot be used to find accounts. */
-    public function forgotPassword(Request $request): JsonResponse
+    public function forgotPassword(EmailRequest $request): JsonResponse
     {
-        $request->validate(['email' => ['required', 'email']], ['email.required' => 'Email is required.', 'email.email' => 'Enter a valid email address.']);
-
-        Password::sendResetLink($request->only('email'));
+        Password::sendResetLink($request->validated());
 
         return $this->success(null, 'If that email has an account, a reset link is on its way.');
     }
 
-    public function resetPassword(Request $request): JsonResponse
+    public function resetPassword(ResetPasswordRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            'token' => ['required', 'string'],
-            'email' => ['required', 'email'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
-        ], [
-            'password.min' => 'Password must be at least 8 characters.',
-            'password.confirmed' => 'The two passwords do not match.',
-        ]);
+        $data = $request->validated();
 
         $status = Password::reset($data, function (User $user, string $password) {
             DB::transaction(function () use ($user, $password) {
@@ -142,7 +130,7 @@ class AuthController extends Controller
 
         // The lists almost every page asks for next ride along, so a page does not make a request for each: the same data as
         // /vehicle-categories, /settings and /vehicle-colors, only what this user may read (the page stores them as those responses).
-        $preload = ['/vehicle-categories' => VehicleCategory::orderBy('name')->get()];
+        $preload = ['/vehicle-categories' => VehicleCategoryResource::collection(VehicleCategory::orderBy('name')->get())->resolve()];
 
         if ($user->shop_id) {
             $preload['/settings'] = ShopSettings::all();

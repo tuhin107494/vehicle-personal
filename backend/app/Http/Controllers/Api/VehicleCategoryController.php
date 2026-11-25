@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\VehicleCategoryRequest;
+use App\Http\Resources\VehicleCategoryResource;
 use App\Models\ShopSetting;
 use App\Models\Vehicle;
 use App\Models\VehicleCategory;
@@ -20,7 +21,7 @@ class VehicleCategoryController extends Controller
 {
     public function index(): JsonResponse
     {
-        return $this->success(VehicleCategory::orderBy('name')->get());
+        return $this->success(VehicleCategoryResource::collection(VehicleCategory::orderBy('name')->get()));
     }
 
     public function store(VehicleCategoryRequest $request): JsonResponse
@@ -51,7 +52,7 @@ class VehicleCategoryController extends Controller
             return $category;
         });
 
-        return $this->success($category->toArray() + ['purchase_price' => $user->shop_id && $price ? $price + 0 : null], 'Category created', 201);
+        return $this->success(VehicleCategoryResource::make($category)->resolve() + ['purchase_price' => $user->shop_id && $price ? $price + 0 : null], 'Category created', 201);
     }
 
     public function update(VehicleCategoryRequest $request, VehicleCategory $category): JsonResponse
@@ -60,7 +61,7 @@ class VehicleCategoryController extends Controller
 
         $category->update($request->safe()->only(['name', 'default_brand', 'default_model', 'default_color', 'default_cc']));
 
-        return $this->success($category, 'Category updated');
+        return $this->success(VehicleCategoryResource::make($category), 'Category updated');
     }
 
     public function destroy(VehicleCategory $category): JsonResponse
