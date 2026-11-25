@@ -39,8 +39,24 @@ Every response goes through `ApiResponse` and `bootstrap/app.php`:
 - Filters and sort fields MUST be validated, and sort columns MUST come from an allowlist.
 
 ## Request and response validation
-- Requests: a FormRequest per write endpoint (see [security.md](security.md)).
-- Responses: a Resource per model. Fields are snake_case and money is a number with 2 decimals. Dates are `Y-m-d`; datetimes are ISO 8601.
+### Requests
+- Every endpoint that takes input to change data (`POST`, `PUT`, `PATCH`, or a `DELETE` with a body or query) MUST type-hint a FormRequest (`app/Http/Requests/*Request.php`, extends `ApiRequest`). This includes auth, sign-up and action endpoints (`/login`, `/signup`, `/collections/call`, `/customers/{customer}/merge`).
+- MUST NOT call `$request->validate(...)` or `Validator::make(...)` in a controller for these endpoints, and MUST NOT hide one in a private helper (`private function validated(Request $request)`).
+- Read the input only through `$request->validated()` or `$request->safe()->only([...])`, never `$request->all()` or `$request->input()` for data that is saved (see [security.md](security.md)).
+- Two endpoints with the same input share one Request (`EmailRequest` for forgot password and resend link; `CallRequest` for call mark, unmark and history). Shared rule pieces live as `public const` on one Request (`SignupRequest::SHOP_RULES`), not copied.
+- Custom messages go in the Request's `messages()`, not in the controller.
+- Not needed: an endpoint with no input (a `DELETE` of a route model, `/logout`). `GET` list filters MAY validate inline, but they MUST be validated (see Pagination above).
+- A FormRequest validates before the controller method runs. A check that must answer first, whatever the input (sign-up closed), goes in middleware (`HasMiddleware` on the controller), not at the top of the method.
+- Checks that need the database or a business rule (the record exists, the plan is this investor's) go in the Request as a rule (`shopExists()->where(...)`) or in the Service as `BusinessRuleException` / `ValidationException::withMessages` — not as extra `validate()` calls in the controller.
+
+### Responses
+- Every model, or collection of models, in a response MUST go through a Resource (`app/Http/Resources/<Model>Resource.php`): `Resource::make($m)`, `Resource::collection($list)`, or `$this->paginated($paginator, Resource::class)`. This includes a model nested in another payload (`['payment' => PurchasePaymentResource::make($p)]`) and data preloaded with another response (the categories sent with `/me`).
+- MUST NOT pass a model, a query result (`->get()`, `->first()`) or `$model->toArray()` to `$this->success()`. To add a field next to a Resource, use `Resource::make($m)->resolve() + [...]`.
+- A Resource lists its fields explicitly (no `parent::toArray()` in new Resources), so a new column is never exposed by accident. Relations use `whenLoaded()` and return only the fields the page needs (`->only(['id', 'name'])`).
+- Fields are snake_case and money is a number with 2 decimals. Dates are `Y-m-d` (`->toDateString()`). Datetimes are ISO 8601 in UTC: return the value itself (`'created_at' => $this->created_at`) so it is written like every other response (`2026-03-10T04:00:00.000000Z`).
+- Moving a response to a Resource MUST keep every field and format a caller reads (check `frontend/` and the mobile app). Only fields nobody reads (`shop_id`, `created_by`, `updated_at`) may be dropped.
+- Not needed: computed data that is not a model (reports, summaries, totals, `['photo_url' => ...]`). Build it as a plain array with the same field rules.
+- A new or changed Resource MUST update its type in `frontend/lib/types.ts` in the same PR (see Contract below).
 
 ## Contract
 - There is no OpenAPI spec (decision pending). The contract is the Resource class plus the matching type in `frontend/lib/types.ts`. A change to one MUST update the other in the same PR.

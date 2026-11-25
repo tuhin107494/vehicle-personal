@@ -22,6 +22,7 @@
   - [ ] `/verify` output pasted: no new failures, tests and build pass
   - [ ] Tests added: happy path, 422, 409, 403, cross-shop ([testing.md](testing.md))
   - [ ] All layers updated: migration, model, request, service, resource, route, permission, `lib/types.ts`, page, `lib/bn.ts`
+  - [ ] Every new or changed write endpoint uses a FormRequest, and every model in a response goes through a Resource (no `$request->validate()` in controllers, no raw model or `->toArray()`) ([api-design.md](api-design.md))
   - [ ] `/secure-check` passed (for routes, requests, models, services, auth, uploads, rendering)
   - [ ] Migration is safe to run automatically on deploy, and has a recovery note if it changes data
   - [ ] No new package, or the package was approved and the `composer audit` / `npm audit` result is pasted
